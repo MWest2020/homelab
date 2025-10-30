@@ -61,4 +61,4 @@ ip -4 a show eno1 | grep inet
 ping -c2 1.1.1.1 && ping -c2 ubuntu.com
 ```
 
-**Next:** see **README 02 — SSH keys & backup**.
+
