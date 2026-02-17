@@ -1,0 +1,47 @@
+---
+description: Core conventions for the Homelab infrastructure repository
+alwaysApply: true
+---
+
+# Homelab Project Conventions
+
+## Documentation
+
+- All documentation lives in `/docs/` as separate markdown files per topic
+- Use clear chapter-based structure (e.g., `01-hardware.md`, `02-network.md`)
+- Keep docs updated when making infrastructure changes
+- Include decision rationale ("why") not just "what"
+
+## Repository Structure
+
+```
+docs/           # Documentation chapters
+ansible/        # Ansible playbooks and roles
+  inventory/    # Host definitions
+  playbooks/    # Setup and maintenance playbooks
+  roles/        # Reusable Ansible roles
+kubernetes/     # K8s manifests
+  apps/         # Application deployments
+  infrastructure/  # Cluster infrastructure (ingress, storage, monitoring)
+scripts/        # Utility shell scripts
+```
+
+## Ansible Conventions
+
+- Use YAML files with `.yml` extension
+- Group variables in `group_vars/` and host-specific in `host_vars/`
+- Document each playbook's purpose in a comment at the top
+- Use roles for reusable configurations
+
+## Kubernetes
+
+- **Kubernetes the Hard Way** - geen K3s, MicroK8s, of managed solutions
+- Alle componenten handmatig geïnstalleerd voor maximaal begrip
+- Documenteer elk component en waarom het nodig is
+- Plain YAML manifests, geen Helm tenzij expliciet gevraagd
+- Namespace per application/concern
+
+## Language
+
+- Documentation and comments may be in Dutch or English
+- Code and configuration in English

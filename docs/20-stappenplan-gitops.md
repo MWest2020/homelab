@@ -1,0 +1,222 @@
+# Stappenplan: Van Kubernetes naar GitOps
+
+Dit document beschrijft het pad van een werkend Kubernetes cluster naar een volledig GitOps-beheerde omgeving.
+
+## Uitgangspunt
+
+| Component | Status |
+|-----------|--------|
+| Kubernetes v1.29.2 | ✅ Draait (the Hard Way, systemd) |
+| containerd | ✅ Runtime |
+| Cilium 1.19.0 | ✅ CNI, kubeProxyReplacement=true |
+| Gateway API | ❌ CRDs nog niet geïnstalleerd |
+| MetalLB | ❌ Nog niet geïnstalleerd |
+| cert-manager | ❌ Nog niet geïnstalleerd |
+| Argo CD | ❌ Nog niet geïnstalleerd |
+
+## Doel
+
+```
+Internet
+    │
+    ▼
+[Ziggo Router] ─── port forward 443 ───►  [MetalLB VIP]
+                                               │
+                                               ▼
+                                    [Cilium Gateway + TLS]
+                                         (Envoy proxy)
+                                               │
+                    ┌──────────────────────────┼──────────────────────────┐
+                    │                          │                          │
+                    ▼                          ▼                          ▼
+           argocd.westerweel.work    app.westerweel.work    hubble.westerweel.work
+                    │
+                    ▼
+              [Argo CD]
+                    │
+                    ▼
+         Git repo (declaratief)
+```
+
+---
+
+## Stappen
+
+### Stap 1: Gateway API CRDs
+
+**Doel:** Gateway API Custom Resource Definitions installeren.
+
+**Waarom:**
+- Gateway API is de Kubernetes-standaard opvolger van Ingress
+- CRDs moeten bestaan VOORDAT Cilium Gateway controller werkt
+- Cilium installeert ze niet automatisch (bewuste keuze)
+- Versie moet compatible zijn met Cilium 1.19.0
+
+**Verificatie:**
+```bash
+kubectl get crd gateways.gateway.networking.k8s.io
+kubectl get crd httproutes.gateway.networking.k8s.io
+kubectl get crd gatewayclasses.gateway.networking.k8s.io
+```
+
+**Documentatie na voltooiing:** `docs/21-gateway-api-crds.md`
+
+---
+
+### Stap 2: Cilium Gateway API enablen
+
+**Doel:** Cilium's Gateway controller activeren.
+
+**Waarom:**
+- Cilium kan Gateway resources afhandelen met ingebouwde Envoy
+- Geen aparte ingress controller nodig
+- Native eBPF integratie
+- Je hebt Cilium al, dus minimale extra complexity
+
+**Risico's:**
+- Helm upgrade kan Cilium pods herstarten (korte interruption)
+- Verkeerde values = broken networking
+
+**Verificatie:**
+```bash
+kubectl get gatewayclass
+# Moet "cilium" tonen met status "Accepted: True"
+```
+
+**Documentatie na voltooiing:** `docs/22-cilium-gateway.md`
+
+---
+
+### Stap 3: MetalLB
+
+**Doel:** LoadBalancer IP's kunnen uitdelen op bare-metal.
+
+**Waarom:**
+- Zonder MetalLB: LoadBalancer Services blijven "Pending"
+- Gateway maakt een LoadBalancer Service
+- Je wilt een vast LAN IP voor de Gateway
+- Dat IP kun je port-forwarden op je Ziggo router
+
+**Risico's:**
+- IP conflict met DHCP range
+- ARP issues in L2 mode
+
+**Verificatie:**
+```bash
+kubectl get svc -A -o wide | grep LoadBalancer
+# EXTERNAL-IP moet een IP tonen, niet "<pending>"
+```
+
+**Documentatie na voltooiing:** `docs/23-metallb.md`
+
+---
+
+### Stap 4: cert-manager + DNS-01 wildcard
+
+**Doel:** Automatische TLS certificaten van Let's Encrypt.
+
+**Waarom:**
+- HTTPS is vereist (browsers, security)
+- DNS-01 challenge: geen poort 80 nodig, wildcard mogelijk
+- `*.westerweel.work` dekt alle subdomeinen
+- Automatische renewal
+
+**Risico's:**
+- DNS API credentials in cluster
+- Let's Encrypt rate limits (staging eerst!)
+
+**Verificatie:**
+```bash
+kubectl get certificate -A
+# Status moet "Ready: True" zijn
+```
+
+**Documentatie na voltooiing:** `docs/24-cert-manager.md`
+
+---
+
+### Stap 5: Gateway + TLS termination
+
+**Doel:** HTTPS Gateway die al het verkeer ontvangt.
+
+**Waarom:**
+- Centrale ingress voor alle services
+- TLS termination (backends praten HTTP)
+- HTTPRoutes routeren naar juiste service
+
+**Verificatie:**
+```bash
+curl -v https://test.westerweel.work
+# Moet valid TLS cert tonen
+```
+
+**Documentatie na voltooiing:** `docs/25-gateway-tls.md`
+
+---
+
+### Stap 6: Argo CD bootstrap
+
+**Doel:** Argo CD installeren en via Gateway bereikbaar maken.
+
+**Waarom:**
+- Argo CD wordt de GitOps controller
+- Alle deployments via Git
+- UI voor visibility
+
+**Verificatie:**
+```bash
+# Browser: https://argocd.westerweel.work
+# Moet login page tonen
+```
+
+**Documentatie na voltooiing:** `docs/26-argocd-bootstrap.md`
+
+---
+
+### Stap 7: GitOps root app
+
+**Doel:** App-of-apps pattern, alles onder Git beheer.
+
+**Waarom:**
+- Eén root Application beheert alle andere
+- Reproduceerbaar cluster
+- Self-healing (drift correctie)
+
+**Verificatie:**
+```bash
+# Argo CD UI: alle apps "Synced" en "Healthy"
+```
+
+**Documentatie na voltooiing:** `docs/27-gitops-root-app.md`
+
+---
+
+## Voortgang
+
+| Stap | Status | Datum |
+|------|--------|-------|
+| 1. Gateway API CRDs | ✅ | 2026-02-17 |
+| 2. Cilium Gateway | ⏳ | - |
+| 3. MetalLB | ⏳ | - |
+| 4. cert-manager | ⏳ | - |
+| 5. Gateway TLS | ⏳ | - |
+| 6. Argo CD | ⏳ | - |
+| 7. GitOps root | ⏳ | - |
+
+---
+
+## Netwerk Conventies
+
+In deze repo gebruiken we:
+
+| Netwerk | Range | Voorbeeld |
+|---------|-------|-----------|
+| LAN | 192.168.xxx.0/24 | 192.168.xxx.201 (control plane) |
+| Pod CIDR | 10.200.0.0/16 | 10.200.1.x (pods op node-01) |
+| Service CIDR | 10.32.0.0/24 | 10.32.0.10 (cluster DNS) |
+
+> **Note**: `xxx` = jouw subnet (niet in Git). Echte IP's staan in lokale `values.yaml` bestanden.
+
+## Beslissingen
+
+- **DNS Provider**: Cloudflare (voor cert-manager DNS-01)

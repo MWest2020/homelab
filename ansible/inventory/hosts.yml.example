@@ -1,0 +1,36 @@
+---
+# Ansible Inventory - EXAMPLE
+# Copy to hosts.yml and fill in your values:
+#   cp hosts.yml.example hosts.yml
+
+all:
+  children:
+    k8s_cluster:
+      children:
+        control_plane:
+          hosts:
+            cp-01:
+              ansible_host: <CONTROL_PLANE_IP>  # e.g., 192.168.x.201
+        workers:
+          hosts:
+            node-01:
+              ansible_host: <WORKER_01_IP>      # e.g., 192.168.x.202
+            node-02:
+              ansible_host: <WORKER_02_IP>      # e.g., 192.168.x.203
+
+  vars:
+    # SSH settings
+    ansible_user: <SSH_USER>                    # e.g., admin
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+    
+    # Python interpreter
+    ansible_python_interpreter: /usr/bin/python3
+    
+    # Become settings
+    ansible_become: true
+    ansible_become_method: sudo
+    
+    # Kubernetes settings
+    k8s_version: "1.29.2"
+    k8s_api_server: <CONTROL_PLANE_IP>
+    k8s_api_port: 6443

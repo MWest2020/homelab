@@ -1,0 +1,50 @@
+# Ansible
+*.retry
+ansible/inventory/host_vars/*/vault.yml
+ansible/inventory/hosts.yml
+
+# Secrets - NEVER commit these
+*.pem
+*.key
+**/secrets/
+.env
+.env.local
+
+# Keep example files
+!.env.example
+!*.example
+
+# Editor
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python (for Ansible)
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Helm values (contain IPs and secrets)
+**/values.yaml
+!**/values.yaml.example
+
+# Temporary
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Local notes with IPs
+hosts
+notes.txt
+*.local.md

@@ -1,0 +1,185 @@
+---
+# Prepare nodes for Kubernetes installation
+# Run: ansible-playbook playbooks/prepare-nodes.yml
+
+- name: Prepare nodes for Kubernetes
+  hosts: k8s_cluster
+  become: true
+
+  vars:
+    packages_essential:
+      - curl
+      - wget
+      - git
+      - htop
+      - net-tools
+      - vim
+      - unzip
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+
+  tasks:
+    # ============================================
+    # SYSTEM UPDATES
+    # ============================================
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+
+    # ============================================
+    # INTEL MICROCODE (Security patches)
+    # ============================================
+    - name: Install Intel microcode
+      ansible.builtin.apt:
+        name: intel-microcode
+        state: present
+
+    # ============================================
+    # ESSENTIAL PACKAGES
+    # ============================================
+    - name: Install essential packages
+      ansible.builtin.apt:
+        name: "{{ packages_essential }}"
+        state: present
+
+    # ============================================
+    # SSH HARDENING
+    # ============================================
+    - name: Disable root login via SSH
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        validate: 'sshd -t -f %s'
+      notify: Restart SSH
+
+    - name: Disable password authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        validate: 'sshd -t -f %s'
+      notify: Restart SSH
+
+    - name: Enable pubkey authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PubkeyAuthentication'
+        line: 'PubkeyAuthentication yes'
+        validate: 'sshd -t -f %s'
+      notify: Restart SSH
+
+    # ============================================
+    # FIREWALL (UFW)
+    # ============================================
+    - name: Install UFW
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow SSH through firewall
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    - name: Allow Kubernetes API through firewall
+      community.general.ufw:
+        rule: allow
+        port: '6443'
+        proto: tcp
+
+    - name: Allow Kubelet API through firewall
+      community.general.ufw:
+        rule: allow
+        port: '10250'
+        proto: tcp
+
+    - name: Allow HTTP through firewall
+      community.general.ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: Allow HTTPS through firewall
+      community.general.ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    # ============================================
+    # KERNEL MODULES (for Kubernetes)
+    # ============================================
+    - name: Load required kernel modules
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - overlay
+        - br_netfilter
+
+    - name: Ensure kernel modules load on boot
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: '0644'
+
+    - name: Set sysctl parameters for Kubernetes
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_file: /etc/sysctl.d/k8s.conf
+        reload: true
+      loop:
+        - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { key: 'net.ipv4.ip_forward', value: '1' }
+
+    # ============================================
+    # SWAP (must be disabled for Kubernetes)
+    # ============================================
+    - name: Disable swap
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+
+    - name: Remove swap from fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '\sswap\s'
+        state: absent
+
+    # ============================================
+    # HOSTNAME & HOSTS FILE
+    # ============================================
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Add cluster nodes to /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: ".*{{ item }}$"
+        line: "{{ hostvars[item].ansible_host }} {{ item }}"
+      loop: "{{ groups['k8s_cluster'] }}"
+
+  handlers:
+    - name: Restart SSH
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
