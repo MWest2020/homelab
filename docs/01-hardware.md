@@ -9,7 +9,7 @@
 | CPU | Intel Core i?-???? |
 | RAM | 32GB DDR4 |
 | Storage | ?GB NVMe/SSD |
-| IP | `<CONTROL_PLANE_IP>` |
+| IP | 192.168.178.201 |
 | Rol | Kubernetes Control Plane |
 
 ### Worker 1 - `node-01`
@@ -19,7 +19,7 @@
 | CPU | Intel Core i?-???? |
 | RAM | 32GB DDR4 |
 | Storage | ?GB NVMe/SSD |
-| IP | `<WORKER_01_IP>` |
+| IP | 192.168.178.202 |
 | Rol | Kubernetes Worker |
 
 ### Worker 2 - `node-02`
@@ -29,10 +29,8 @@
 | CPU | Intel Core i?-???? |
 | RAM | 32GB DDR4 |
 | Storage | ?GB NVMe/SSD |
-| IP | `<WORKER_02_IP>` |
+| IP | 192.168.178.203 |
 | Rol | Kubernetes Worker |
-
-> **Note**: IP adressen staan in `.env` (niet in Git). Zie `.env.example` voor template.
 
 ## Jumpbox / Management
 

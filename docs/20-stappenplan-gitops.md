@@ -205,17 +205,13 @@ curl -v https://test.westerweel.work
 
 ---
 
-## Netwerk Conventies
+## Netwerk
 
-In deze repo gebruiken we:
-
-| Netwerk | Range | Voorbeeld |
-|---------|-------|-----------|
-| LAN | 192.168.xxx.0/24 | 192.168.xxx.201 (control plane) |
-| Pod CIDR | 10.200.0.0/16 | 10.200.1.x (pods op node-01) |
-| Service CIDR | 10.32.0.0/24 | 10.32.0.10 (cluster DNS) |
-
-> **Note**: `xxx` = jouw subnet (niet in Git). Echte IP's staan in lokale `values.yaml` bestanden.
+| Netwerk | Range | Nodes |
+|---------|-------|-------|
+| LAN | 192.168.178.0/24 | cp-01 (.201), node-01 (.202), node-02 (.203) |
+| Pod CIDR | 10.200.0.0/16 | /24 per node |
+| Service CIDR | 10.32.0.0/24 | ClusterIP's |
 
 ## Beslissingen
 

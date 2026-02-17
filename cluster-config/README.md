@@ -39,16 +39,10 @@ Argo CD Applications wijzen naar deze directory. Wijzigingen:
 2. Commit + push
 3. Argo CD synct automatisch
 
-## Let op
+## Netwerk
 
-- `values.yaml` bestanden staan in `.gitignore` (bevatten IP's)
-- Alleen `values.yaml.example` wordt gecommit
-- Na clone: `cp values.yaml.example values.yaml` en vul je IP's in
-
-## Netwerk Conventies
-
-| Netwerk | Range | Gebruik |
-|---------|-------|---------|
-| LAN | 192.168.xxx.0/24 | Node IP's |
-| Pod CIDR | 10.200.0.0/16 | Pod IP's |
+| Netwerk | Range | Nodes |
+|---------|-------|-------|
+| LAN | 192.168.178.0/24 | cp-01 (.201), node-01 (.202), node-02 (.203) |
+| Pod CIDR | 10.200.0.0/16 | /24 per node |
 | Service CIDR | 10.32.0.0/24 | ClusterIP's |

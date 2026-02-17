@@ -2,21 +2,19 @@
 
 ## IP Schema
 
-> **Note**: Echte IP's staan in `.env`. Zie `.env.example` voor template.
-
 | Device | Hostname | IP Adres | Rol |
 |--------|----------|----------|-----|
-| Router | - | `<GATEWAY_IP>` | Gateway |
-| Control Plane | cp-01 | `<CONTROL_PLANE_IP>` | K8s Control Plane (etcd, apiserver, scheduler, controller-manager) |
-| Worker 1 | node-01 | `<WORKER_01_IP>` | K8s Worker (kubelet, containerd) |
-| Worker 2 | node-02 | `<WORKER_02_IP>` | K8s Worker (kubelet, containerd) |
-| Jumpbox | localhost | DHCP | Management (kubectl, ansible, ssh) |
+| Router | - | 192.168.178.1 | Gateway |
+| Control Plane | cp-01 | 192.168.178.201 | K8s Control Plane (etcd, apiserver, scheduler, controller-manager) |
+| Worker 1 | node-01 | 192.168.178.202 | K8s Worker (kubelet, containerd) |
+| Worker 2 | node-02 | 192.168.178.203 | K8s Worker (kubelet, containerd) |
+| Jumpbox | jump | DHCP | Management (kubectl, ansible, ssh) |
 
 ## Netwerk Settings
 
 ```
-Subnet:      <NETWORK_SUBNET>
-Gateway:     <GATEWAY_IP>
+Subnet:      192.168.178.0/24
+Gateway:     192.168.178.1
 DNS:         1.1.1.1, 8.8.8.8
 ```
 
@@ -46,16 +44,16 @@ Cluster DNS:  10.32.0.10
                          Internet
                              │
                         [Router]
-                      <GATEWAY_IP>
+                     192.168.178.1
                              │
     ┌────────────────────────┼────────────────────────┐
     │                        │                        │
-[Jumpbox]                    │                        │
+ [jump]                      │                        │
  (DHCP)                      │                        │
     │              ┌─────────┴─────────┐              │
     │              │                   │              │
     └──────► [cp-01]              [node-01]      [node-02]
-   kubectl   <CP_IP>              <W1_IP>        <W2_IP>
+   kubectl   .178.201              .178.202       .178.203
    ansible   Control Plane          Worker         Worker
              etcd, apiserver       kubelet        kubelet
              scheduler, cm         containerd     containerd

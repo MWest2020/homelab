@@ -24,13 +24,13 @@ Voordat Ansible werkt, moet je SSH key-based auth hebben:
 # Genereer key (als je die nog niet hebt)
 ssh-keygen -t ed25519 -C "homelab"
 
-# Kopieer naar alle nodes (vervang met je IP's uit .env)
-ssh-copy-id <SSH_USER>@<CONTROL_PLANE_IP>
-ssh-copy-id <SSH_USER>@<WORKER_01_IP>
-ssh-copy-id <SSH_USER>@<WORKER_02_IP>
+# Kopieer naar alle nodes
+ssh-copy-id admin@192.168.178.201
+ssh-copy-id admin@192.168.178.202
+ssh-copy-id admin@192.168.178.203
 
 # Test verbinding
-ssh <SSH_USER>@<CONTROL_PLANE_IP> "hostname"
+ssh admin@192.168.178.201 "hostname"
 ```
 
 ## Inventory
@@ -38,7 +38,6 @@ ssh <SSH_USER>@<CONTROL_PLANE_IP> "hostname"
 **Setup:**
 ```bash
 cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml
-# Edit hosts.yml met je IP adressen
 ```
 
 De nodes zijn gedefinieerd in `ansible/inventory/hosts.yml`:
@@ -51,16 +50,14 @@ all:
         control_plane:
           hosts:
             cp-01:
-              ansible_host: <CONTROL_PLANE_IP>
+              ansible_host: 192.168.178.201
         workers:
           hosts:
             node-01:
-              ansible_host: <WORKER_01_IP>
+              ansible_host: 192.168.178.202
             node-02:
-              ansible_host: <WORKER_02_IP>
+              ansible_host: 192.168.178.203
 ```
-
-> **Note**: `hosts.yml` staat in `.gitignore` - alleen `hosts.yml.example` wordt gecommit.
 
 ## Playbooks
 
@@ -127,8 +124,8 @@ SSH key niet gekopieerd. Run `ssh-copy-id` eerst met wachtwoord auth.
 ### "Missing sudo password"
 Inventory heeft `ansible_become: true` maar user kan geen passwordless sudo. Fix:
 ```bash
-# Op de node (vervang admin met je SSH_USER):
-echo "<SSH_USER> ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/<SSH_USER>
+# Op de node:
+echo "admin ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/admin
 ```
 
 ## Volgende Stap

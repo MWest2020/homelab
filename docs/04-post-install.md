@@ -43,10 +43,10 @@ sudo apt install -y \
 # Genereer key als je die nog niet hebt
 ssh-keygen -t ed25519 -C "homelab"
 
-# Kopieer naar alle nodes (vervang met je IP's uit .env)
-ssh-copy-id <SSH_USER>@<CONTROL_PLANE_IP>
-ssh-copy-id <SSH_USER>@<WORKER_01_IP>
-ssh-copy-id <SSH_USER>@<WORKER_02_IP>
+# Kopieer naar alle nodes
+ssh-copy-id admin@192.168.178.201
+ssh-copy-id admin@192.168.178.202
+ssh-copy-id admin@192.168.178.203
 ```
 
 ### 5. SSH Hardening
@@ -124,11 +124,10 @@ sudo sysctl --system
 ### 10. Hosts File (cluster discovery)
 
 ```bash
-# Vervang met je IP's uit .env
 sudo tee -a /etc/hosts <<EOF
-<CONTROL_PLANE_IP> cp-01
-<WORKER_01_IP> node-01
-<WORKER_02_IP> node-02
+192.168.178.201 cp-01
+192.168.178.202 node-01
+192.168.178.203 node-02
 EOF
 ```
 
@@ -136,9 +135,9 @@ EOF
 
 Na deze stappen op alle nodes:
 
-- [ ] `ssh <SSH_USER>@cp-01` werkt met key (geen wachtwoord)
-- [ ] `ssh <SSH_USER>@node-01` werkt met key
-- [ ] `ssh <SSH_USER>@node-02` werkt met key
+- [ ] `ssh admin@cp-01` werkt met key (geen wachtwoord)
+- [ ] `ssh admin@node-01` werkt met key
+- [ ] `ssh admin@node-02` werkt met key
 - [ ] `sudo` werkt op alle nodes
 - [ ] Alle nodes kunnen elkaar pingen (`ping node-01` vanaf cp-01)
 - [ ] Alle nodes kunnen internet bereiken (`ping 8.8.8.8`)

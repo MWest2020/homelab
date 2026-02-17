@@ -1,5 +1,12 @@
 # Homelab
 
+<div align="center">
+
+![Nextcloud](https://img.shields.io/badge/Nextcloud-0082C9?style=for-the-badge&logo=nextcloud&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
+![ArgoCD](https://img.shields.io/badge/Argo%20CD-EF7B4D?style=for-the-badge&logo=argo&logoColor=white)
+![Helm](https://img.shields.io/badge/Helm-0F1689?style=for-the-badge&logo=helm&logoColor=white)
+
 Infrastructure as Code voor mijn homelab cluster.
 
 ## Hardware
@@ -22,19 +29,30 @@ Alle documentatie staat in [`/docs`](docs/):
 
 ## Quick Start
 
+### 1. Clone en setup
+
 ```bash
-# Clone repo
 git clone <repo-url>
 cd Homelab
+```
 
-# Setup local config (not in Git)
-cp .env.example .env
+### 2. Maak Ansible inventory
+
+```bash
 cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml
+# Edit hosts.yml als je andere IP's hebt
+```
 
-# Edit files with your IP addresses
-# Then run Ansible
+### 3. Gebruik
+
+```bash
+# Ansible: prepare nodes
 cd ansible
 ansible-playbook -i inventory/hosts.yml playbooks/prepare-nodes.yml
+
+# Helm: upgrade Cilium
+helm upgrade cilium cilium/cilium -n kube-system \
+  -f cluster-config/infra/cilium/values.yaml
 ```
 
 ## GitOps Journey
@@ -55,20 +73,37 @@ Zie [docs/20-stappenplan-gitops.md](docs/20-stappenplan-gitops.md) voor details.
 
 ```
 .
-├── docs/               # Documentatie (chapters)
-├── ansible/            # Ansible configuratie
-│   ├── inventory/      # Host definities
-│   ├── playbooks/      # Playbooks
-│   └── roles/          # Herbruikbare roles
-├── kubernetes/         # K8s manifests
-│   ├── apps/           # Applicaties
-│   └── infrastructure/ # Cluster infra
-└── scripts/            # Utility scripts
+├── docs/                    # Documentatie (chapters)
+├── ansible/                 # Ansible configuratie
+│   ├── inventory/           # Host definities (.example in Git)
+│   ├── playbooks/           # Playbooks
+│   └── roles/               # Herbruikbare roles
+├── cluster-config/          # GitOps configuratie
+│   └── infra/               # Infrastructure components
+│       └── cilium/          # CNI + Gateway (values.yaml.example in Git)
+├── kubernetes/              # K8s manifests (komt later)
+└── scripts/                 # Utility scripts
 ```
+
+## Netwerk
+
+| Netwerk | Range | Nodes |
+|---------|-------|-------|
+| LAN | 192.168.178.0/24 | cp-01 (.201), node-01 (.202), node-02 (.203) |
+| Pod CIDR | 10.200.0.0/16 | /24 per node |
+| Service CIDR | 10.32.0.0/24 | ClusterIP's |
 
 ## Status
 
-🔄 **In Progress**: Nodes worden geïnstalleerd
+| Component | Status |
+|-----------|--------|
+| Kubernetes v1.29.2 | ✅ Running |
+| Cilium 1.19.0 | ✅ Running |
+| Gateway API CRDs | ✅ Installed |
+| Cilium Gateway | 🔄 In progress |
+| MetalLB | ⏳ Pending |
+| cert-manager | ⏳ Pending |
+| Argo CD | ⏳ Pending |
 
 ## License
 

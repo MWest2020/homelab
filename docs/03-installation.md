@@ -21,21 +21,19 @@
 - **Ubuntu Server** (niet minimized)
 
 ### 4. Netwerk Configuratie
-Kies voor handmatige configuratie. Gebruik de waarden uit je `.env` file.
+Kies voor handmatige configuratie:
 
 **Control Plane (cp-01):**
 ```
-Subnet: <NETWORK_SUBNET>
-Address: <CONTROL_PLANE_IP>
-Gateway: <GATEWAY_IP>
+Subnet: 192.168.178.0/24
+Address: 192.168.178.201
+Gateway: 192.168.178.1
 Name servers: 1.1.1.1,8.8.8.8
 Search domains: (leeg laten)
 ```
 
-**Worker 1 (node-01):** Zelfde, maar Address: `<WORKER_01_IP>`
-**Worker 2 (node-02):** Zelfde, maar Address: `<WORKER_02_IP>`
-
-> Zie `.env.example` voor de variabele namen.
+**Worker 1 (node-01):** Zelfde, maar Address: `192.168.178.202`
+**Worker 2 (node-02):** Zelfde, maar Address: `192.168.178.203`
 
 ### 5. Storage
 - **Use an entire disk** ✓
@@ -44,9 +42,9 @@ Search domains: (leeg laten)
 
 ### 6. Profiel Setup
 ```
-Your name: <SSH_USER>
+Your name: admin
 Server name: cp-01 (node-01, node-02 voor de workers)
-Username: <SSH_USER>
+Username: admin
 Password: [sterk wachtwoord - bewaar veilig!]
 ```
 
@@ -62,7 +60,7 @@ Password: [sterk wachtwoord - bewaar veilig!]
 ### 9. Installatie Voltooien
 - Reboot
 - Verwijder USB stick
-- Verify SSH access: `ssh <SSH_USER>@<CONTROL_PLANE_IP>`
+- Verify SSH access: `ssh admin@192.168.178.201`
 
 ## Post-installatie
 

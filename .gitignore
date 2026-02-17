@@ -7,12 +7,6 @@ ansible/inventory/hosts.yml
 *.pem
 *.key
 **/secrets/
-.env
-.env.local
-
-# Keep example files
-!.env.example
-!*.example
 
 # Editor
 .vscode/
@@ -33,10 +27,6 @@ venv/
 # Kubernetes
 kubeconfig
 *.kubeconfig
-
-# Helm values (contain IPs and secrets)
-**/values.yaml
-!**/values.yaml.example
 
 # Temporary
 tmp/

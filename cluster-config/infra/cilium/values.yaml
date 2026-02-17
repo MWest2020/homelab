@@ -1,0 +1,38 @@
+# Cilium Helm Values - Homelab
+# 
+# Cilium versie: 1.19.0
+#
+# Upgrade commando:
+#   helm upgrade cilium cilium/cilium -n kube-system \
+#     -f cluster-config/infra/cilium/values.yaml
+
+# === KUBERNETES API ===
+# Control plane endpoint (voor kubeProxyReplacement)
+k8sServiceHost: "192.168.178.201"
+k8sServicePort: 6443
+
+# === KUBE-PROXY REPLACEMENT ===
+# Cilium vervangt kube-proxy volledig (eBPF-based)
+kubeProxyReplacement: true
+
+# === IPAM ===
+# Cluster-pool mode voor pod IP allocatie
+ipam:
+  mode: cluster-pool
+  operator:
+    clusterPoolIPv4PodCIDRList:
+      - "10.200.0.0/16"
+    clusterPoolIPv4MaskSize: 24
+
+# === GATEWAY API ===
+# Cilium als Gateway API controller (Envoy-based)
+gatewayAPI:
+  enabled: true
+
+# === HUBBLE (Observability) ===
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
