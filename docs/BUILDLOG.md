@@ -62,3 +62,21 @@ kubectl get crd | grep gateway.networking.k8s.io | wc -l
 
 **Volgende stap:** Stap 2 - Cilium Gateway API enablen
 
+---
+
+### 2026-02-24 - CoreDNS toegevoegd (cluster had geen DNS)
+
+**Probleem:** Geen CoreDNS in het cluster. Hubble Relay (en andere workloads) konden geen DNS lookups doen (timeout op 10.32.0.10:53), relay in CrashLoopBackOff.
+
+**Actie:** CoreDNS manifests toegevoegd onder `kubernetes/infrastructure/coredns/`:
+- Service **kube-dns** met `clusterIP: 10.32.0.10` (moet overeenkomen met kubelet `--cluster-dns`)
+- Deployment, ConfigMap (Corefile), ServiceAccount, ClusterRole/Binding
+- Zie `kubernetes/infrastructure/coredns/README.md` voor deploy en verificatie
+
+**Deploy (vanaf jumpbox):**
+```bash
+kubectl apply -f kubernetes/infrastructure/coredns/
+```
+
+**Na deploy:** Hubble Relay zou automatisch moeten herstellen zodra DNS werkt.
+

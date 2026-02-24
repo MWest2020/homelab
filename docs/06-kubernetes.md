@@ -83,7 +83,7 @@ Cluster DNS:     10.32.0.10
 ### Dag 5: Networking & DNS
 - [ ] CNI plugin installeren
 - [ ] Pod routes configureren
-- [ ] CoreDNS deployen
+- [ ] CoreDNS deployen → manifest: `kubernetes/infrastructure/coredns/coredns.yaml`
 
 ### Dag 6: Smoke Tests
 - [ ] Pod deployment test
