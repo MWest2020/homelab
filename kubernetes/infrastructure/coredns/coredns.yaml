@@ -151,7 +151,7 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
-          dnsPolicy: Default
+      dnsPolicy: Default
       volumes:
         - name: config-volume
           configMap:
