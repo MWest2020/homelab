@@ -1,0 +1,5 @@
+# cert-manager Helm values – homelab
+# Install: helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --create-namespace -f kubernetes/infrastructure/cert-manager/values.yaml
+# Later: Argo CD Application kan deze dir (chart + values) gebruiken; chart blijft jetstack/cert-manager.
+crds:
+  enabled: true

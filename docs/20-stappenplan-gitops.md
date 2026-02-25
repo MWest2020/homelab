@@ -140,13 +140,18 @@ kubectl get svc -A -o wide | grep LoadBalancer
 - Automatische renewal
 
 **Risico's:**
-- DNS API credentials in cluster
-- Let's Encrypt rate limits (staging eerst!)
+- DNS API credentials in cluster (Secret, niet in Git)
+- Let's Encrypt rate limits bij veel aanvragen (wij gebruiken alleen prod)
+
+**Check vóór je begint:** MetalLB draait; je hebt een Cloudflare API-token voor het domein.
+
+**Uitvoeren:** Zie [24-cert-manager.md](24-cert-manager.md) — Helm install met values uit repo, Secret (Cloudflare of RFC2136), ClusterIssuer prod. Config in repo voor later Argo CD.
 
 **Verificatie:**
 ```bash
+kubectl get clusterissuer
 kubectl get certificate -A
-# Status moet "Ready: True" zijn
+# Certificate status "Ready: True" na eerste aanvraag
 ```
 
 **Documentatie na voltooiing:** `docs/24-cert-manager.md`

@@ -107,3 +107,11 @@ kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/confi
 kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 ```
 
+---
+
+### 2026-02-24 - Stap 4: cert-manager documentatie en config
+
+**Actie:** cert-manager (Stap 4) uitgewerkt.
+- **Doc** [24-cert-manager.md](24-cert-manager.md): Cloudflare API-token, Helm install, Secret (niet in Git), ClusterIssuers staging + prod, verificatie.
+- **Manifests** `kubernetes/infrastructure/cert-manager/`: `values.yaml` (Helm, in repo voor Argo CD later), `cluster-issuer-prod.yaml` (e-mail aanpassen; DNS-01: Cloudflare of RFC2136/open source). Geen staging; doc beschrijft ook alternatief zonder Cloudflare (RFC2136/BIND).
+

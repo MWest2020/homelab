@@ -93,7 +93,11 @@ Na succesvolle verificatie: **Stap 3 – MetalLB** ([20-stappenplan-gitops.md](2
 
 ---
 
-## Referenties
+## Referenties / Lees verder
 
-- [Cilium Gateway API](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/)
-- [Gateway API](https://gateway-api.sigs.k8s.io/)
+> **NOTE – Lees verder:** [Cilium Gateway API](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/) en [Gateway API (officieel)](https://gateway-api.sigs.k8s.io/).
+
+| Onderwerp | Link |
+|-----------|------|
+| Cilium Gateway API | [docs.cilium.io](https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/) |
+| Gateway API | [gateway-api.sigs.k8s.io](https://gateway-api.sigs.k8s.io/) |

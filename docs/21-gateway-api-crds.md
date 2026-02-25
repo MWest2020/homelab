@@ -66,8 +66,12 @@ CRDs zijn aanwezig, maar er is nog geen **GatewayClass**. Die wordt aangemaakt d
 
 Zie: [22-cilium-gateway.md](22-cilium-gateway.md)
 
-## Referenties
+> **NOTE – Lees verder:** [Gateway API (officieel)](https://gateway-api.sigs.k8s.io/) en [Cilium Gateway API](https://docs.cilium.io/en/v1.19/network/servicemesh/gateway-api/).
 
-- [Gateway API Docs](https://gateway-api.sigs.k8s.io/)
-- [Cilium Gateway API](https://docs.cilium.io/en/v1.19/network/servicemesh/gateway-api/)
-- [Gateway API Releases](https://github.com/kubernetes-sigs/gateway-api/releases)
+## Referenties / Lees verder
+
+| Onderwerp | Link |
+|-----------|------|
+| Gateway API | [gateway-api.sigs.k8s.io](https://gateway-api.sigs.k8s.io/) |
+| Cilium Gateway API | [docs.cilium.io](https://docs.cilium.io/en/v1.19/network/servicemesh/gateway-api/) |
+| Gateway API releases | [GitHub](https://github.com/kubernetes-sigs/gateway-api/releases) |

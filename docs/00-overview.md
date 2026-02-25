@@ -28,6 +28,7 @@ Een reproduceerbare homelab setup met:
 | [21 - Gateway API CRDs](21-gateway-api-crds.md) | CRDs voor Gateway API |
 | [22 - Cilium Gateway](22-cilium-gateway.md) | Stap 2: commando's en checks |
 | [23 - MetalLB](23-metallb.md) | Stap 3: LoadBalancer IP's |
+| [24 - cert-manager](24-cert-manager.md) | Stap 4: TLS (Let's Encrypt, DNS-01) |
 | [BUILDLOG](BUILDLOG.md) | Chronologisch logboek van alle wijzigingen |
 
 ## Status
@@ -43,4 +44,5 @@ Een reproduceerbare homelab setup met:
 | Gateway API CRDs | ✅ Installed |
 | Cilium Gateway controller | ✅ Actief |
 | MetalLB | ⏳ Stap 3 — zie [23-metallb.md](23-metallb.md) |
-| cert-manager / Argo CD | ⏳ Pending |
+| cert-manager | ⏳ Stap 4 — zie [24-cert-manager.md](24-cert-manager.md) |
+| Argo CD | ⏳ Pending |

@@ -1,6 +1,6 @@
 # MetalLB
 
-Bare-metal LoadBalancer voor het homelab. Zonder MetalLB blijven `LoadBalancer` Services in status `Pending`; met MetalLB krijgen ze een IP uit de pool (192.168.178.220–230).
+Bare-metal LoadBalancer voor het homelab. Zonder MetalLB blijven `LoadBalancer` Services in status `Pending`; met MetalLB krijgen ze een IP uit de pool (192.168.178.220–230). Wij gebruiken **L2-modus** (ARP); de `L2Advertisement` in deze dir regelt dat.
 
 ## Vereisten
 
@@ -23,6 +23,8 @@ kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/confi
 kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 ```
 
+Bij webhook-timeout: zie [docs/23-metallb.md](../../../docs/23-metallb.md) (troubleshooting: webhooks tijdelijk verwijderen, dan apply).
+
 ## Verificatie
 
 ```bash
@@ -38,3 +40,5 @@ kubectl get svc nginx-lb
 ```
 
 Zie [docs/23-metallb.md](../../../docs/23-metallb.md) voor de volledige Stap 3-instructies.
+
+> **NOTE – Lees verder:** [Officiële MetalLB-documentatie](https://metallb.io/) (configuration, FAQ).

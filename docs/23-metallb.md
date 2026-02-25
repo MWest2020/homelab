@@ -2,6 +2,10 @@
 
 LoadBalancer-IP's op bare-metal. Nodig zodat een Cilium Gateway later een Service type LoadBalancer kan krijgen met een vast LAN-IP (voor port-forward op de router).
 
+MetalLB kan in twee modi: **Layer 2 (L2)** met ARP/NDP, of **BGP** (vereist BGP-router). Wij gebruiken **L2**: geen routerconfig nodig, werkt op elk LAN. De `L2Advertisement` in onze config zorgt daarvoor; de `IPAddressPool` definieert alleen het adresbereik.
+
+> **NOTE – Lees verder:** [MetalLB Configuration (L2 vs BGP)](https://metallb.io/configuration/) in de officiële documentatie.
+
 **Stappenplan:** [20-stappenplan-gitops.md](20-stappenplan-gitops.md)
 
 ---
@@ -45,6 +49,16 @@ kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 
 De pool `homelab-lan` gebruikt 192.168.178.220–192.168.178.230. L2 mode: MetalLB antwoordt met ARP op dat bereik vanaf een van de nodes.
 
+> **NOTE – Lees verder:** [L2 configuration (interfaces, node selectors)](https://metallb.io/configuration/_advanced_l2_configuration/) in de officiële MetalLB-docs.
+
+**Als je een webhook-timeout krijgt** (`failed calling webhook ... context deadline exceeded`): op "Kubernetes the Hard Way" kan de API-server (op de control plane host) de MetalLB-webhook (ClusterIP) soms niet bereiken. Workaround: webhooks tijdelijk uitzetten, pool toepassen, daarna eventueel webhooks weer aan.
+
+```bash
+kubectl get validatingwebhookconfiguration -o name | grep metallb | xargs -r kubectl delete
+kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
+# Optioneel: webhooks weer aan → opnieuw metallb-native.yaml toepassen
+```
+
 ---
 
 ## 3. Verificatie
@@ -81,8 +95,11 @@ kubectl get pods -n metallb-system
 
 ---
 
-## Referenties
+## Referenties / Lees verder
 
-- [MetalLB](https://metallb.io/)
-- [Configuration – L2](https://metallb.io/configuration/)
-- [Homelab netwerk](02-network.md#metallb-loadbalancer-vips)
+| Onderwerp | Link |
+|-----------|------|
+| MetalLB (homepage) | [metallb.io](https://metallb.io/) |
+| Configuration (L2, BGP) | [metallb.io/configuration](https://metallb.io/configuration/) |
+| FAQ (o.a. L2, ARP) | [metallb.io/faq](https://metallb.io/faq/) |
+| Homelab netwerk (pool-range) | [02-network.md](02-network.md#metallb-loadbalancer-vips) |
