@@ -1,0 +1,24 @@
+# MetalLB IP pool - homelab LAN
+# Zorg dat 192.168.178.220-230 BUITEN de DHCP-range valt (switch/router/waar DHCP ook draait).
+# Zie docs/02-network.md en docs/23-metallb.md
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: homelab-lan
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.178.220-192.168.178.230
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: homelab-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - homelab-lan
+  # Optioneel: alleen op bepaalde nodes adverteren, of specifieke interface (bijv. interfaces: [eth0])
+  # nodeSelectors: ...
+  # interfaces: [...]

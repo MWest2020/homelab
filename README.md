@@ -67,7 +67,9 @@ We bouwen stap-voor-stap naar een GitOps-beheerde omgeving:
 6. Argo CD
 7. App-of-apps
 
-Zie [docs/20-stappenplan-gitops.md](docs/20-stappenplan-gitops.md) voor details.
+- Plan: [docs/20-stappenplan-gitops.md](docs/20-stappenplan-gitops.md)
+- Stap 2 (Cilium Gateway): [docs/22-cilium-gateway.md](docs/22-cilium-gateway.md).
+- Stap 3 (MetalLB): [docs/23-metallb.md](docs/23-metallb.md).
 
 ## Repository Structuur
 
@@ -100,7 +102,7 @@ Zie [docs/20-stappenplan-gitops.md](docs/20-stappenplan-gitops.md) voor details.
 | Kubernetes v1.29.2 | ✅ Running |
 | Cilium 1.19.0 | ✅ Running |
 | Gateway API CRDs | ✅ Installed |
-| Cilium Gateway | 🔄 In progress |
+| Cilium Gateway | ✅ Running |
 | MetalLB | ⏳ Pending |
 | cert-manager | ⏳ Pending |
 | Argo CD | ⏳ Pending |

@@ -9,7 +9,9 @@ Dit document beschrijft het pad van een werkend Kubernetes cluster naar een voll
 | Kubernetes v1.29.2 | ✅ Draait (the Hard Way, systemd) |
 | containerd | ✅ Runtime |
 | Cilium 1.19.0 | ✅ CNI, kubeProxyReplacement=true |
-| Gateway API | ❌ CRDs nog niet geïnstalleerd |
+| CoreDNS (kube-dns) | ✅ Cluster DNS 10.32.0.10 |
+| Gateway API CRDs | ✅ Geïnstalleerd (Stap 1) |
+| Cilium Gateway controller | ✅ Actief (GatewayClass aanwezig) |
 | MetalLB | ❌ Nog niet geïnstalleerd |
 | cert-manager | ❌ Nog niet geïnstalleerd |
 | Argo CD | ❌ Nog niet geïnstalleerd |
@@ -77,7 +79,19 @@ kubectl get crd gatewayclasses.gateway.networking.k8s.io
 - Helm upgrade kan Cilium pods herstarten (korte interruption)
 - Verkeerde values = broken networking
 
-**Verificatie:**
+**Check vóór je begint (alles moet kloppen):**
+```bash
+kubectl get nodes
+kubectl get pods -n kube-system -l k8s-app=kube-dns
+kubectl get pods -n kube-system -l k8s-app=cilium -o wide
+kubectl get pods -n kube-system -l k8s-app=hubble-relay
+kubectl get crd | grep gateway.networking.k8s.io
+```
+→ Nodes Ready, CoreDNS Running, Cilium op alle nodes, Hubble Relay 1/1, vijf Gateway CRDs aanwezig.
+
+**Uitvoeren:** Zie [22-cilium-gateway.md](22-cilium-gateway.md) voor commando's en Helm upgrade.
+
+**Verificatie na Stap 2:**
 ```bash
 kubectl get gatewayclass
 # Moet "cilium" tonen met status "Accepted: True"
@@ -98,8 +112,12 @@ kubectl get gatewayclass
 - Dat IP kun je port-forwarden op je Ziggo router
 
 **Risico's:**
-- IP conflict met DHCP range
+- IP conflict met DHCP range (gebruik range buiten DHCP; zie [02-network.md](02-network.md))
 - ARP issues in L2 mode
+
+**Check vóór je begint:** Nodes Ready, GatewayClass aanwezig, Cilium draait. DHCP-range (switch/router/…) niet over 192.168.178.220–230.
+
+**Uitvoeren:** Zie [23-metallb.md](23-metallb.md) — MetalLB manifest van upstream, daarna `kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml`.
 
 **Verificatie:**
 ```bash
@@ -196,7 +214,7 @@ curl -v https://test.westerweel.work
 | Stap | Status | Datum |
 |------|--------|-------|
 | 1. Gateway API CRDs | ✅ | 2026-02-17 |
-| 2. Cilium Gateway | ⏳ | - |
+| 2. Cilium Gateway | ✅ | Al actief (GatewayClass ~6d) |
 | 3. MetalLB | ⏳ | - |
 | 4. cert-manager | ⏳ | - |
 | 5. Gateway TLS | ⏳ | - |

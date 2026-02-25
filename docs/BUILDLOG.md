@@ -80,3 +80,30 @@ kubectl apply -f kubernetes/infrastructure/coredns/
 
 **Na deploy:** Hubble Relay zou automatisch moeten herstellen zodra DNS werkt.
 
+---
+
+### 2026-02-24 - Stap 2 documentatie: Cilium Gateway
+
+**Actie:** Documentatie voor Stap 2 (Cilium Gateway API enablen) toegevoegd.
+- **Check vóór Stap 2** in [20-stappenplan-gitops.md](20-stappenplan-gitops.md): nodes, CoreDNS, Cilium, Hubble Relay, Gateway CRDs.
+- **Nieuwe doc** [22-cilium-gateway.md](22-cilium-gateway.md): dezelfde checks, Helm upgrade commando's, verificatie (`kubectl get gatewayclass`).
+- Values in `cluster-config/infra/cilium/values.yaml` hebben al `gatewayAPI.enabled: true`; alleen `helm upgrade` uitvoeren.
+
+**Achteraf:** GatewayClass stond al ~6 dagen in het cluster; Stap 2 was dus al uitgevoerd. Voortgang in stappenplan en status-overzichten bijgewerkt naar ✅.
+
+---
+
+### 2026-02-24 - Stap 3: MetalLB documentatie en config
+
+**Actie:** MetalLB (Stap 3) uitwerking toegevoegd.
+- **Doc** [23-metallb.md](23-metallb.md): check vóór start, install (upstream v0.14.8 manifest), IP-pool apply, verificatie.
+- **IP-pool** `kubernetes/infrastructure/metallb/ip-pool.yaml`: range 192.168.178.220–230, L2 mode.
+- **Netwerk** [02-network.md](02-network.md): MetalLB-range vastgelegd; DHCP mag dit bereik niet gebruiken.
+- **README** in `kubernetes/infrastructure/metallb/README.md` voor snelle referentie.
+
+**Commando's (jumpbox):**
+```bash
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
+kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
+```
+

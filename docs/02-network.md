@@ -59,6 +59,16 @@ Cluster DNS:  10.32.0.10
              scheduler, cm         containerd     containerd
 ```
 
+## MetalLB (LoadBalancer VIPs)
+
+| Doel | Range |
+|------|-------|
+| LoadBalancer Services (Gateway, etc.) | 192.168.178.220–192.168.178.230 |
+
+**Belangrijk:** Zorg dat .220–.230 **buiten** de DHCP-range vallen van het apparaat dat bij jou DHCP doet (switch, router of anders). Anders kan MetalLB een IP uitdelen dat ook aan een client wordt gegeven → conflict.
+
+---
+
 ## Beslissingen
 
 ### Waarom statische IP's?

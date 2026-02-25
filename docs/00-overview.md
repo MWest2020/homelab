@@ -25,6 +25,9 @@ Een reproduceerbare homelab setup met:
 | Doc | Beschrijving |
 |-----|--------------|
 | [20 - Stappenplan](20-stappenplan-gitops.md) | Master plan: CRDs → Gateway → Argo CD |
+| [21 - Gateway API CRDs](21-gateway-api-crds.md) | CRDs voor Gateway API |
+| [22 - Cilium Gateway](22-cilium-gateway.md) | Stap 2: commando's en checks |
+| [23 - MetalLB](23-metallb.md) | Stap 3: LoadBalancer IP's |
 | [BUILDLOG](BUILDLOG.md) | Chronologisch logboek van alle wijzigingen |
 
 ## Status
@@ -35,6 +38,9 @@ Een reproduceerbare homelab setup met:
 | node-01 (Worker) | ✅ Running |
 | node-02 (Worker) | ✅ Running |
 | Kubernetes v1.29.2 | ✅ Installed (the Hard Way) |
-| Cilium 1.17.0 | ✅ Installed |
-| Argo CD | 🔄 Setup in progress |
-| Gateway API | 🔄 Setup in progress |
+| Cilium 1.19.0 | ✅ Installed |
+| CoreDNS (kube-dns) | ✅ Cluster DNS |
+| Gateway API CRDs | ✅ Installed |
+| Cilium Gateway controller | ✅ Actief |
+| MetalLB | ⏳ Stap 3 — zie [23-metallb.md](23-metallb.md) |
+| cert-manager / Argo CD | ⏳ Pending |
