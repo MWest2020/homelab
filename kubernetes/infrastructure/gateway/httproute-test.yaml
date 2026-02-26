@@ -19,4 +19,4 @@ spec:
             value: /
       backendRefs:
         - name: echo-test
-          port: 8080
+          port: 80

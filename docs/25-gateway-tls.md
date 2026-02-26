@@ -18,22 +18,33 @@ Je hebt nog **geen** namespace `gateway-system` – die maak je in stap 2 aan. J
 
 ---
 
-## 2. Alle stappen in volgorde
+## 2. Alle stappen in volgorde (met toelichting)
 
-Alles vanaf **repo root** op de jumpbox (`~/homelab` of waar de repo staat). Map: `kubernetes/infrastructure/gateway/`.
+Alles vanaf **repo root** op de jumpbox (`~/homelab`). Map: `kubernetes/infrastructure/gateway/`.
 
 ---
 
-**Stap 1 – Namespace + Certificate**
+**Stap 1 – Namespace aanmaken**
 
-Namespace `gateway-system` en het Certificate (cert-manager vraagt het TLS-cert aan via DNS-01). Het certificaat kan 1–2 minuten duren.
+**Wat:** Een aparte namespace `gateway-system` voor de Gateway, het certificaat en de test-app.  
+**Waarom:** Alles rond ingress (Gateway, Certificate, HTTPRoutes) bij elkaar; de Gateway moet in dezelfde namespace als de TLS-Secret (die cert-manager aanmaakt) staan.
 
 ```bash
 kubectl apply -f kubernetes/infrastructure/gateway/namespace.yaml
+```
+
+---
+
+**Stap 2 – Certificate aanmaken**
+
+**Wat:** Een cert-manager **Certificate** voor `*.westerweel.work` en `westerweel.work`. Cert-manager gebruikt de bestaande ClusterIssuer `letsencrypt-prod` en doet een **DNS-01** challenge (zet tijdelijk een TXT-record bij Cloudflare, Let's Encrypt checkt dat, daarna krijgt je cluster het cert). Het resultaat komt in een **Secret** `westerweel-work-tls` in dezelfde namespace.  
+**Waarom:** De Gateway heeft bij TLS een verwijzing naar een Secret (cert + key) nodig. Die Secret bestaat pas nadat dit Certificate **Ready** is. Daarom eerst Certificate, daarna pas de Gateway.
+
+```bash
 kubectl apply -f kubernetes/infrastructure/gateway/certificate.yaml
 ```
 
-Wacht tot het certificaat Ready is:
+Wacht tot het certificaat Ready is (kan 1–2 minuten duren):
 
 ```bash
 kubectl get certificate -n gateway-system -w
@@ -42,9 +53,10 @@ kubectl get certificate -n gateway-system -w
 
 ---
 
-**Stap 2 – Gateway**
+**Stap 3 – Gateway aanmaken**
 
-De Gateway gebruikt de Secret die cert-manager net heeft aangemaakt. Cilium maakt hierna een LoadBalancer Service.
+**Wat:** Een **Gateway**-resource (Gateway API) met één HTTPS-listener op poort 443, die de TLS-Secret `westerweel-work-tls` gebruikt. Cilium (GatewayClass `cilium`) pakt dit op en maakt o.a. een **LoadBalancer Service** voor deze Gateway.  
+**Waarom:** Dit is de “voordeur”: alle HTTPS-verkeer naar dat IP komt bij deze Gateway binnen; Cilium beëindigt TLS en kijkt in HTTPRoutes naar welke backend de request moet.
 
 ```bash
 kubectl apply -f kubernetes/infrastructure/gateway/gateway.yaml
@@ -52,23 +64,25 @@ kubectl apply -f kubernetes/infrastructure/gateway/gateway.yaml
 
 ---
 
-**Stap 3 – Wacht op LoadBalancer IP**
+**Stap 4 – LoadBalancer-IP noteren**
 
-De Gateway krijgt een Service met EXTERNAL-IP van MetalLB. Zonder dit IP kun je nog geen DNS invullen.
+**Wat:** Cilium heeft een Service voor de Gateway aangemaakt. MetalLB geeft daar een **EXTERNAL-IP** aan (uit de pool 192.168.178.220–230).  
+**Waarom:** Dat IP is het adres waarop je Gateway bereikbaar is. Pas als je dit IP weet, kun je DNS (of /etc/hosts) invullen; zonder IP heeft een A-record geen waarde.
 
 ```bash
 kubectl get svc -n gateway-system
-# Zoek de Service (naam hangt van Cilium af, bijv. main-gateway of gateway-main-gateway).
+# Zoek de Service (naam hangt van Cilium af, bijv. main-gateway).
 # EXTERNAL-IP moet een IP zijn (bijv. 192.168.178.220), niet <pending>.
 ```
 
-Noteer dit **EXTERNAL-IP** (bijv. `192.168.178.220`).
+Noteer dit **EXTERNAL-IP**.
 
 ---
 
-**Stap 4 – Test-app + HTTPRoute**
+**Stap 5 – Test-app + HTTPRoute**
 
-De echo-app en de route voor `test.westerweel.work`. Deze kun je al toepassen; ze werken zodra DNS staat.
+**Wat:** Een kleine **Deployment** (echo-server) met **Service** `echo-test`, en een **HTTPRoute** die zegt: voor host `test.westerweel.work` stuur al het verkeer naar die Service.  
+**Waarom:** De Gateway alleen doet nog niks met verkeer; er moet een Route zijn die aan een backend koppelt. Met deze route kun je straks `https://test.westerweel.work` testen.
 
 ```bash
 kubectl apply -f kubernetes/infrastructure/gateway/gateway-test-app.yaml
@@ -77,22 +91,23 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 
 ---
 
-**Stap 5 – DNS (nu heb je het IP)**
+**Stap 6 – DNS (nu heb je het IP)**
 
-Nu kun je het IP ontvangen/gebruiken voor DNS:
+**Wat:** Zorg dat **test.westerweel.work** naar het EXTERNAL-IP uit stap 4 wijst.  
+**Waarom:** De browser of `curl` moet dat hostname kunnen resolven naar het IP van je Gateway; anders komt het verkeer niet bij je cluster.
 
-- In **Cloudflare** (of je DNS): A-record **test.westerweel.work** → het EXTERNAL-IP uit stap 3 (bijv. 192.168.178.220).
-- Of lokaal testen: in **/etc/hosts** op je laptop: `192.168.178.220 test.westerweel.work`.
+- In **Cloudflare** (of je DNS): A-record **test.westerweel.work** → het EXTERNAL-IP (bijv. 192.168.178.220).
+- Of lokaal: in **/etc/hosts** op je laptop: `192.168.178.220 test.westerweel.work`.
 
 ---
 
-**Stap 6 – Verificatie**
+**Stap 7 – Verificatie**
+
+**Wat:** Controleren of de Gateway klaar is en of HTTPS naar de echo-app werkt.  
+**Waarom:** Zo zie je dat de hele keten (DNS → MetalLB → Gateway → TLS → HTTPRoute → Service) goed staat.
 
 ```bash
-# Gateway listeners OK?
 kubectl get gateway -n gateway-system
-
-# HTTPS (na DNS-propagation of /etc/hosts)
 curl -v https://test.westerweel.work
 # Moet geldig TLS-cert (Let's Encrypt) en antwoord van de echo-server tonen.
 ```
