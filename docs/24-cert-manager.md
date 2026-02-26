@@ -96,6 +96,13 @@ Pas in `kubernetes/infrastructure/cert-manager/cluster-issuer-prod.yaml` **spec.
 kubectl apply -f kubernetes/infrastructure/cert-manager/cluster-issuer-prod.yaml
 ```
 
+**Webhook-timeout** (`failed calling webhook "webhook.cert-manager.io" ... Timeout exceeded`): op "Kubernetes the Hard Way" kan de API-server de cert-manager-webhook (ClusterIP) soms niet bereiken. Workaround:
+
+```bash
+kubectl get validatingwebhookconfiguration -o name | grep cert-manager | xargs -r kubectl delete
+kubectl apply -f kubernetes/infrastructure/cert-manager/cluster-issuer-prod.yaml
+```
+
 ---
 
 ## 5. Verificatie

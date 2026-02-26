@@ -1,0 +1,20 @@
+# Gateway – HTTPS op 443, TLS via cert-manager Secret.
+# Pas toe NADAT Certificate westerweel-work-tls Ready is (kubectl get certificate -n gateway-system).
+# Cilium maakt een LoadBalancer Service; MetalLB geeft een EXTERNAL-IP.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main-gateway
+  namespace: gateway-system
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.westerweel.work"
+      tls:
+        certificateRefs:
+          - kind: Secret
+            name: westerweel-work-tls

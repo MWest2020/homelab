@@ -1,0 +1,17 @@
+# Certificate voor *.westerweel.work – cert-manager vraagt aan via letsencrypt-prod (DNS-01).
+# Secret westerweel-work-tls wordt aangemaakt zodra dit Certificate Ready is.
+# Gateway moet in dezelfde namespace (gateway-system) als deze Certificate/Secret.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: westerweel-work-tls
+  namespace: gateway-system
+spec:
+  secretName: westerweel-work-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.westerweel.work"
+    - "westerweel.work"

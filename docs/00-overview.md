@@ -29,6 +29,7 @@ Een reproduceerbare homelab setup met:
 | [22 - Cilium Gateway](22-cilium-gateway.md) | Stap 2: commando's en checks |
 | [23 - MetalLB](23-metallb.md) | Stap 3: LoadBalancer IP's |
 | [24 - cert-manager](24-cert-manager.md) | Stap 4: TLS (Let's Encrypt, DNS-01) |
+| [25 - Gateway TLS](25-gateway-tls.md) | Stap 5: HTTPS Gateway + test |
 | [BUILDLOG](BUILDLOG.md) | Chronologisch logboek van alle wijzigingen |
 
 ## Status
@@ -45,4 +46,5 @@ Een reproduceerbare homelab setup met:
 | Cilium Gateway controller | ✅ Actief |
 | MetalLB | ⏳ Stap 3 — zie [23-metallb.md](23-metallb.md) |
 | cert-manager | ⏳ Stap 4 — zie [24-cert-manager.md](24-cert-manager.md) |
+| Gateway + TLS | ⏳ Stap 5 — zie [25-gateway-tls.md](25-gateway-tls.md) |
 | Argo CD | ⏳ Pending |

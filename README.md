@@ -71,6 +71,7 @@ We bouwen stap-voor-stap naar een GitOps-beheerde omgeving:
 - Stap 2 (Cilium Gateway): [docs/22-cilium-gateway.md](docs/22-cilium-gateway.md).
 - Stap 3 (MetalLB): [docs/23-metallb.md](docs/23-metallb.md).
 - Stap 4 (cert-manager): [docs/24-cert-manager.md](docs/24-cert-manager.md).
+- Stap 5 (Gateway + TLS): [docs/25-gateway-tls.md](docs/25-gateway-tls.md).
 
 ## Repository Structuur
 

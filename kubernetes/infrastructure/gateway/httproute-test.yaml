@@ -1,0 +1,22 @@
+# Test-HTTPRoute: test.westerweel.work → echo-service (voor verificatie Stap 5).
+# Deployment + Service staan in gateway-test-app.yaml; eerst die toepassen.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: test-route
+  namespace: gateway-system
+spec:
+  parentRefs:
+    - name: main-gateway
+      namespace: gateway-system
+  hostnames:
+    - "test.westerweel.work"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: echo-test
+          port: 8080

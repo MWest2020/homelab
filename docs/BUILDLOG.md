@@ -115,3 +115,12 @@ kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 - **Doc** [24-cert-manager.md](24-cert-manager.md): Cloudflare API-token, Helm install, Secret (niet in Git), ClusterIssuers staging + prod, verificatie.
 - **Manifests** `kubernetes/infrastructure/cert-manager/`: `values.yaml` (Helm, in repo voor Argo CD later), `cluster-issuer-prod.yaml` (e-mail aanpassen; DNS-01: Cloudflare of RFC2136/open source). Geen staging; doc beschrijft ook alternatief zonder Cloudflare (RFC2136/BIND).
 
+---
+
+### 2026-02-24 - Stap 5: Gateway + TLS documentatie en manifests
+
+**Actie:** Gateway + TLS (Stap 5) uitgewerkt voor morgen samen doornemen.
+- **Doc** [25-gateway-tls.md](25-gateway-tls.md): check, volgorde (namespace → Certificate → Gateway → DNS → test-app + HTTPRoute), verificatie.
+- **Manifests** `kubernetes/infrastructure/gateway/`: namespace, Certificate (*.westerweel.work), Gateway (HTTPS, Secret-ref), echo-test app + HTTPRoute voor test.westerweel.work.
+- **Migratie-cutoff** in stappenplan: logisch moment is na Stap 7 (volledige stack in Git); alternatief na 5 of 6.
+

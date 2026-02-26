@@ -167,6 +167,10 @@ kubectl get certificate -A
 - TLS termination (backends praten HTTP)
 - HTTPRoutes routeren naar juiste service
 
+**Check vóór je begint:** MetalLB en cert-manager (ClusterIssuer prod) draaien.
+
+**Uitvoeren:** Zie [25-gateway-tls.md](25-gateway-tls.md) — namespace + Certificate, dan Gateway, dan DNS, dan test-app + HTTPRoute.
+
 **Verificatie:**
 ```bash
 curl -v https://test.westerweel.work
@@ -239,3 +243,12 @@ curl -v https://test.westerweel.work
 ## Beslissingen
 
 - **DNS Provider**: Cloudflare (voor cert-manager DNS-01)
+
+## Migratie (Hard Way → kubeadm)
+
+Een logisch **cutoff** om te plannen migreren naar kubeadm (bijv. voor CKA of productiewaardiger setup):
+
+- **Na Stap 5 (Gateway + TLS):** We migreren na deze stap: Gateway + TLS werkt, daarna nieuwe cluster met kubeadm; “compleet”  config/workloads uit repo toepassen, secrets opnieuw aanmaken.
+- **Alternatief later:** Na Stap 7 zou de hele stack in Git staan; dan migreer je een compleet homelab.
+
+Er is geen in-place upgrade; je bouwt een nieuwe cluster en verhuist workloads/config. Zie eerdere uitleg in de chat (of doc) over “overstappen”.
