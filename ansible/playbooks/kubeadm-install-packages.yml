@@ -23,7 +23,7 @@
         state: directory
         mode: '0755'
 
-    - name: Assert Debian/Ubuntu (voor Alma/RHEL: zie docs/30-migratie-kubeadm.md Fase C)
+    - name: "Assert Debian/Ubuntu (voor Alma/RHEL zie docs/30-migratie-kubeadm.md Fase C)"
       ansible.builtin.assert:
         that: ansible_os_family == "Debian"
         fail_msg: "Dit playbook is voor Debian/Ubuntu. Voor Alma/RHEL voer Fase C handmatig uit of voeg dnf-tasks toe."
