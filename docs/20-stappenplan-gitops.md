@@ -251,4 +251,4 @@ Een logisch **cutoff** om te plannen migreren naar kubeadm (bijv. voor CKA of pr
 - **Na Stap 5 (Gateway + TLS):** We migreren na deze stap: Gateway + TLS werkt, daarna nieuwe cluster met kubeadm; “compleet”  config/workloads uit repo toepassen, secrets opnieuw aanmaken.
 - **Alternatief later:** Na Stap 7 zou de hele stack in Git staan; dan migreer je een compleet homelab.
 
-Er is geen in-place upgrade; je bouwt een nieuwe cluster en verhuist workloads/config. Zie eerdere uitleg in de chat (of doc) over “overstappen”.
+Er is geen in-place upgrade; je bouwt een nieuwe cluster op **dezelfde hosts** (geen twee clusters naast elkaar) en past config/workloads uit de repo opnieuw toe. **Exacte stappen:** [30-migratie-kubeadm.md](30-migratie-kubeadm.md).

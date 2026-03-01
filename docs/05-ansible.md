@@ -92,6 +92,18 @@ ansible-playbook playbooks/prepare-nodes.yml
 ansible-playbook playbooks/prepare-nodes.yml --limit cp-01
 ```
 
+### kubeadm-install-packages.yml en kubeadm-bootstrap.yml (migratie)
+
+Voor de **migratie Hard Way → kubeadm** (zelfde hosts): installatie van kubeadm/kubelet/kubectl op alle nodes, daarna `kubeadm init` op de control plane en `kubeadm join` op de workers. Zie [30-migratie-kubeadm.md](30-migratie-kubeadm.md) voor de volledige volgorde (Fase B handmatig, dan deze playbooks, daarna Fase F–L met kubectl/helm).
+
+| Playbook | Doel |
+|----------|------|
+| `playbooks/kubeadm-install-packages.yml` | Installeert kubeadm, kubelet, kubectl (apt; Debian/Ubuntu) |
+| `playbooks/kubeadm-bootstrap.yml` | kubeadm init op cp-01, join op workers (idempotent) |
+| `playbooks/kubeadm-post-bootstrap.yml` | Fase F–K: kubeconfig ophalen, Cilium, Gateway CRDs, MetalLB, cert-manager, Gateway-stack (draait op localhost/jumpbox; vereist kubectl + helm op jumpbox) |
+
+Variabelen in `group_vars/k8s_cluster.yml` (versie, endpoint, pod/service CIDR). Optioneel voor post-bootstrap: `-e "cert_manager_cloudflare_token=..."` (anders secret handmatig aanmaken).
+
 ## Handige Commands
 
 ```bash

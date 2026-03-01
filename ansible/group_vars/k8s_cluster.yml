@@ -1,0 +1,11 @@
+---
+# Variabelen voor kubeadm-migratie (zelfde als docs/02-network.md)
+k8s_version: "1.29"
+k8s_control_plane_endpoint: "192.168.178.201:6443"
+k8s_pod_network_cidr: "10.200.0.0/16"
+k8s_service_cidr: "10.32.0.0/24"
+
+# Kubernetes package repo (Debian/Ubuntu)
+# Voor Alma/RHEL: gebruik playbooks met dnf of role met os_family check
+k8s_apt_repo_key_url: "https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key"
+k8s_apt_repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"

@@ -1,0 +1,78 @@
+---
+# kubeadm init (cp-01) en join (workers). Draai na kubeadm-install-packages.yml.
+# Vereisten: Fase B gedaan (Hard Way gestopt), packages geïnstalleerd.
+#
+# Gebruik (vanaf jumpbox, in ansible/):
+#   ansible-playbook playbooks/kubeadm-bootstrap.yml
+#
+# Idempotent: init alleen als /etc/kubernetes/admin.conf nog niet bestaat;
+# join alleen als op de worker /etc/kubernetes/kubelet.conf nog niet bestaat.
+# Na eerste run: kopieer admin.conf naar jumpbox (Fase K in 30-migratie-kubeadm.md).
+
+- name: kubeadm init on control plane
+  hosts: control_plane
+  become: true
+
+  tasks:
+    - name: Check if already initialized
+      ansible.builtin.stat:
+        path: /etc/kubernetes/admin.conf
+      register: k8s_admin_conf
+
+    - name: Run kubeadm init
+      ansible.builtin.command:
+        cmd: >
+          kubeadm init
+          --control-plane-endpoint {{ k8s_control_plane_endpoint }}
+          --pod-network-cidr {{ k8s_pod_network_cidr }}
+          --service-cidr {{ k8s_service_cidr }}
+      register: kubeadm_init
+      when: not k8s_admin_conf.stat.exists
+      changed_when: true
+
+    - name: Create .kube directory for admin user
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.kube"
+        state: directory
+        mode: '0755'
+      when: not k8s_admin_conf.stat.exists
+
+    - name: Copy admin.conf to user .kube/config
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ ansible_env.HOME }}/.kube/config"
+        remote_src: true
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid | default(ansible_user_id) }}"
+        mode: '0600'
+      when: not k8s_admin_conf.stat.exists
+
+    - name: Get join command (worker) from cp-01
+      ansible.builtin.shell: KUBECONFIG=/etc/kubernetes/admin.conf kubeadm token create --print-join-command
+      register: join_command_result
+      changed_when: false
+      failed_when: join_command_result.rc != 0
+
+    - name: Set join command fact for workers
+      ansible.builtin.set_fact:
+        kubeadm_join_command: "{{ join_command_result.stdout }}"
+      run_once: true
+
+- name: kubeadm join on workers
+  hosts: workers
+  become: true
+
+  tasks:
+    - name: Check if already joined
+      ansible.builtin.stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: k8s_kubelet_conf
+
+    - name: Run kubeadm join
+      ansible.builtin.shell: "{{ hostvars[groups['control_plane'][0]]['kubeadm_join_command'] }}"
+      when:
+        - not k8s_kubelet_conf.stat.exists
+        - hostvars[groups['control_plane'][0]] is defined
+        - hostvars[groups['control_plane'][0]].get('kubeadm_join_command') is defined
+      register: kubeadm_join
+      changed_when: true

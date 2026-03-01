@@ -30,7 +30,9 @@ Een reproduceerbare homelab setup met:
 | [23 - MetalLB](23-metallb.md) | Stap 3: LoadBalancer IP's |
 | [24 - cert-manager](24-cert-manager.md) | Stap 4: TLS (Let's Encrypt, DNS-01) |
 | [25 - Gateway TLS](25-gateway-tls.md) | Stap 5: HTTPS Gateway + test |
+| [30 - Migratie kubeadm](30-migratie-kubeadm.md) | Hard Way → kubeadm op dezelfde hosts (incl. Ansible + build log) |
 | [BUILDLOG](BUILDLOG.md) | Chronologisch logboek van alle wijzigingen |
+| [BUILDLOG-migratie-kubeadm](BUILDLOG-migratie-kubeadm.md) | Template build log per fase bij handmatige migratie |
 
 ## Status
 

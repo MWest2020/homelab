@@ -1,0 +1,56 @@
+---
+# Installeer kubeadm, kubelet, kubectl op alle cluster-nodes.
+# Gebruik: na Fase B (Hard Way gestopt). Draai vanaf jumpbox:
+#   cd ansible && ansible-playbook playbooks/kubeadm-install-packages.yml
+#
+# Vereisten: inventory hosts.yml (control_plane + workers), SSH toegang.
+# Voor Alma/RHEL: pas tasks aan naar dnf of gebruik een aparte role.
+
+- name: Install Kubernetes packages (kubeadm, kubelet, kubectl)
+  hosts: k8s_cluster
+  become: true
+
+  vars:
+    k8s_packages:
+      - kubelet
+      - kubeadm
+      - kubectl
+
+  tasks:
+    - name: Create keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Assert Debian/Ubuntu (voor Alma/RHEL: zie docs/30-migratie-kubeadm.md Fase C)
+      ansible.builtin.assert:
+        that: ansible_os_family == "Debian"
+        fail_msg: "Dit playbook is voor Debian/Ubuntu. Voor Alma/RHEL voer Fase C handmatig uit of voeg dnf-tasks toe."
+
+    - name: Add Kubernetes APT key
+      ansible.builtin.get_url:
+        url: "{{ k8s_apt_repo_key_url }}"
+        dest: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        mode: '0644'
+        force: true
+
+    - name: Add Kubernetes APT repository
+      ansible.builtin.apt_repository:
+        repo: "{{ k8s_apt_repo }}"
+        filename: kubernetes
+        state: present
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Kubernetes packages
+      ansible.builtin.apt:
+        name: "{{ k8s_packages }}"
+        state: present
+
+    - name: Hold Kubernetes packages (prevent auto-upgrade)
+      ansible.builtin.command: apt-mark hold {{ k8s_packages | join(' ') }}
+      changed_when: false

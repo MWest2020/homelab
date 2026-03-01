@@ -1,0 +1,201 @@
+---
+# Fase F t/m K: Cilium, Gateway CRDs, MetalLB, cert-manager, Gateway-stack, kubeconfig op jumpbox.
+# Draai vanaf jumpbox, NA kubeadm-bootstrap.yml. Repo-root = map boven ansible/ (dus vanaf homelab/).
+#
+# Gebruik (vanaf jumpbox):
+#   cd ~/homelab/ansible
+#   ansible-playbook playbooks/kubeadm-post-bootstrap.yml
+#
+# Optioneel: Cloudflare-token meegeven (anders handmatig secret aanmaken):
+#   ansible-playbook playbooks/kubeadm-post-bootstrap.yml -e "cert_manager_cloudflare_token=JOUW_TOKEN"
+#
+# Vereisten: kubectl en helm geïnstalleerd op jumpbox; SSH naar cp-01 (voor fetch kubeconfig).
+
+- name: Fetch kubeconfig from control plane
+  hosts: control_plane
+  gather_facts: false
+
+  tasks:
+    - name: Fetch admin.conf to control node (jumpbox)
+      ansible.builtin.fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ playbook_dir }}/../.tmp-kubeconfig/"
+        flat: false
+
+- name: Configure cluster (Cilium, CRDs, MetalLB, cert-manager, Gateway)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    repo_root: "{{ playbook_dir }}/.."
+    kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
+    # Stel in via -e cert_manager_cloudflare_token=... of laat leeg → secret handmatig aanmaken
+    cert_manager_cloudflare_token: ""
+
+  tasks:
+    - name: Ensure .kube directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.kube"
+        state: directory
+        mode: '0755'
+
+    - name: Copy fetched kubeconfig to ~/.kube/config
+      ansible.builtin.copy:
+        src: "{{ repo_root }}/.tmp-kubeconfig/{{ groups['control_plane'][0] }}/etc/kubernetes/admin.conf"
+        dest: "{{ kubeconfig_path }}"
+        mode: '0600'
+        remote_src: false
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Remove temporary kubeconfig fetch dir
+      ansible.builtin.file:
+        path: "{{ repo_root }}/.tmp-kubeconfig"
+        state: absent
+
+    # --- Fase F: Cilium ---
+    - name: Add Cilium Helm repo
+      ansible.builtin.command:
+        cmd: helm repo add cilium https://helm.cilium.io/
+        creates: "{{ ansible_env.HOME }}/.cache/helm/repository/cilium-index.yaml"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Update Helm repos
+      ansible.builtin.command: helm repo update
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Install Cilium (CNI + Gateway API)
+      ansible.builtin.command: >
+        helm upgrade --install cilium cilium/cilium
+        --namespace kube-system
+        -f {{ repo_root }}/cluster-config/infra/cilium/values.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Wait for Cilium pods
+      ansible.builtin.command: kubectl get pods -n kube-system -l k8s-app=cilium -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: cilium_pods
+      changed_when: false
+
+    # --- Fase G: Gateway API CRDs ---
+    - name: Apply Gateway API CRDs (standard install)
+      ansible.builtin.command: >
+        kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # --- Fase H: MetalLB ---
+    - name: Apply MetalLB manifest
+      ansible.builtin.command: >
+        kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Wait for MetalLB namespace
+      ansible.builtin.pause:
+        seconds: 15
+        prompt: "Wachten tot MetalLB pods starten (15s). Bij webhook-timeout: zie docs/23-metallb.md."
+
+    - name: Apply MetalLB IP pool (L2, 192.168.178.220-230)
+      ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/metallb/ip-pool.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # --- Fase I: cert-manager ---
+    - name: Add Jetstack Helm repo
+      ansible.builtin.command:
+        cmd: helm repo add jetstack https://charts.jetstack.io
+        creates: "{{ ansible_env.HOME }}/.cache/helm/repository/jetstack-index.yaml"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Install cert-manager
+      ansible.builtin.command: >
+        helm upgrade --install cert-manager jetstack/cert-manager
+        --namespace cert-manager
+        --create-namespace
+        -f {{ repo_root }}/kubernetes/infrastructure/cert-manager/values.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Create Cloudflare API token secret (cert-manager)
+      ansible.builtin.command: >
+        kubectl create secret generic cloudflare-api-token
+        --from-literal=api-token={{ cert_manager_cloudflare_token }}
+        --namespace cert-manager
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      when: cert_manager_cloudflare_token | length > 0
+      failed_when: false  # ignore if secret already exists
+
+    - name: Remind to create Cloudflare secret if not provided
+      ansible.builtin.debug:
+        msg: |
+          Geen cert_manager_cloudflare_token meegegeven. Maak handmatig aan:
+            kubectl create secret generic cloudflare-api-token --from-literal=api-token=JOUW_TOKEN -n cert-manager
+      when: cert_manager_cloudflare_token | length == 0
+
+    - name: Apply ClusterIssuer letsencrypt-prod
+      ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/cert-manager/cluster-issuer-prod.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # --- Fase J: Gateway stack ---
+    - name: Apply gateway-system namespace
+      ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/namespace.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Apply Certificate (wildcard)
+      ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/certificate.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Apply Gateway (HTTPS)
+      ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/gateway.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Apply gateway test app and HTTPRoute
+      ansible.builtin.command: >
+        kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/gateway-test-app.yaml
+        -f {{ repo_root }}/kubernetes/infrastructure/gateway/httproute-test.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # --- Verificatie (Fase L deel) ---
+    - name: Show nodes
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: nodes_out
+      changed_when: false
+
+    - name: Display nodes
+      ansible.builtin.debug:
+        var: nodes_out.stdout_lines
+
+    - name: Show Gateway EXTERNAL-IP
+      ansible.builtin.command: kubectl get svc -n gateway-system
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: gw_svc
+      changed_when: false
+
+    - name: Display Gateway services (noteer EXTERNAL-IP voor DNS)
+      ansible.builtin.debug:
+        var: gw_svc.stdout_lines
+
+    - name: Post-bootstrap done
+      ansible.builtin.debug:
+        msg: |
+          Fase F t/m K klaar. Controleer: kubectl get certificate -n gateway-system -w (tot Ready).
+          DNS: A-record test.westerweel.work → EXTERNAL-IP hierboven. Verificatie: curl -v https://test.westerweel.work
+      changed_when: false
