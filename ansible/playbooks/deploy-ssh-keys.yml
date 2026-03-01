@@ -35,8 +35,25 @@
         msg: "Geef ssh_public_key_file= of ssh_public_key_content= mee (zie comment bovenaan playbook)."
       when: key_to_deploy is not defined or key_to_deploy | length == 0
 
-    - name: Add SSH public key to {{ ansible_user }}
-      ansible.posix.authorized_key:
-        user: "{{ ansible_user }}"
-        key: "{{ key_to_deploy }}"
+    - name: Ensure .ssh directory exists for {{ ansible_user }}
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.ssh"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0700'
+
+    - name: Add SSH public key to authorized_keys
+      ansible.builtin.lineinfile:
+        path: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+        line: "{{ key_to_deploy }}"
+        create: true
         state: present
+
+    - name: Set authorized_keys permissions
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+        state: file

@@ -94,19 +94,15 @@ ansible-playbook playbooks/prepare-nodes.yml --limit cp-01
 
 ### deploy-ssh-keys.yml (jumpbox toegang geven)
 
-Als je Ansible **vanaf de jumpbox** wilt draaien maar de jumpbox nog geen SSH-toegang tot de nodes heeft: draai dit playbook **eén keer vanaf Alma** (waar je wél al SSH hebt). Het voegt de publieke sleutel van de jumpbox toe op cp-01, node-01 en node-02.
+Als je Ansible **vanaf de jumpbox** wilt draaien maar de jumpbox nog geen SSH-toegang tot de nodes heeft: draai dit playbook **eén keer vanaf Alma** (waar je wél al SSH hebt). Het voegt de publieke sleutel toe op cp-01, node-01 en node-02 voor de user uit inventory (bijv. gongoeloe).
 
 ```bash
-# Op jumpbox: publieke sleutel tonen en kopiëren
-cat ~/.ssh/id_ed25519.pub
-
-# Op Alma (in homelab/ansible, met inventory die voor Alma werkt):
-ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_content='ssh-ed25519 AAAA... jump@jump'"
-# of als je het bestand hebt gekopieerd:
-ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_file=$HOME/jumpbox_id_ed25519.pub"
+# Op Alma (in homelab/ansible; inventory moet voor Alma kloppen: IP's, ansible_user, ansible_ssh_private_key_file):
+ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_file=~/.ssh/id_ed25519_homelab.pub" --ask-become-pass
+# Of met key als string: -e "ssh_public_key_content='ssh-ed25519 AAAA... comment'"
 ```
 
-Daarna kan de jumpbox SSH-en naar de nodes en kun je de kubeadm-playbooks vanaf de jumpbox draaien.
+Als gongoeloe op de nodes sudo zonder wachtwoord heeft, kun je `--ask-become-pass` weglaten. Daarna kan de jumpbox (met dezelfde key, bijv. `~/.ssh/id_ed25519_homelab`) SSH-en naar de nodes en kun je de kubeadm-playbooks vanaf de jumpbox draaien.
 
 ### kubeadm-install-packages.yml en kubeadm-bootstrap.yml (migratie)
 

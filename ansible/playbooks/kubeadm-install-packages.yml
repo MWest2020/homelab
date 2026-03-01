@@ -15,6 +15,9 @@
       - kubelet
       - kubeadm
       - kubectl
+    # Repo v1.29 voor packages; key van nieuwere versie (zelfde key, maar v1.29 Release.key kan verlopen zijn)
+    k8s_apt_repo_key_url: "https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key"
+    k8s_apt_repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"
 
   tasks:
     - name: Create keyring directory
@@ -28,12 +31,15 @@
         that: ansible_os_family == "Debian"
         fail_msg: "Dit playbook is voor Debian/Ubuntu. Voor Alma/RHEL voer Fase C handmatig uit of voeg dnf-tasks toe."
 
-    - name: Add Kubernetes APT key
-      ansible.builtin.get_url:
-        url: "{{ k8s_apt_repo_key_url }}"
-        dest: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    - name: Add Kubernetes APT key (dearmor voor apt signed-by)
+      ansible.builtin.shell: |
+        curl -fsSL "{{ k8s_apt_repo_key_url }}" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Set keyring permissions
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
         mode: '0644'
-        force: true
+        state: file
 
     - name: Add Kubernetes APT repository
       ansible.builtin.apt_repository:
