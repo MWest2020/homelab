@@ -92,6 +92,22 @@ ansible-playbook playbooks/prepare-nodes.yml
 ansible-playbook playbooks/prepare-nodes.yml --limit cp-01
 ```
 
+### deploy-ssh-keys.yml (jumpbox toegang geven)
+
+Als je Ansible **vanaf de jumpbox** wilt draaien maar de jumpbox nog geen SSH-toegang tot de nodes heeft: draai dit playbook **eén keer vanaf Alma** (waar je wél al SSH hebt). Het voegt de publieke sleutel van de jumpbox toe op cp-01, node-01 en node-02.
+
+```bash
+# Op jumpbox: publieke sleutel tonen en kopiëren
+cat ~/.ssh/id_ed25519.pub
+
+# Op Alma (in homelab/ansible, met inventory die voor Alma werkt):
+ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_content='ssh-ed25519 AAAA... jump@jump'"
+# of als je het bestand hebt gekopieerd:
+ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_file=$HOME/jumpbox_id_ed25519.pub"
+```
+
+Daarna kan de jumpbox SSH-en naar de nodes en kun je de kubeadm-playbooks vanaf de jumpbox draaien.
+
 ### kubeadm-install-packages.yml en kubeadm-bootstrap.yml (migratie)
 
 Voor de **migratie Hard Way → kubeadm** (zelfde hosts): installatie van kubeadm/kubelet/kubectl op alle nodes, daarna `kubeadm init` op de control plane en `kubeadm join` op de workers. Zie [30-migratie-kubeadm.md](30-migratie-kubeadm.md) voor de volledige volgorde (Fase B handmatig, dan deze playbooks, daarna Fase F–L met kubectl/helm).

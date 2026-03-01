@@ -1,0 +1,42 @@
+---
+# Voeg een SSH-publieke sleutel toe op alle cluster-nodes (cp-01, node-01, node-02).
+# Bedoeld om de jumpbox toegang te geven, zodat je daarna vanaf de jumpbox Ansible kunt draaien.
+#
+# Draai vanaf Alma (waar je wél al SSH naar de nodes hebt):
+#   cd ~/homelab/ansible
+#   ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_file=PAD/NAAR/jumpbox_pubkey.pub"
+# of met geplakte key:
+#   ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_content='ssh-ed25519 AAAA... jump@jump'"
+#
+# Daarna op jumpbox: test met  ssh gongoeloe@192.168.178.201  (zelfde user als in inventory).
+
+- name: Deploy SSH public key to cluster nodes (for jumpbox access)
+  hosts: k8s_cluster
+  become: true
+
+  vars:
+    # Geef mee: ssh_public_key_file (pad op Alma) OF ssh_public_key_content (key als string)
+    ssh_public_key_file: ""
+    ssh_public_key_content: ""
+
+  tasks:
+    - name: Resolve public key (from file or content)
+      ansible.builtin.set_fact:
+        key_to_deploy: "{{ ssh_public_key_content }}"
+      when: ssh_public_key_content | length > 0
+
+    - name: Resolve public key from file
+      ansible.builtin.set_fact:
+        key_to_deploy: "{{ lookup('file', ssh_public_key_file) }}"
+      when: ssh_public_key_file | length > 0 and (ssh_public_key_content | length == 0)
+
+    - name: Fail if no key provided
+      ansible.builtin.fail:
+        msg: "Geef ssh_public_key_file= of ssh_public_key_content= mee (zie comment bovenaan playbook)."
+      when: key_to_deploy is not defined or key_to_deploy | length == 0
+
+    - name: Add SSH public key to {{ ansible_user }}
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user }}"
+        key: "{{ key_to_deploy }}"
+        state: present
