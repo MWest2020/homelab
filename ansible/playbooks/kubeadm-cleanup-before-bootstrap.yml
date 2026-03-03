@@ -48,6 +48,17 @@
   become: true
 
   tasks:
+    - name: Disable swap (kubelet vereist swap uit)
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+      failed_when: false
+
+    - name: Remove swap from fstab (blijft uit na reboot)
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '\sswap\s'
+        state: absent
+
     - name: Load br_netfilter module
       ansible.builtin.command: modprobe br_netfilter
       changed_when: false
