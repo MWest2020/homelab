@@ -9,6 +9,8 @@
 - name: Install Kubernetes packages (kubeadm, kubelet, kubectl)
   hosts: k8s_cluster
   become: true
+  serial: 1
+  # Eén node per keer, zodat je voortgang ziet en het niet lijkt te hangen
 
   vars:
     k8s_packages:
