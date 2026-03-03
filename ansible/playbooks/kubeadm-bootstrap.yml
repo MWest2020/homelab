@@ -13,6 +13,12 @@
   hosts: control_plane
   become: true
 
+  vars:
+    # Defaults (overschreven door group_vars/k8s_cluster.yml indien aanwezig)
+    k8s_control_plane_endpoint: "192.168.178.201:6443"
+    k8s_pod_network_cidr: "10.200.0.0/16"
+    k8s_service_cidr: "10.32.0.0/24"
+
   tasks:
     - name: Check if already initialized
       ansible.builtin.stat:

@@ -33,7 +33,9 @@
 
     - name: Add Kubernetes APT key (dearmor voor apt signed-by)
       ansible.builtin.shell: |
-        curl -fsSL "{{ k8s_apt_repo_key_url }}" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        curl -fsSL --connect-timeout 15 --max-time 60 "{{ k8s_apt_repo_key_url }}" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      register: k8s_key_result
+      failed_when: k8s_key_result.rc != 0
 
     - name: Set keyring permissions
       ansible.builtin.file:
