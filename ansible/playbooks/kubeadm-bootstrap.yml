@@ -25,13 +25,15 @@
         path: /etc/kubernetes/admin.conf
       register: k8s_admin_conf
 
-    - name: Run kubeadm init
-      ansible.builtin.command:
-        cmd: >
-          /usr/bin/kubeadm init
-          --control-plane-endpoint {{ k8s_control_plane_endpoint }}
-          --pod-network-cidr {{ k8s_pod_network_cidr }}
-          --service-cidr {{ k8s_service_cidr }}
+    - name: Copy kubeadm config (cgroupDriver systemd voor cgroups v2)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../files/kubeadm-config.yaml"
+        dest: /tmp/kubeadm-config.yaml
+        mode: '0644'
+      when: not k8s_admin_conf.stat.exists
+
+    - name: Run kubeadm init with config
+      ansible.builtin.command: /usr/bin/kubeadm init --config /tmp/kubeadm-config.yaml
       register: kubeadm_init
       when: not k8s_admin_conf.stat.exists
       changed_when: true
