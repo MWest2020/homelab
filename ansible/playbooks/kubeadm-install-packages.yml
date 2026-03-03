@@ -41,7 +41,9 @@
         mode: '0644'
 
     - name: Add Kubernetes APT key (dearmor voor apt signed-by)
-      ansible.builtin.shell: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg < /tmp/kubernetes-Release.key
+      ansible.builtin.shell: gpg --batch --no-tty --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg < /tmp/kubernetes-Release.key
+      async: 90
+      poll: 5
 
     - name: Remove temporary key file
       ansible.builtin.file:
