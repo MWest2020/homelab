@@ -14,6 +14,7 @@
 - name: Fetch kubeconfig from control plane
   hosts: control_plane
   gather_facts: false
+  become: true  # admin.conf is root:root 0600; need root on cp-01 to read
 
   tasks:
     - name: Fetch admin.conf to control node (jumpbox)
@@ -29,6 +30,8 @@
   become: false
 
   vars:
+    # Override inventory all.vars (ansible_become: true) so we never use sudo on jumpbox
+    ansible_become: false
     # Map boven ansible/ (homelab repo root); playbook_dir = ansible/playbooks
     repo_root: "{{ playbook_dir }}/../.."
     home_dir: "{{ lookup('env', 'HOME') }}"
