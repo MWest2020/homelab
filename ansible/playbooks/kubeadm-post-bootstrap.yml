@@ -11,17 +11,16 @@
 #
 # Vereisten: kubectl en helm geïnstalleerd op jumpbox; SSH naar cp-01 (voor fetch kubeconfig).
 
-- name: Fetch kubeconfig from control plane
+- name: Read kubeconfig from control plane (as root; fetch often ignores become)
   hosts: control_plane
   gather_facts: false
-  become: true  # admin.conf is root:root 0600; need root on cp-01 to read
+  become: true
 
   tasks:
-    - name: Fetch admin.conf to control node (jumpbox)
-      ansible.builtin.fetch:
+    - name: Slurp admin.conf on cp-01
+      ansible.builtin.slurp:
         src: /etc/kubernetes/admin.conf
-        dest: "{{ playbook_dir }}/../../.tmp-kubeconfig/"
-        flat: false
+      register: admin_conf_slurp
 
 - name: Configure cluster (Cilium, CRDs, MetalLB, cert-manager, Gateway)
   hosts: localhost
@@ -46,19 +45,13 @@
         state: directory
         mode: '0755'
 
-    - name: Copy fetched kubeconfig to ~/.kube/config
+    - name: Write slurped admin.conf to kubeconfig
       ansible.builtin.copy:
-        src: "{{ repo_root }}/.tmp-kubeconfig/{{ groups['control_plane'][0] }}/etc/kubernetes/admin.conf"
+        content: "{{ hostvars[groups['control_plane'][0]].admin_conf_slurp.content | b64decode }}"
         dest: "{{ kubeconfig_path }}"
         mode: '0600'
-        remote_src: false
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
-
-    - name: Remove temporary kubeconfig fetch dir
-      ansible.builtin.file:
-        path: "{{ repo_root }}/.tmp-kubeconfig"
-        state: absent
 
     # --- Fase F: Cilium ---
     - name: Add Cilium Helm repo
