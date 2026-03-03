@@ -39,6 +39,12 @@
         dest: /tmp/kubernetes-Release.key
         timeout: 30
         mode: '0644'
+        force: true
+
+    - name: Remove old keyring so gpg can write
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        state: absent
 
     - name: Add Kubernetes APT key (dearmor voor apt signed-by)
       ansible.builtin.shell: gpg --batch --no-tty --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg < /tmp/kubernetes-Release.key
