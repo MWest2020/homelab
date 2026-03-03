@@ -17,10 +17,10 @@
   become: true
 
   tasks:
-    - name: Slurp admin.conf on cp-01
-      ansible.builtin.slurp:
-        src: /etc/kubernetes/admin.conf
-      register: admin_conf_slurp
+    - name: Read admin.conf on cp-01 (cat honours become; slurp/fetch do not)
+      ansible.builtin.command: cat /etc/kubernetes/admin.conf
+      register: admin_conf_raw
+      changed_when: false
 
 - name: Configure cluster (Cilium, CRDs, MetalLB, cert-manager, Gateway)
   hosts: localhost
@@ -47,7 +47,7 @@
 
     - name: Write slurped admin.conf to kubeconfig
       ansible.builtin.copy:
-        content: "{{ hostvars[groups['control_plane'][0]].admin_conf_slurp.content | b64decode }}"
+        content: "{{ hostvars[groups['control_plane'][0]].admin_conf_raw.stdout }}"
         dest: "{{ kubeconfig_path }}"
         mode: '0600'
       environment:
