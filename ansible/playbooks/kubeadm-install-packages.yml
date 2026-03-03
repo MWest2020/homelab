@@ -33,11 +33,20 @@
         that: ansible_os_family == "Debian"
         fail_msg: "Dit playbook is voor Debian/Ubuntu. Voor Alma/RHEL voer Fase C handmatig uit of voeg dnf-tasks toe."
 
+    - name: Download Kubernetes APT key
+      ansible.builtin.get_url:
+        url: "{{ k8s_apt_repo_key_url }}"
+        dest: /tmp/kubernetes-Release.key
+        timeout: 30
+        mode: '0644'
+
     - name: Add Kubernetes APT key (dearmor voor apt signed-by)
-      ansible.builtin.shell: |
-        curl -fsSL --connect-timeout 15 --max-time 60 "{{ k8s_apt_repo_key_url }}" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      register: k8s_key_result
-      failed_when: k8s_key_result.rc != 0
+      ansible.builtin.shell: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg < /tmp/kubernetes-Release.key
+
+    - name: Remove temporary key file
+      ansible.builtin.file:
+        path: /tmp/kubernetes-Release.key
+        state: absent
 
     - name: Set keyring permissions
       ansible.builtin.file:

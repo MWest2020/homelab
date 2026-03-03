@@ -92,6 +92,17 @@ ansible-playbook playbooks/prepare-nodes.yml
 ansible-playbook playbooks/prepare-nodes.yml --limit cp-01
 ```
 
+### configure-passwordless-sudo.yml (eenmalig, daarna geen wachtwoord meer)
+
+Zet **passwordless sudo** voor de Ansible-user (bijv. gongoeloe) op alle nodes. Daarna hoeft geen enkel playbook meer `--ask-become-pass`.
+
+```bash
+cd ~/homelab/ansible
+ansible-playbook playbooks/configure-passwordless-sudo.yml --ask-become-pass
+```
+
+Daarna alle andere playbooks zonder wachtwoord: `ansible-playbook playbooks/...yml`
+
 ### deploy-ssh-keys.yml (jumpbox toegang geven)
 
 Als je Ansible **vanaf de jumpbox** wilt draaien maar de jumpbox nog geen SSH-toegang tot de nodes heeft: draai dit playbook **eén keer vanaf Alma** (waar je wél al SSH hebt). Het voegt de publieke sleutel toe op cp-01, node-01 en node-02 voor de user uit inventory (bijv. gongoeloe).
