@@ -73,8 +73,23 @@
       ansible.builtin.command: sysctl --system
       changed_when: false
 
+    - name: Install containerd if not present
+      ansible.builtin.apt:
+        name: containerd.io
+        state: present
+      when: ansible_os_family == "Debian"
+      ignore_errors: true
+
+    - name: Install containerd (alternate package name)
+      ansible.builtin.apt:
+        name: containerd
+        state: present
+      when: ansible_os_family == "Debian"
+      ignore_errors: true
+
     - name: Ensure containerd is running
       ansible.builtin.service:
         name: containerd
         state: started
         enabled: true
+      ignore_errors: true
