@@ -1,0 +1,80 @@
+---
+# Eenmalig vóór kubeadm-bootstrap: opruimen van Hard Way-resten en voorbereiden voor kubeadm.
+# Draai als kubeadm init faalt met "port in use", "etcd not empty", "containerd not running", etc.
+#
+# Gebruik (vanaf jumpbox):
+#   ansible-playbook playbooks/kubeadm-cleanup-before-bootstrap.yml
+# Daarna: ansible-playbook playbooks/kubeadm-bootstrap.yml
+
+- name: Stop old Hard Way services and clean for kubeadm
+  hosts: k8s_cluster
+  become: true
+
+  tasks:
+    - name: Stop old control plane and kubelet (ignore if not present)
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - kube-apiserver
+        - kube-controller-manager
+        - kube-scheduler
+        - etcd
+        - kubelet
+      ignore_errors: true
+
+    - name: Remove old Kubernetes and etcd data (control plane)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes
+        - /var/lib/etcd
+        - /var/lib/kubelet
+      when: inventory_hostname in groups['control_plane']
+
+    - name: Remove old Kubernetes data (workers)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes
+        - /var/lib/kubelet
+      when: inventory_hostname in groups['workers']
+
+- name: Ensure containerd and kernel settings (all nodes)
+  hosts: k8s_cluster
+  become: true
+
+  tasks:
+    - name: Load br_netfilter module
+      ansible.builtin.command: modprobe br_netfilter
+      changed_when: false
+
+    - name: Ensure br_netfilter loads on boot
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: '0644'
+
+    - name: Set sysctl for Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/k8s.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward = 1
+        mode: '0644'
+
+    - name: Apply sysctl
+      ansible.builtin.command: sysctl --system
+      changed_when: false
+
+    - name: Ensure containerd is running
+      ansible.builtin.service:
+        name: containerd
+        state: started
+        enabled: true
