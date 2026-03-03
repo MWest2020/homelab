@@ -19,16 +19,18 @@
     - name: Fetch admin.conf to control node (jumpbox)
       ansible.builtin.fetch:
         src: /etc/kubernetes/admin.conf
-        dest: "{{ playbook_dir }}/../.tmp-kubeconfig/"
+        dest: "{{ playbook_dir }}/../../.tmp-kubeconfig/"
         flat: false
 
 - name: Configure cluster (Cilium, CRDs, MetalLB, cert-manager, Gateway)
   hosts: localhost
   connection: local
   gather_facts: true
+  become: false  # run as jumpbox user (no sudo); ansible.cfg has become=True globally
 
   vars:
-    repo_root: "{{ playbook_dir }}/.."
+    # Map boven ansible/ (homelab repo root); playbook_dir = ansible/playbooks
+    repo_root: "{{ playbook_dir }}/../.."
     kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
     # Stel in via -e cert_manager_cloudflare_token=... of laat leeg → secret handmatig aanmaken
     cert_manager_cloudflare_token: ""
