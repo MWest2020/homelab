@@ -28,7 +28,7 @@
     - name: Run kubeadm init
       ansible.builtin.command:
         cmd: >
-          kubeadm init
+          /usr/bin/kubeadm init
           --control-plane-endpoint {{ k8s_control_plane_endpoint }}
           --pod-network-cidr {{ k8s_pod_network_cidr }}
           --service-cidr {{ k8s_service_cidr }}
@@ -54,7 +54,7 @@
       when: not k8s_admin_conf.stat.exists
 
     - name: Get join command (worker) from cp-01
-      ansible.builtin.shell: KUBECONFIG=/etc/kubernetes/admin.conf kubeadm token create --print-join-command
+      ansible.builtin.shell: KUBECONFIG=/etc/kubernetes/admin.conf /usr/bin/kubeadm token create --print-join-command
       register: join_command_result
       changed_when: false
       failed_when: join_command_result.rc != 0
@@ -75,7 +75,7 @@
       register: k8s_kubelet_conf
 
     - name: Run kubeadm join
-      ansible.builtin.shell: "{{ hostvars[groups['control_plane'][0]]['kubeadm_join_command'] }}"
+      ansible.builtin.shell: "{{ hostvars[groups['control_plane'][0]]['kubeadm_join_command'] | replace('kubeadm ', '/usr/bin/kubeadm ', 1) }}"
       when:
         - not k8s_kubelet_conf.stat.exists
         - hostvars[groups['control_plane'][0]] is defined
