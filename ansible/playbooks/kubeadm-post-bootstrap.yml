@@ -25,20 +25,21 @@
 - name: Configure cluster (Cilium, CRDs, MetalLB, cert-manager, Gateway)
   hosts: localhost
   connection: local
-  gather_facts: true
-  become: false  # run as jumpbox user (no sudo); ansible.cfg has become=True globally
+  gather_facts: false  # avoid setup module (would use sudo via ansible.cfg); use lookup('env') for HOME
+  become: false
 
   vars:
     # Map boven ansible/ (homelab repo root); playbook_dir = ansible/playbooks
     repo_root: "{{ playbook_dir }}/../.."
-    kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
+    home_dir: "{{ lookup('env', 'HOME') }}"
+    kubeconfig_path: "{{ home_dir }}/.kube/config"
     # Stel in via -e cert_manager_cloudflare_token=... of laat leeg → secret handmatig aanmaken
     cert_manager_cloudflare_token: ""
 
   tasks:
     - name: Ensure .kube directory exists
       ansible.builtin.file:
-        path: "{{ ansible_env.HOME }}/.kube"
+        path: "{{ home_dir }}/.kube"
         state: directory
         mode: '0755'
 
@@ -60,7 +61,7 @@
     - name: Add Cilium Helm repo
       ansible.builtin.command:
         cmd: helm repo add cilium https://helm.cilium.io/
-        creates: "{{ ansible_env.HOME }}/.cache/helm/repository/cilium-index.yaml"
+        creates: "{{ home_dir }}/.cache/helm/repository/cilium-index.yaml"
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
       changed_when: true
@@ -113,7 +114,7 @@
     - name: Add Jetstack Helm repo
       ansible.builtin.command:
         cmd: helm repo add jetstack https://charts.jetstack.io
-        creates: "{{ ansible_env.HOME }}/.cache/helm/repository/jetstack-index.yaml"
+        creates: "{{ home_dir }}/.cache/helm/repository/jetstack-index.yaml"
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
       changed_when: true
