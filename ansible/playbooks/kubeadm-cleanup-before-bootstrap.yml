@@ -93,3 +93,25 @@
         state: started
         enabled: true
       ignore_errors: true
+
+    - name: Generate containerd config if missing
+      ansible.builtin.shell: mkdir -p /etc/containerd && containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Set containerd SystemdCgroup = true (voor cgroups v2)
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Restart containerd after config change
+      ansible.builtin.service:
+        name: containerd
+        state: restarted
+
+    - name: Enable kubelet (for after kubeadm init)
+      ansible.builtin.service:
+        name: kubelet
+        enabled: true
+      ignore_errors: true
