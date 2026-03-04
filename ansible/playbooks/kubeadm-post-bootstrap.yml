@@ -15,6 +15,8 @@
   hosts: control_plane
   gather_facts: false
   become: true
+  vars:
+    ansible_become: true  # inventory all.vars has ansible_become: false; override here
 
   tasks:
     - name: Read admin.conf on cp-01 (cat honours become; slurp/fetch do not)
