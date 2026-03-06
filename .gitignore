@@ -39,3 +39,7 @@ temp/
 hosts
 notes.txt
 *.local.md
+
+#environment files
+.env
+*.env

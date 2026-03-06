@@ -1,0 +1,23 @@
+# HTTPRoute – argocd.westerweel.work → argocd-server
+# Gateway (gateway-system/main-gateway) must have allowedRoutes.namespaces.from: All
+# TLS terminated at Gateway; backend is plain HTTP (server.insecure=true in values.yaml)
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: main-gateway
+      namespace: gateway-system
+  hostnames:
+    - "argocd.westerweel.work"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: argocd-server
+          port: 80

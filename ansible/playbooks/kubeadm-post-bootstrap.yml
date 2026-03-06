@@ -98,10 +98,29 @@
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
 
-    - name: Wait for MetalLB namespace
-      ansible.builtin.pause:
-        seconds: 15
-        prompt: "Wachten tot MetalLB pods starten (15s). Bij webhook-timeout: zie docs/23-metallb.md."
+    - name: Wait for MetalLB controller to be ready
+      ansible.builtin.command: >
+        kubectl wait deployment controller
+        --namespace metallb-system
+        --for=condition=available
+        --timeout=120s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Wait for MetalLB speaker daemonset pods to be ready
+      ansible.builtin.command: >
+        kubectl rollout status daemonset speaker
+        --namespace metallb-system
+        --timeout=120s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Delete MetalLB validating webhooks (API server cannot reach ClusterIP on this setup; see docs/23-metallb.md)
+      ansible.builtin.shell: >
+        kubectl get validatingwebhookconfiguration -o name | grep metallb | xargs -r kubectl delete
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
 
     - name: Apply MetalLB IP pool (L2, 192.168.178.220-230)
       ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/metallb/ip-pool.yaml
@@ -168,6 +187,43 @@
       ansible.builtin.command: >
         kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/gateway-test-app.yaml
         -f {{ repo_root }}/kubernetes/infrastructure/gateway/httproute-test.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # --- Fase K: Argo CD ---
+    - name: Add Argo CD Helm repo
+      ansible.builtin.command:
+        cmd: helm repo add argo https://argoproj.github.io/argo-helm
+        creates: "{{ home_dir }}/.cache/helm/repository/argo-index.yaml"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Update Helm repos
+      ansible.builtin.command: helm repo update
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Install Argo CD
+      ansible.builtin.command: >
+        helm upgrade --install argocd argo/argo-cd
+        --namespace argocd
+        --create-namespace
+        -f {{ repo_root }}/kubernetes/infrastructure/argocd/values.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Wait for Argo CD server to be ready
+      ansible.builtin.command: >
+        kubectl wait deployment argocd-server
+        --namespace argocd
+        --for=condition=available
+        --timeout=180s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Apply Argo CD HTTPRoute
+      ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/argocd/httproute.yaml
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
 

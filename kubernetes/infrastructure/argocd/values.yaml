@@ -1,0 +1,16 @@
+# Argo CD Helm values – westerweel.work homelab
+# Chart: argo/argo-cd
+# TLS terminated at Gateway (Cilium); Argo CD runs in insecure mode.
+# No built-in ingress – HTTPRoute in httproute.yaml handles routing.
+
+global:
+  domain: argocd.westerweel.work
+
+configs:
+  params:
+    # TLS is handled by the Gateway; Argo CD serves plain HTTP internally
+    server.insecure: "true"
+
+server:
+  ingress:
+    enabled: false
