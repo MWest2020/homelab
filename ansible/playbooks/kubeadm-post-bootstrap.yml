@@ -183,6 +183,26 @@
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
 
+    - name: Wait for Cilium to create Gateway LoadBalancer service
+      ansible.builtin.command: >
+        kubectl wait svc cilium-gateway-main-gateway
+        --namespace gateway-system
+        --for=jsonpath='{.status.loadBalancer.ingress[0].ip}'
+        --timeout=120s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      failed_when: false
+
+    - name: Add missing service-name label to Cilium Gateway EndpointSlice (MetalLB compatibility)
+      ansible.builtin.command: >
+        kubectl label endpointslice cilium-gateway-main-gateway
+        --namespace gateway-system
+        kubernetes.io/service-name=cilium-gateway-main-gateway
+        --overwrite
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      failed_when: false
+
     - name: Apply gateway test app and HTTPRoute
       ansible.builtin.command: >
         kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/gateway-test-app.yaml
