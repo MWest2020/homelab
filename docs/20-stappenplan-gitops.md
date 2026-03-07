@@ -6,15 +6,15 @@ Dit document beschrijft het pad van een werkend Kubernetes cluster naar een voll
 
 | Component | Status |
 |-----------|--------|
-| Kubernetes v1.29.2 | ✅ Draait (the Hard Way, systemd) |
+| Kubernetes v1.29.2 | ✅ Draait (kubeadm, systemd) |
 | containerd | ✅ Runtime |
 | Cilium 1.19.0 | ✅ CNI, kubeProxyReplacement=true |
 | CoreDNS (kube-dns) | ✅ Cluster DNS 10.32.0.10 |
 | Gateway API CRDs | ✅ Geïnstalleerd (Stap 1) |
 | Cilium Gateway controller | ✅ Actief (GatewayClass aanwezig) |
-| MetalLB | ❌ Nog niet geïnstalleerd |
-| cert-manager | ❌ Nog niet geïnstalleerd |
-| Argo CD | ❌ Nog niet geïnstalleerd |
+| MetalLB | ✅ L2 mode, pool 192.168.178.220–230 |
+| cert-manager | ✅ DNS-01 wildcard *.westerweel.work |
+| Argo CD | ✅ argocd.westerweel.work |
 
 ## Doel
 
@@ -223,11 +223,11 @@ curl -v https://test.westerweel.work
 | Stap | Status | Datum |
 |------|--------|-------|
 | 1. Gateway API CRDs | ✅ | 2026-02-17 |
-| 2. Cilium Gateway | ✅ | Al actief (GatewayClass ~6d) |
-| 3. MetalLB | ⏳ | - |
-| 4. cert-manager | ⏳ | - |
-| 5. Gateway TLS | ⏳ | - |
-| 6. Argo CD | ⏳ | - |
+| 2. Cilium Gateway | ✅ | 2026-02-24 |
+| 3. MetalLB | ✅ | 2026-03-06 |
+| 4. cert-manager | ✅ | 2026-03-06 |
+| 5. Gateway TLS | ✅ | 2026-03-06 |
+| 6. Argo CD | ✅ | 2026-03-07 |
 | 7. GitOps root | ⏳ | - |
 
 ---

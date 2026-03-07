@@ -68,10 +68,10 @@ The 7-step plan towards a fully GitOps-managed cluster (`docs/20-stappenplan-git
 |------|--------|-----------|
 | 1 | ✅ | Gateway API CRDs |
 | 2 | ✅ | Cilium Gateway (GatewayClass active) |
-| 3 | ⏳ | MetalLB — `kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml` |
-| 4 | ⏳ | cert-manager + Cloudflare DNS-01 wildcard (`*.westerweel.work`) |
-| 5 | ⏳ | Gateway + TLS termination |
-| 6 | ⏳ | Argo CD bootstrap (`argocd.westerweel.work`) |
+| 3 | ✅ | MetalLB — L2 mode, pool 192.168.178.220–230 |
+| 4 | ✅ | cert-manager + Cloudflare DNS-01 wildcard (`*.westerweel.work`) |
+| 5 | ✅ | Gateway + TLS termination |
+| 6 | ✅ | Argo CD — `argocd.westerweel.work` |
 | 7 | ⏳ | GitOps root app (app-of-apps pattern) |
 
 Once Argo CD is running, all changes go through Git — `kubectl apply` directly to production is only a bootstrap step, not ongoing practice.

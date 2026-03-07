@@ -124,3 +124,53 @@ kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 - **Manifests** `kubernetes/infrastructure/gateway/`: namespace, Certificate (*.westerweel.work), Gateway (HTTPS, Secret-ref), echo-test app + HTTPRoute voor test.westerweel.work.
 - **Migratie-cutoff** in stappenplan: logisch moment is na Stap 7 (volledige stack in Git); alternatief na 5 of 6.
 
+---
+
+### 2026-03-06 - Stappen 3 t/m 5 uitgevoerd (handmatig, playbook al klaar)
+
+**Actie:** MetalLB, cert-manager en Gateway+TLS live gezet. Playbook `kubeadm-post-bootstrap.yml` dekt deze stappen volledig automatisch bij herbouw.
+
+**Commando's (jumpbox, handmatig uitgevoerd):**
+```bash
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
+kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
+helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace -f kubernetes/infrastructure/cert-manager/values.yaml
+kubectl create secret generic cloudflare-api-token --from-literal=api-token=<token> --namespace cert-manager
+kubectl apply -f kubernetes/infrastructure/cert-manager/cluster-issuer-prod.yaml
+kubectl apply -f kubernetes/infrastructure/gateway/namespace.yaml
+kubectl apply -f kubernetes/infrastructure/gateway/certificate.yaml
+# (wacht op Ready) dan:
+kubectl apply -f kubernetes/infrastructure/gateway/gateway.yaml
+kubectl apply -f kubernetes/infrastructure/gateway/gateway-test-app.yaml
+kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
+```
+
+**Resultaat:** test.westerweel.work bereikbaar via HTTPS, cert valid (Let's Encrypt prod).
+
+---
+
+### 2026-03-07 - Stap 6: Argo CD + bekende issues opgelost
+
+**Actie:** Argo CD geïnstalleerd, bereikbaar via `argocd.westerweel.work`.
+
+**Manifests toegevoegd:**
+- `kubernetes/infrastructure/argocd/values.yaml` — insecure mode, geen built-in ingress
+- `kubernetes/infrastructure/argocd/httproute.yaml` — cross-namespace route naar Gateway
+- `kubernetes/infrastructure/gateway/gateway.yaml` — `allowedRoutes.namespaces.from: All` toegevoegd
+
+**Playbook bijgewerkt:** `kubeadm-post-bootstrap.yml` Fase K — Argo CD Helm install + HTTPRoute.
+
+**Bekende issues opgelost (belangrijk voor replicatie):**
+
+1. **Cilium GatewayClass verdwenen** — Cilium operator startte 1 seconde vóór Gateway API CRDs beschikbaar waren; doet eenmalige check bij startup. Fix: `helm upgrade cilium cilium/cilium -n kube-system -f cluster-config/infra/cilium/values.yaml` forceert herinstall van GatewayClass.
+
+2. **MetalLB kondigt IP niet aan** — EndpointSlice `cilium-gateway-main-gateway` mist label `kubernetes.io/service-name` (Cilium+MetalLB compatibility issue). Fix:
+   ```bash
+   kubectl label endpointslice cilium-gateway-main-gateway \
+     -n gateway-system kubernetes.io/service-name=cilium-gateway-main-gateway
+   ```
+
+3. **Tailscale jumpbox** — Jumpbox had geen Tailscale; SSH naar nodes van buiten LAN werkte niet. Fix: Tailscale installeren op jumpbox met subnet routing (`--advertise-routes=192.168.178.0/24`).
+
+**Resultaat:** `argocd.westerweel.work` bereikbaar via LAN/Tailscale, login werkt.
+
