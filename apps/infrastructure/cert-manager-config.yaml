@@ -1,0 +1,29 @@
+# ClusterIssuer depends on cert-manager CRDs (wave 0) and cloudflare-api-token Secret.
+# Secret must be created out-of-band (not in Git):
+#   kubectl create secret generic cloudflare-api-token \
+#     --from-literal=api-token=<token> -n cert-manager
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MWest2020/homelab.git
+    targetRevision: main
+    path: kubernetes/infrastructure/cert-manager
+    directory:
+      include: 'cluster-issuer-*.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
