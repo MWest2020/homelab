@@ -1,0 +1,287 @@
+---
+# kubeadm-upgrade.yml — upgrade Kubernetes one minor version at a time
+#
+# Usage (from ansible/):
+#   ansible-playbook -i inventory/hosts.yml playbooks/kubeadm-upgrade.yml \
+#     -e k8s_target_minor=1.30 \
+#     -e k8s_target_version=1.30.12
+#
+# Run once per minor version hop. Check latest available patch first:
+#   ssh cp-01 "apt-cache madison kubeadm | head -5"
+#
+# Upgrade order: control plane → workers (one at a time)
+# Each node: unhold → swap repo → install kubeadm → upgrade → drain → upgrade kubelet/kubectl → uncordon → hold
+#
+# IMPORTANT: Verify cluster health after each hop before proceeding to the next:
+#   kubectl get nodes
+#   kubectl get pods -A | grep -v Running | grep -v Completed
+
+# =============================================================================
+# Play 1: Upgrade control plane
+# =============================================================================
+- name: Upgrade control plane node
+  hosts: control_plane
+  become: true
+  serial: 1
+
+  vars:
+    k8s_apt_repo_key_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_target_minor }}/deb/Release.key"
+    k8s_apt_repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_target_minor }}/deb/ /"
+
+  pre_tasks:
+    - name: Assert required variables are set
+      ansible.builtin.assert:
+        that:
+          - k8s_target_minor is defined
+          - k8s_target_version is defined
+        fail_msg: "Pass -e k8s_target_minor=1.X -e k8s_target_version=1.X.Y"
+
+  tasks:
+    - name: Unhold Kubernetes packages
+      ansible.builtin.command: apt-mark unhold kubeadm kubelet kubectl
+      changed_when: false
+
+    - name: Download new Kubernetes APT key
+      ansible.builtin.get_url:
+        url: "{{ k8s_apt_repo_key_url }}"
+        dest: /tmp/kubernetes-Release.key
+        timeout: 30
+        mode: '0644'
+        force: true
+
+    - name: Remove old keyring
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        state: absent
+
+    - name: Dearmor new APT key
+      ansible.builtin.shell: gpg --batch --no-tty --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg < /tmp/kubernetes-Release.key
+      async: 90
+      poll: 5
+
+    - name: Remove temporary key file
+      ansible.builtin.file:
+        path: /tmp/kubernetes-Release.key
+        state: absent
+
+    - name: Set keyring permissions
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        mode: '0644'
+
+    - name: Update APT repository to target minor version
+      ansible.builtin.apt_repository:
+        repo: "{{ k8s_apt_repo }}"
+        filename: kubernetes
+        state: present
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install target kubeadm version
+      ansible.builtin.apt:
+        name: "kubeadm={{ k8s_target_version }}-*"
+        state: present
+        allow_downgrade: false
+
+    - name: Verify kubeadm version
+      ansible.builtin.command: kubeadm version -o short
+      register: kubeadm_version_out
+      changed_when: false
+
+    - name: Show kubeadm version
+      ansible.builtin.debug:
+        msg: "kubeadm: {{ kubeadm_version_out.stdout }}"
+
+    - name: Run kubeadm upgrade plan (informational)
+      ansible.builtin.command: kubeadm upgrade plan v{{ k8s_target_version }}
+      register: upgrade_plan
+      changed_when: false
+
+    - name: Show upgrade plan
+      ansible.builtin.debug:
+        msg: "{{ upgrade_plan.stdout_lines }}"
+
+    - name: Apply kubeadm upgrade on control plane
+      ansible.builtin.command: kubeadm upgrade apply v{{ k8s_target_version }} --yes
+      register: upgrade_apply
+      changed_when: true
+
+    - name: Show upgrade output
+      ansible.builtin.debug:
+        msg: "{{ upgrade_apply.stdout_lines }}"
+
+    - name: Drain control plane node (from jumpbox)
+      ansible.builtin.command: >
+        kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets
+        --delete-emptydir-data
+        --timeout=120s
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Install target kubelet and kubectl
+      ansible.builtin.apt:
+        name:
+          - "kubelet={{ k8s_target_version }}-*"
+          - "kubectl={{ k8s_target_version }}-*"
+        state: present
+        allow_downgrade: false
+
+    - name: Daemon-reload and restart kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        state: restarted
+        daemon_reload: true
+        enabled: true
+
+    - name: Hold Kubernetes packages again
+      ansible.builtin.command: apt-mark hold kubeadm kubelet kubectl
+      changed_when: false
+
+    - name: Uncordon control plane node
+      ansible.builtin.command: kubectl uncordon {{ inventory_hostname }}
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Wait for control plane node to be Ready
+      ansible.builtin.command: kubectl wait node/{{ inventory_hostname }} --for=condition=Ready --timeout=300s
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Show node status after upgrade
+      ansible.builtin.command: kubectl get nodes
+      delegate_to: localhost
+      become: false
+      register: node_status
+      changed_when: false
+
+    - name: Print node status
+      ansible.builtin.debug:
+        msg: "{{ node_status.stdout_lines }}"
+
+# =============================================================================
+# Play 2: Upgrade worker nodes (one at a time)
+# =============================================================================
+- name: Upgrade worker nodes
+  hosts: workers
+  become: true
+  serial: 1
+
+  vars:
+    k8s_apt_repo_key_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_target_minor }}/deb/Release.key"
+    k8s_apt_repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_target_minor }}/deb/ /"
+
+  tasks:
+    - name: Unhold Kubernetes packages
+      ansible.builtin.command: apt-mark unhold kubeadm kubelet kubectl
+      changed_when: false
+
+    - name: Download new Kubernetes APT key
+      ansible.builtin.get_url:
+        url: "{{ k8s_apt_repo_key_url }}"
+        dest: /tmp/kubernetes-Release.key
+        timeout: 30
+        mode: '0644'
+        force: true
+
+    - name: Remove old keyring
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        state: absent
+
+    - name: Dearmor new APT key
+      ansible.builtin.shell: gpg --batch --no-tty --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg < /tmp/kubernetes-Release.key
+      async: 90
+      poll: 5
+
+    - name: Remove temporary key file
+      ansible.builtin.file:
+        path: /tmp/kubernetes-Release.key
+        state: absent
+
+    - name: Set keyring permissions
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        mode: '0644'
+
+    - name: Update APT repository to target minor version
+      ansible.builtin.apt_repository:
+        repo: "{{ k8s_apt_repo }}"
+        filename: kubernetes
+        state: present
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install target kubeadm version
+      ansible.builtin.apt:
+        name: "kubeadm={{ k8s_target_version }}-*"
+        state: present
+        allow_downgrade: false
+
+    - name: Run kubeadm upgrade node
+      ansible.builtin.command: kubeadm upgrade node
+      register: upgrade_node
+      changed_when: true
+
+    - name: Show upgrade node output
+      ansible.builtin.debug:
+        msg: "{{ upgrade_node.stdout_lines }}"
+
+    - name: Drain worker node (from jumpbox)
+      ansible.builtin.command: >
+        kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets
+        --delete-emptydir-data
+        --timeout=120s
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Install target kubelet and kubectl
+      ansible.builtin.apt:
+        name:
+          - "kubelet={{ k8s_target_version }}-*"
+          - "kubectl={{ k8s_target_version }}-*"
+        state: present
+        allow_downgrade: false
+
+    - name: Daemon-reload and restart kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        state: restarted
+        daemon_reload: true
+        enabled: true
+
+    - name: Hold Kubernetes packages again
+      ansible.builtin.command: apt-mark hold kubeadm kubelet kubectl
+      changed_when: false
+
+    - name: Uncordon worker node
+      ansible.builtin.command: kubectl uncordon {{ inventory_hostname }}
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Wait for worker node to be Ready
+      ansible.builtin.command: kubectl wait node/{{ inventory_hostname }} --for=condition=Ready --timeout=300s
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Show node status after upgrade
+      ansible.builtin.command: kubectl get nodes
+      delegate_to: localhost
+      become: false
+      register: node_status
+      changed_when: false
+
+    - name: Print node status
+      ansible.builtin.debug:
+        msg: "{{ node_status.stdout_lines }}"
