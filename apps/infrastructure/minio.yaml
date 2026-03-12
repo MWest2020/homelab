@@ -17,7 +17,7 @@ spec:
       helm:
         releaseName: minio
         valueFiles:
-          - $values/homelab/cluster-config/infra/minio/values.yaml
+          - $values/cluster-config/infra/minio/values.yaml
     - repoURL: https://github.com/MWest2020/homelab.git
       targetRevision: main
       ref: values
