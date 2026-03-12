@@ -1,0 +1,56 @@
+---
+# MinIO values for homelab
+# Used by Nextcloud (primary S3 storage) and future workloads
+
+# Standalone mode — single node, no distributed setup needed for homelab
+mode: standalone
+
+# Credentials — create a Secret out-of-band before deploying:
+#   kubectl create secret generic minio-credentials \
+#     --namespace minio \
+#     --from-literal=rootUser=<user> \
+#     --from-literal=rootPassword=$(openssl rand -hex 20)
+#
+# generate rootUser:     openssl rand -hex 8
+# generate rootPassword: openssl rand -hex 20
+existingSecret: minio-credentials
+
+# Persistence
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: ""
+
+# Service
+service:
+  type: ClusterIP
+  port: 9000
+
+# Console (web UI)
+consoleService:
+  type: ClusterIP
+  port: 9001
+
+# Resources
+resources:
+  requests:
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+# Ingress disabled — expose via Gateway API HTTPRoute
+ingress:
+  enabled: false
+consoleIngress:
+  enabled: false
+
+# Buckets created on startup
+buckets:
+  - name: nextcloud
+    policy: none
+    purge: false
+
+# Metrics
+metrics:
+  serviceMonitor:
+    enabled: false

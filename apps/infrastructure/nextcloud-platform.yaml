@@ -1,0 +1,34 @@
+---
+# Deploys the nextcloud-platform (Redis + AppProject + ApplicationSet)
+# Repo: github.com/MWest2020/Nextcloud-base
+# Secrets: created out-of-band via scripts/create-tenant-secret.sh --generate-passwords
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nextcloud-platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.io
+spec:
+  project: default
+  sources:
+    # Platform components (Redis)
+    - repoURL: https://github.com/MWest2020/Nextcloud-base.git
+      targetRevision: main
+      path: nextcloud-platform/platform
+    # Argo CD AppProject + ApplicationSet + platform Application
+    - repoURL: https://github.com/MWest2020/Nextcloud-base.git
+      targetRevision: main
+      path: nextcloud-platform/argo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
