@@ -14,11 +14,6 @@ metadata:
 spec:
   project: default
   sources:
-    # Platform components (Redis)
-    - repoURL: https://github.com/MWest2020/Nextcloud-base.git
-      targetRevision: main
-      path: nextcloud-platform/platform
-      kustomize: {}
     # Argo CD AppProject + ApplicationSet + platform Application
     - repoURL: https://github.com/MWest2020/Nextcloud-base.git
       targetRevision: main
