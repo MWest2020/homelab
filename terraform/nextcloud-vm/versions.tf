@@ -9,11 +9,8 @@ terraform {
   }
 }
 
-# Provider reads credentials from environment variables:
-#   PROXMOX_VE_ENDPOINT   — https://192.168.178.10:8006
-#   PROXMOX_VE_API_TOKEN  — terraform@pve!terraform=<token>
-#   PROXMOX_VE_INSECURE   — true (self-signed cert)
-#
-# Source these before running terraform:
-#   source ../../.env
-provider "proxmox" {}
+# API token loaded from PROXMOX_VE_API_TOKEN env var (source ../../.env)
+provider "proxmox" {
+  endpoint = "https://192.168.178.10:8006"
+  insecure = true
+}
