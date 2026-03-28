@@ -43,3 +43,11 @@ notes.txt
 #environment files
 .env
 *.env
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+.terraform.lock.hcl
+terraform.tfvars
