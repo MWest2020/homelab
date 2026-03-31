@@ -1,3 +1,9 @@
+variable "proxmox_api_token" {
+  description = "Proxmox API token (terraform@pve!terraform=<uuid>)"
+  type        = string
+  sensitive   = true
+}
+
 variable "vm_ip" {
   description = "Static IP for the Nextcloud VM (CIDR notation)"
   type        = string

@@ -9,8 +9,9 @@ terraform {
   }
 }
 
-# API token loaded from PROXMOX_VE_API_TOKEN env var (source ../../.env)
+# Token loaded via TF_VAR_proxmox_api_token (set in .env)
 provider "proxmox" {
-  endpoint = "https://192.168.178.10:8006"
-  insecure = true
+  endpoint  = "https://192.168.178.10:8006"
+  api_token = var.proxmox_api_token
+  insecure  = true
 }
