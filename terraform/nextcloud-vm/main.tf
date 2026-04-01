@@ -2,6 +2,7 @@ resource "proxmox_virtual_environment_vm" "nextcloud" {
   name      = "nextcloud"
   node_name = "proxmox"
   vm_id     = 100
+  started   = false
 
   # Clone from the Ubuntu 24.04 cloud template
   clone {
