@@ -55,6 +55,12 @@ resource "proxmox_virtual_environment_vm" "nextcloud" {
   operating_system {
     type = "l26" # Linux kernel 2.6+
   }
+
+  # Cloud images don't have qemu-guest-agent pre-installed.
+  # Disable so Terraform doesn't wait for agent confirmation after boot.
+  agent {
+    enabled = false
+  }
 }
 
 output "nextcloud_ip" {
