@@ -19,14 +19,6 @@ resource "proxmox_virtual_environment_vm" "nextcloud" {
     dedicated = 4096
   }
 
-  # Resize the cloned disk to 20GB
-  disk {
-    datastore_id = "local-lvm"
-    interface    = "scsi0"
-    size         = 20
-    discard      = "on"
-  }
-
   network_device {
     bridge = "vmbr0"
     model  = "virtio"
