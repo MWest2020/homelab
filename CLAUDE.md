@@ -76,6 +76,60 @@ The 7-step plan towards a fully GitOps-managed cluster (`docs/20-stappenplan-git
 
 Once Argo CD is running, all changes go through Git — `kubectl apply` directly to production is only a bootstrap step, not ongoing practice.
 
+## Proxmox VM deployment pipeline
+
+All VM provisioning and configuration follows this pipeline — no manual SCP, no ad-hoc SSH commands in production.
+
+```
+Git repo (source of truth)
+  ├─ Terraform → provisions VMs on Proxmox/cloud provider
+  ├─ Ansible  → configures VMs (Docker, compose files, secrets)
+  └─ CI/CD    → triggers Ansible on push to main
+```
+
+### Layers
+
+| Layer | Tool | What it does |
+|-------|------|-------------|
+| Infrastructure | Terraform | Create/destroy VMs (Proxmox API, CYSO API) |
+| Configuration | Ansible | Install Docker, deploy compose files, manage secrets |
+| Application | Docker Compose | Run Nextcloud, Nginx, MariaDB, Valkey per tenant |
+| Routing | Caddy (proxy VM) | TLS termination, hostname-based routing to tenant VMs |
+| Secrets | Ansible Vault | Encrypted in git, decrypted at deploy time |
+
+### VM layout (Proxmox laptop node)
+
+| VM ID | Name | IP | Role |
+|-------|------|-----|------|
+| 100 | proxy | 192.168.178.50 | Caddy reverse proxy |
+| 101 | klant-a | 192.168.178.51 | Nextcloud tenant |
+| 102 | klant-b | 192.168.178.52 | Nextcloud tenant |
+| 103 | klant-c | 192.168.178.53 | Nextcloud tenant |
+| 9000 | ubuntu-24.04-template | - | Cloud image template (frozen) |
+
+### Directory structure
+
+```
+docker/
+├── nextcloud/          # Nextcloud tenant stack
+│   ├── docker-compose.yml
+│   ├── nginx.conf
+│   └── env.example
+└── proxy/              # Caddy reverse proxy
+    ├── docker-compose.yml
+    └── Caddyfile
+```
+
+### Deployment commands (via Ansible)
+
+```bash
+# Deploy all nextcloud tenants
+ansible-playbook -i ansible/inventory/proxmox-hosts.yml ansible/playbooks/deploy-nextcloud.yml
+
+# Deploy proxy only
+ansible-playbook -i ansible/inventory/proxmox-hosts.yml ansible/playbooks/deploy-proxy.yml
+```
+
 ## Architecture decisions
 
 - **CNI**: Cilium with eBPF (`kubeProxyReplacement=true`) — no kube-proxy

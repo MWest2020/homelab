@@ -1,0 +1,4 @@
+# Secrets - encrypt this file with: ansible-vault encrypt group_vars/nextcloud.yml
+admin_password: changeme-encrypt-this
+db_password: changeme-encrypt-this
+db_root_password: changeme-encrypt-this

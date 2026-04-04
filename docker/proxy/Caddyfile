@@ -1,0 +1,14 @@
+# Klant A
+klant-a.westerweel.work {
+	reverse_proxy 192.168.178.51:80
+}
+
+# Klant B
+klant-b.westerweel.work {
+	reverse_proxy 192.168.178.52:80
+}
+
+# Klant C
+klant-c.westerweel.work {
+	reverse_proxy 192.168.178.53:80
+}

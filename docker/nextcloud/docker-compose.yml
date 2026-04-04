@@ -1,0 +1,52 @@
+services:
+  nextcloud:
+    image: nextcloud:32.0.5-fpm
+    restart: always
+    depends_on:
+      - db
+      - valkey
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - NEXTCLOUD_ADMIN_USER=${ADMIN_USER:-admin}
+      - NEXTCLOUD_ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - NEXTCLOUD_TRUSTED_DOMAINS=${TRUSTED_DOMAIN}
+      - REDIS_HOST=valkey
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITEHOST=${TRUSTED_DOMAIN}
+    volumes:
+      - nextcloud_html:/var/www/html
+      - nextcloud_data:/var/www/html/data
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    depends_on:
+      - nextcloud
+    ports:
+      - "80:80"
+    volumes:
+      - nextcloud_html:/var/www/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
+  db:
+    image: mariadb:11
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: always
+
+volumes:
+  nextcloud_html:
+  nextcloud_data:
+  db_data:

@@ -1,0 +1,6 @@
+{% for host in groups['nextcloud'] %}
+{{ hostvars[host]['tenant_domain'] }} {
+	reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
+}
+
+{% endfor %}

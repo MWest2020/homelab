@@ -1,0 +1,43 @@
+---
+- name: Deploy Nextcloud tenant stacks
+  hosts: nextcloud
+  become: true
+  tasks:
+    - name: Create nextcloud directory
+      file:
+        path: /opt/nextcloud
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../../docker/nextcloud/docker-compose.yml
+        dest: /opt/nextcloud/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copy nginx.conf
+      copy:
+        src: ../../docker/nextcloud/nginx.conf
+        dest: /opt/nextcloud/nginx.conf
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Generate .env from tenant variables
+      template:
+        src: ../templates/nextcloud-env.j2
+        dest: /opt/nextcloud/.env
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+
+    - name: Pull latest images
+      command: docker compose pull
+      args:
+        chdir: /opt/nextcloud
+
+    - name: Start Nextcloud stack
+      command: docker compose up -d
+      args:
+        chdir: /opt/nextcloud

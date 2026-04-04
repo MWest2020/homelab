@@ -1,0 +1,22 @@
+all:
+  children:
+    proxy:
+      hosts:
+        proxy-01:
+          ansible_host: 192.168.178.50
+          ansible_user: ubuntu
+
+    nextcloud:
+      hosts:
+        klant-a:
+          ansible_host: 192.168.178.51
+          ansible_user: ubuntu
+          tenant_domain: klant-a.westerweel.work
+        klant-b:
+          ansible_host: 192.168.178.52
+          ansible_user: ubuntu
+          tenant_domain: klant-b.westerweel.work
+        klant-c:
+          ansible_host: 192.168.178.53
+          ansible_user: ubuntu
+          tenant_domain: klant-c.westerweel.work
