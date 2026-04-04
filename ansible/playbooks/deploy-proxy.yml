@@ -25,11 +25,13 @@
         group: ubuntu
 
     - name: Pull latest images
-      command: docker compose pull
+      shell: docker compose pull
       args:
         chdir: /opt/proxy
+      become: false
 
     - name: Start Caddy
-      command: docker compose up -d
+      shell: docker compose up -d
       args:
         chdir: /opt/proxy
+      become: false
