@@ -3,10 +3,12 @@
   hosts: proxy
   become: true
   tasks:
-    - name: Create proxy directory
+    - name: Fix proxy directory ownership
       file:
         path: /opt/proxy
         state: directory
+        owner: ubuntu
+        group: ubuntu
 
     - name: Copy docker-compose.yml
       copy:
