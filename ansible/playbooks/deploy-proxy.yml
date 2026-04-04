@@ -7,31 +7,23 @@
       file:
         path: /opt/proxy
         state: directory
-        owner: ubuntu
-        group: ubuntu
 
     - name: Copy docker-compose.yml
       copy:
         src: ../../docker/proxy/docker-compose.yml
         dest: /opt/proxy/docker-compose.yml
-        owner: ubuntu
-        group: ubuntu
 
     - name: Generate Caddyfile from inventory
       template:
         src: ../templates/Caddyfile.j2
         dest: /opt/proxy/Caddyfile
-        owner: ubuntu
-        group: ubuntu
 
     - name: Pull latest images
       shell: docker compose pull
       args:
         chdir: /opt/proxy
-      become: false
 
     - name: Start Caddy
       shell: docker compose up -d
       args:
         chdir: /opt/proxy
-      become: false
