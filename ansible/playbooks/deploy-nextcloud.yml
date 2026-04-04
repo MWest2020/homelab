@@ -36,8 +36,10 @@
       shell: docker compose pull
       args:
         chdir: /opt/nextcloud
+      become: false
 
     - name: Start Nextcloud stack
       shell: docker compose up -d
       args:
         chdir: /opt/nextcloud
+      become: false
