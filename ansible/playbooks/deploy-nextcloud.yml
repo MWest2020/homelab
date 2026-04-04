@@ -33,11 +33,11 @@
         mode: "0600"
 
     - name: Pull latest images
-      command: docker compose pull
+      shell: docker compose pull
       args:
         chdir: /opt/nextcloud
 
     - name: Start Nextcloud stack
-      command: docker compose up -d
+      shell: docker compose up -d
       args:
         chdir: /opt/nextcloud
