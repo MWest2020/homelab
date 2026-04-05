@@ -14,21 +14,21 @@ services:
     image: ghcr.io/conductionnl/woo-website-v2
     restart: always
     environment:
-      - UPSTREAM_BASE=https://klant-a.westerweel.work/apps/opencatalogi/api
+      - UPSTREAM_BASE=http://192.168.178.51/apps/opencatalogi/api
       - UPSTREAM_HOST=klant-a.westerweel.work
 
   woo-klant-b:
     image: ghcr.io/conductionnl/woo-website-v2
     restart: always
     environment:
-      - UPSTREAM_BASE=https://klant-b.westerweel.work/apps/opencatalogi/api
+      - UPSTREAM_BASE=http://192.168.178.52/apps/opencatalogi/api
       - UPSTREAM_HOST=klant-b.westerweel.work
 
   woo-klant-c:
     image: ghcr.io/conductionnl/woo-website-v2
     restart: always
     environment:
-      - UPSTREAM_BASE=https://klant-c.westerweel.work/apps/opencatalogi/api
+      - UPSTREAM_BASE=http://192.168.178.53/apps/opencatalogi/api
       - UPSTREAM_HOST=klant-c.westerweel.work
 
 volumes:
