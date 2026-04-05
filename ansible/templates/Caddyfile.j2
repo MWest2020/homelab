@@ -6,24 +6,11 @@
 }
 
 {% endfor %}
-# Nextcloud backends
+# Nextcloud backends (API public, admin via LAN firewall)
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] }} {
 	tls internal
-
-	@api path /apps/opencatalogi/api/*
-	handle @api {
-		reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
-	}
-
-	@internal remote_ip 192.168.178.0/24
-	handle @internal {
-		reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
-	}
-
-	handle {
-		respond "Forbidden" 403
-	}
+	reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
 }
 
 {% endfor %}
