@@ -2,7 +2,7 @@
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] | replace('westerweel.work', 'woo.westerweel.work') }} {
 	tls internal
-	reverse_proxy woo-{{ hostvars[host]['inventory_hostname'] }}:80
+	reverse_proxy woo-{{ hostvars[host]['inventory_hostname'] }}:8080
 }
 
 {% endfor %}
