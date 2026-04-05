@@ -11,13 +11,17 @@
 {{ hostvars[host]['tenant_domain'] }} {
 	tls internal
 
-	handle /apps/opencatalogi/api/* {
+	@api path /apps/opencatalogi/api/*
+	handle @api {
+		reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
+	}
+
+	@internal remote_ip 192.168.178.0/24
+	handle @internal {
 		reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
 	}
 
 	handle {
-		@internal remote_ip 192.168.178.0/24
-		reverse_proxy @internal {{ hostvars[host]['ansible_host'] }}:80
 		respond "Forbidden" 403
 	}
 }
