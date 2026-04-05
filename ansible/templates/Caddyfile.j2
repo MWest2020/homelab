@@ -6,21 +6,20 @@
 }
 
 {% endfor %}
-# Nextcloud backends (API only, proxied from React frontends)
+# Nextcloud backends
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] }} {
 	tls internal
 
-	# Only expose the OpenCatalogi API — block everything else from outside
-	@api path /apps/opencatalogi/api/*
-	reverse_proxy @api {{ hostvars[host]['ansible_host'] }}:80
+	handle /apps/opencatalogi/api/* {
+		reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
+	}
 
-	# Login and admin access (restrict to management network later)
-	@internal remote_ip 192.168.178.0/24
-	reverse_proxy @internal {{ hostvars[host]['ansible_host'] }}:80
-
-	# Block everything else
-	respond "Forbidden" 403
+	handle {
+		@internal remote_ip 192.168.178.0/24
+		reverse_proxy @internal {{ hostvars[host]['ansible_host'] }}:80
+		respond "Forbidden" 403
+	}
 }
 
 {% endfor %}
