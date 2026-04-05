@@ -10,6 +10,30 @@ services:
       - caddy_data:/data
       - caddy_config:/config
 
+  woo-klant-a:
+    image: ghcr.io/conductionnl/woo-website-v2
+    restart: always
+    environment:
+      - GATSBY_ORGANISATION_NAME=${KLANT_A_ORG_NAME:-Gemeente klant-a}
+      - NL_DESIGN_THEME_CLASSNAME=${KLANT_A_THEME:-klant-a-theme}
+      - GATSBY_API_BASE_URL=https://klant-a.westerweel.work/apps/opencatalogi/api
+
+  woo-klant-b:
+    image: ghcr.io/conductionnl/woo-website-v2
+    restart: always
+    environment:
+      - GATSBY_ORGANISATION_NAME=${KLANT_B_ORG_NAME:-Gemeente klant-b}
+      - NL_DESIGN_THEME_CLASSNAME=${KLANT_B_THEME:-klant-b-theme}
+      - GATSBY_API_BASE_URL=https://klant-b.westerweel.work/apps/opencatalogi/api
+
+  woo-klant-c:
+    image: ghcr.io/conductionnl/woo-website-v2
+    restart: always
+    environment:
+      - GATSBY_ORGANISATION_NAME=${KLANT_C_ORG_NAME:-Gemeente klant-c}
+      - NL_DESIGN_THEME_CLASSNAME=${KLANT_C_THEME:-klant-c-theme}
+      - GATSBY_API_BASE_URL=https://klant-c.westerweel.work/apps/opencatalogi/api
+
 volumes:
   caddy_data:
   caddy_config:

@@ -1,0 +1,44 @@
+---
+- name: Configure firewall on Nextcloud tenant VMs
+  hosts: nextcloud
+  become: true
+  tasks:
+    - name: Install ufw
+      apt:
+        name: ufw
+        state: present
+
+    - name: Set default deny incoming
+      ufw:
+        direction: incoming
+        policy: deny
+
+    - name: Set default allow outgoing
+      ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: Allow SSH from Proxmox host
+      ufw:
+        rule: allow
+        from_ip: 192.168.178.10
+        to_port: "22"
+        proto: tcp
+
+    - name: Allow SSH from jumpy
+      ufw:
+        rule: allow
+        from_ip: "{{ hostvars[groups['proxy'][0]]['ansible_host'] }}"
+        to_port: "22"
+        proto: tcp
+
+    - name: Allow HTTP from proxy VM only
+      ufw:
+        rule: allow
+        from_ip: "{{ hostvars[groups['proxy'][0]]['ansible_host'] }}"
+        to_port: "80"
+        proto: tcp
+
+    - name: Enable firewall
+      ufw:
+        state: enabled

@@ -1,7 +1,26 @@
+# React frontends (public)
+{% for host in groups['nextcloud'] %}
+{{ hostvars[host]['tenant_domain'] | replace('westerweel.work', 'openwoo.app') }} {
+	tls internal
+	reverse_proxy woo-{{ hostvars[host]['inventory_hostname'] }}:80
+}
+
+{% endfor %}
+# Nextcloud backends (API only, proxied from React frontends)
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] }} {
 	tls internal
-	reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
+
+	# Only expose the OpenCatalogi API — block everything else from outside
+	@api path /apps/opencatalogi/api/*
+	reverse_proxy @api {{ hostvars[host]['ansible_host'] }}:80
+
+	# Login and admin access (restrict to management network later)
+	@internal remote_ip 192.168.178.0/24
+	reverse_proxy @internal {{ hostvars[host]['ansible_host'] }}:80
+
+	# Block everything else
+	respond "Forbidden" 403
 }
 
 {% endfor %}
