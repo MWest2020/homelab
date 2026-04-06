@@ -16,6 +16,7 @@
         dest: /opt/nextcloud/docker-compose.yml
         owner: ubuntu
         group: ubuntu
+      register: compose_file
 
     - name: Copy nginx.conf
       copy:
@@ -23,6 +24,7 @@
         dest: /opt/nextcloud/nginx.conf
         owner: ubuntu
         group: ubuntu
+      register: nginx_conf
 
     - name: Generate .env from tenant variables
       template:
@@ -31,6 +33,7 @@
         owner: ubuntu
         group: ubuntu
         mode: "0600"
+      register: env_file
 
     - name: Pull latest images
       shell: docker compose pull
@@ -39,7 +42,9 @@
       become: false
 
     - name: Start Nextcloud stack
-      shell: docker compose up -d
+      shell: >
+        docker compose up -d
+        {{ '--force-recreate' if (compose_file.changed or nginx_conf.changed or env_file.changed) else '' }}
       args:
         chdir: /opt/nextcloud
       become: false
