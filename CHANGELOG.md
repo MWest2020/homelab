@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-04-06 — Nextcloud tenant fixes + Ansible improvements
+
+### Fixed
+- **PHP memory_limit** raised to 2G on nextcloud + cron containers — openregister/openconnector apps exhaust default 512MB (single 130MB+ allocations)
+- **Cron container** now runs as `user: www-data` instead of root — fixes "Console has to be executed with the user that owns config.php" error
+- **First run wizard** disabled on klant-a (`occ app:disable firstrunwizard`) — was rendering a frozen modal blocking the entire UI
+
+### Changed
+- **Ansible deploy-nextcloud playbook** now registers config file changes and passes `--force-recreate` to `docker compose up` when docker-compose.yml, nginx.conf, or .env have changed
+
+### Verified
+- klant-a Nextcloud login + dashboard works after fixes
+- Cron jobs executing as www-data (no more ownership errors)
+
+### Known Issues
+- openregister `psr/log` version incompatible with PHP in NC 32 (PSR\Log\AbstractLogger declaration error) — upstream app bug
+- openconnector SynchronizationService also hits memory limits — 2G should cover it but monitor
+- Terraform VM provisioning still broken (bpg/proxmox provider hangs)
+- klant-b and klant-c need verification after deploy
+- SSH config on jumpy needed `IdentitiesOnly yes` + `IdentityFile` for tenant VM access (too many keys in agent)
+
 ## 2026-04-04 — Proxmox VM deployment + Nextcloud tenant stacks
 
 ### Added

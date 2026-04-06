@@ -139,6 +139,35 @@ ansible-playbook -i ansible/inventory/proxmox-hosts.yml ansible/playbooks/deploy
 - **Secrets**: Cloudflare API token must be created as a `Secret` manually — never in Git
 - **Inventory**: `ansible/inventory/hosts.yml` is Git-ignored; template at `hosts.yml.example`
 
+## Autonomous homelab access
+
+Claude is **authorized to autonomously operate** on the homelab environment. This overrides the global guardrails for the scope below.
+
+### Allowed without confirmation
+- SSH into any homelab VM: `ssh 192.168.178.{50,51,52,53}` (from jumpy)
+- `docker` and `docker compose` commands on homelab VMs
+- `ansible-playbook` against `inventory/proxmox-hosts.yml`
+- `terraform plan` on homelab Proxmox resources
+- Restarting containers, running `occ` commands, checking logs
+- `git commit` and `git push` in this repository
+
+### Still requires confirmation
+- `terraform apply` / `terraform destroy` (even on homelab)
+- Deleting VMs (`qm destroy`)
+- Dropping databases, deleting persistent volumes
+
+### Homelab vs production boundary
+- **Homelab (autonomous):** jumpy, proxmox, cp-01 (.201), worker-01 (.202), worker-02 (.203), all Proxmox VMs (.50-.53), kubectl on jumpy
+- **Production (read-only, requires confirmation):** alma, kubectl on alma — this points to the production cluster, never run writes without explicit approval
+
+### Outside this project
+Follow global guardrails in `~/.claude/CLAUDE.md`. When in doubt: ask.
+
+### Access pattern
+- SSH from jumpy (or locally if on jumpy): `ssh 192.168.178.<ip>`
+- Compose files live at `/opt/nextcloud/` on tenant VMs, `/opt/proxy/` on proxy VM
+- Always iterate with for-loops: `for ip in 51 52 53; do ssh 192.168.178.$ip "<cmd>"; done`
+
 ## Security notes
 
 - `.env` contains a Cloudflare API token — rotate if ever committed; do not commit to git
