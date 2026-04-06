@@ -42,6 +42,24 @@ services:
     volumes:
       - db_data:/var/lib/mysql
 
+  cron:
+    image: nextcloud:32.0.5-fpm
+    restart: always
+    depends_on:
+      - db
+      - valkey
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=valkey
+    volumes:
+      - nextcloud_html:/var/www/html
+      - nextcloud_data:/var/www/html/data
+    entrypoint: /bin/sh
+    command: -c "while true; do php -f /var/www/html/cron.php; sleep 300; done"
+
   valkey:
     image: valkey/valkey:8-alpine
     restart: always
