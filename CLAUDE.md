@@ -152,6 +152,7 @@ Claude is **authorized to autonomously operate** on the homelab environment. Thi
 - `git commit` and `git push` in this repository
 
 ### Still requires confirmation
+- `git push` (always ask, even on homelab)
 - `terraform apply` / `terraform destroy` (even on homelab)
 - Deleting VMs (`qm destroy`)
 - Dropping databases, deleting persistent volumes
