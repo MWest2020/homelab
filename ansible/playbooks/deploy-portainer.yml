@@ -1,0 +1,58 @@
+---
+- name: Deploy Portainer container management
+  hosts: portainer
+  become: true
+  tasks:
+    - name: Create portainer directory
+      file:
+        path: /opt/portainer
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../../docker/portainer/docker-compose.yml
+        dest: /opt/portainer/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+      register: compose_file
+
+    - name: Pull latest images
+      shell: docker compose pull
+      args:
+        chdir: /opt/portainer
+      become: false
+
+    - name: Start Portainer stack
+      shell: >
+        docker compose up -d
+        {{ '--force-recreate' if compose_file.changed else '' }}
+      args:
+        chdir: /opt/portainer
+      become: false
+
+- name: Enable Docker API on tenant VMs for Portainer remote management
+  hosts: nextcloud:proxy
+  become: true
+  tasks:
+    - name: Create Docker daemon override directory
+      file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+
+    - name: Enable Docker TCP socket for Portainer
+      copy:
+        content: |
+          [Service]
+          ExecStart=
+          ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375
+        dest: /etc/systemd/system/docker.service.d/override.conf
+      register: docker_override
+
+    - name: Reload systemd and restart Docker
+      systemd:
+        daemon_reload: true
+        name: docker
+        state: restarted
+      when: docker_override.changed

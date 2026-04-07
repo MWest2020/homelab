@@ -1,22 +1,22 @@
-resource "proxmox_virtual_environment_vm" "nextcloud" {
-  name      = "nextcloud"
+resource "proxmox_virtual_environment_vm" "vm" {
+  for_each  = var.vms
+  name      = each.key
   node_name = "proxmox"
-  vm_id     = 100
+  vm_id     = each.value.vm_id
   started   = false
 
-  # Clone from the Ubuntu 24.04 cloud template
   clone {
     vm_id = 9000
     full  = true
   }
 
   cpu {
-    cores = 2
+    cores = each.value.cores
     type  = "host"
   }
 
   memory {
-    dedicated = 4096
+    dedicated = each.value.memory
   }
 
   network_device {
@@ -24,13 +24,12 @@ resource "proxmox_virtual_environment_vm" "nextcloud" {
     model  = "virtio"
   }
 
-  # Cloud-init: inject SSH key, static IP, hostname
   initialization {
     datastore_id = "local-lvm"
 
     ip_config {
       ipv4 {
-        address = var.vm_ip
+        address = "${each.value.ip}/24"
         gateway = var.vm_gateway
       }
     }
@@ -46,16 +45,14 @@ resource "proxmox_virtual_environment_vm" "nextcloud" {
   }
 
   operating_system {
-    type = "l26" # Linux kernel 2.6+
+    type = "l26"
   }
 
-  # Cloud images don't have qemu-guest-agent pre-installed.
-  # Disable so Terraform doesn't wait for agent confirmation after boot.
   agent {
     enabled = false
   }
 }
 
-output "nextcloud_ip" {
-  value = var.vm_ip
+output "vm_ips" {
+  value = { for name, vm in var.vms : name => vm.ip }
 }

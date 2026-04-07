@@ -1,0 +1,13 @@
+services:
+  portainer:
+    image: portainer/portainer-ce:2.27.4-alpine
+    restart: always
+    ports:
+      - "9443:9443"
+      - "8000:8000"
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  portainer_data:

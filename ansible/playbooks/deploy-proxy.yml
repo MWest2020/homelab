@@ -3,7 +3,7 @@
   hosts: proxy
   become: true
   tasks:
-    - name: Fix proxy directory ownership
+    - name: Create proxy directory
       file:
         path: /opt/proxy
         state: directory
@@ -14,18 +14,28 @@
       copy:
         src: ../../docker/proxy/docker-compose.yml
         dest: /opt/proxy/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+      register: compose_file
 
     - name: Generate Caddyfile from inventory
       template:
         src: ../templates/Caddyfile.j2
         dest: /opt/proxy/Caddyfile
+        owner: ubuntu
+        group: ubuntu
+      register: caddyfile
 
     - name: Pull latest images
       shell: docker compose pull
       args:
         chdir: /opt/proxy
+      become: false
 
-    - name: Start Caddy
-      shell: docker compose up -d
+    - name: Start proxy stack
+      shell: >
+        docker compose up -d
+        {{ '--force-recreate' if (compose_file.changed or caddyfile.changed) else '' }}
       args:
         chdir: /opt/proxy
+      become: false

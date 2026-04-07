@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-04-07 — Portainer VM + proxy cleanup + Terraform refactor
+
+### Added
+- **Portainer VM** (104, 192.168.178.54) — separate VM for container management UI
+  - `docker/portainer/docker-compose.yml` — Portainer CE 2.27.4
+  - `ansible/playbooks/deploy-portainer.yml` — deploys Portainer + enables Docker TCP API on tenant/proxy VMs
+  - Added to `proxmox-hosts.yml` inventory
+- **Terraform `for_each`** — refactored from single VM to map of all VMs (proxy, klant-a/b/c, portainer) with per-VM cores/memory/disk
+
+### Changed
+- **Proxy playbook** — added `register` + `--force-recreate` on config change (same pattern as nextcloud playbook)
+- **Proxy playbook** — added `owner`/`group` ubuntu + `become: false` for docker commands
+- **Static Caddyfile** — synced with Jinja2 template (added React frontend routes + `tls internal`)
+- **CLAUDE.md** — added Portainer VM to layout, directory structure, deployment commands, access patterns
+
+### Note
+- Portainer VM (104) needs to be provisioned on Proxmox before Ansible deploy
+- Terraform provider bug (bpg/proxmox hangs) still applies — may need manual `qm` provisioning
+- Docker TCP API (port 2375) on tenant VMs is unencrypted — acceptable on LAN, not for production
+
 ## 2026-04-06 — Nextcloud tenant fixes + Ansible improvements
 
 ### Fixed

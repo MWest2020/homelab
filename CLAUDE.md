@@ -105,6 +105,7 @@ Git repo (source of truth)
 | 101 | klant-a | 192.168.178.51 | Nextcloud tenant |
 | 102 | klant-b | 192.168.178.52 | Nextcloud tenant |
 | 103 | klant-c | 192.168.178.53 | Nextcloud tenant |
+| 104 | portainer | 192.168.178.54 | Container management UI |
 | 9000 | ubuntu-24.04-template | - | Cloud image template (frozen) |
 
 ### Directory structure
@@ -115,9 +116,11 @@ docker/
 │   ├── docker-compose.yml
 │   ├── nginx.conf
 │   └── env.example
-└── proxy/              # Caddy reverse proxy
-    ├── docker-compose.yml
-    └── Caddyfile
+├── proxy/              # Caddy reverse proxy
+│   ├── docker-compose.yml
+│   └── Caddyfile
+└── portainer/          # Container management UI
+    └── docker-compose.yml
 ```
 
 ### Deployment commands (via Ansible)
@@ -128,6 +131,9 @@ ansible-playbook -i ansible/inventory/proxmox-hosts.yml ansible/playbooks/deploy
 
 # Deploy proxy only
 ansible-playbook -i ansible/inventory/proxmox-hosts.yml ansible/playbooks/deploy-proxy.yml
+
+# Deploy Portainer
+ansible-playbook -i ansible/inventory/proxmox-hosts.yml ansible/playbooks/deploy-portainer.yml
 ```
 
 ## Architecture decisions
@@ -166,7 +172,7 @@ Follow global guardrails in `~/.claude/CLAUDE.md`. When in doubt: ask.
 
 ### Access pattern
 - SSH from jumpy (or locally if on jumpy): `ssh 192.168.178.<ip>`
-- Compose files live at `/opt/nextcloud/` on tenant VMs, `/opt/proxy/` on proxy VM
+- Compose files live at `/opt/nextcloud/` on tenant VMs, `/opt/proxy/` on proxy VM, `/opt/portainer/` on portainer VM
 - Always iterate with for-loops: `for ip in 51 52 53; do ssh 192.168.178.$ip "<cmd>"; done`
 
 ## Security notes
