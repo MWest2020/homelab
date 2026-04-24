@@ -1,0 +1,44 @@
+---
+# Executor RBAC — lets workflow pods report task results back to the controller
+# and participate in artifact garbage collection. Upstream install.yaml omits
+# this on purpose so operators scope it per-namespace. Bound to the SAs that
+# actually run workflows in the `argo` namespace: `default` (Argo default) and
+# `argo` (pre-existing SA from install.yaml).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workflow-executor
+  namespace: argo
+rules:
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflowtaskresults
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflowartifactgctasks
+    verbs:
+      - list
+      - watch
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workflow-executor-default
+  namespace: argo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: workflow-executor
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: argo
+  - kind: ServiceAccount
+    name: argo
+    namespace: argo

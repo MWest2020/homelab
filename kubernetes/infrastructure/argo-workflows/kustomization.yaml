@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: argo
 resources:
   - install.yaml
+  - executor-rbac.yaml
 patches:
   - target:
       kind: Deployment
