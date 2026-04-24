@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-04-24 — Argo Rollouts onder GitOps
+
+### Added
+- **`kubernetes/infrastructure/argo-rollouts/install.yaml`** — gepinde v1.8.3 upstream manifest (CRDs + controller + RBAC).
+- **`kubernetes/infrastructure/argo-rollouts/kustomization.yaml`** — kustomize overlay: namespace `argo-rollouts`.
+- **`apps/infrastructure/argo-rollouts.yaml`** — Argo CD Application (sync-wave 5, selfHeal, prune).
+
+### Why
+- LFS256 Lab 5.1 vraagt om een handmatige `kubectl apply` van de install.yaml. Zelfde patroon als argo-workflows vermijden we — niet reproduceerbaar, drift-gevoelig. Via app-of-apps pattern blijft de state declaratief.
+
+### Verify after sync
+```
+ssh jumpy 'kubectl get pods -n argo-rollouts; kubectl get crd | grep argoproj.io'
+```
+Verwacht: argo-rollouts controller pod Running, CRDs `rollouts.argoproj.io` + 4 andere.
+
 ## 2026-04-24 — Argo Workflows executor RBAC
 
 ### Added
