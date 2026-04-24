@@ -1,0 +1,11 @@
+[Unit]
+Description=Run jumpy-maintenance weekly (Sunday 04:00)
+
+[Timer]
+OnCalendar=Sun 04:00
+Persistent=true
+RandomizedDelaySec=15min
+Unit=jumpy-maintenance.service
+
+[Install]
+WantedBy=timers.target

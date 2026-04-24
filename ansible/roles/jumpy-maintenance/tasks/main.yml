@@ -1,0 +1,61 @@
+---
+# jumpy-maintenance role
+# - caps journald size
+# - installs a weekly apt/journald/log cleanup via systemd timer
+# - adds a disk-usage notice at interactive login
+
+- name: Ensure journald drop-in dir exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Cap journald size (200M, keep 500M free)
+  ansible.builtin.copy:
+    src: journald-size.conf
+    dest: /etc/systemd/journald.conf.d/50-jumpy-size.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart journald
+
+- name: Install maintenance script
+  ansible.builtin.copy:
+    src: jumpy-maintenance.sh
+    dest: /usr/local/sbin/jumpy-maintenance.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install maintenance systemd service
+  ansible.builtin.template:
+    src: jumpy-maintenance.service.j2
+    dest: /etc/systemd/system/jumpy-maintenance.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install maintenance systemd timer
+  ansible.builtin.template:
+    src: jumpy-maintenance.timer.j2
+    dest: /etc/systemd/system/jumpy-maintenance.timer
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable + start maintenance timer
+  ansible.builtin.systemd:
+    name: jumpy-maintenance.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Install login-time disk notice
+  ansible.builtin.copy:
+    src: jumpy-disk-motd.sh
+    dest: /etc/profile.d/jumpy-disk.sh
+    owner: root
+    group: root
+    mode: '0755'

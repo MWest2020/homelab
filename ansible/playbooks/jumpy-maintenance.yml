@@ -1,0 +1,13 @@
+---
+# Deploy the jumpy-maintenance role.
+# First run (jump user has no passwordless sudo yet):
+#   cd ansible
+#   ansible-playbook -i inventory/management-hosts.yml playbooks/jumpy-maintenance.yml --ask-become-pass
+# Subsequent runs (if passwordless sudo configured):
+#   ansible-playbook -i inventory/management-hosts.yml playbooks/jumpy-maintenance.yml
+
+- name: Configure jumpy maintenance
+  hosts: management
+  become: true
+  roles:
+    - jumpy-maintenance

@@ -1,0 +1,11 @@
+[Unit]
+Description=Jumpy periodic maintenance (apt, journald, logs, go cache)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/jumpy-maintenance.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
