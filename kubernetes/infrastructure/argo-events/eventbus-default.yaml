@@ -1,0 +1,13 @@
+---
+# Default EventBus voor Argo Events. JetStream (NATS) — single-replica
+# voor homelab. Voor productie: replicas: 3 (raft quorum).
+# Sensors zonder expliciete `eventBusName` defaulten naar "default".
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata:
+  name: default
+  namespace: argo-events
+spec:
+  jetstream:
+    version: latest
+    replicas: 1
