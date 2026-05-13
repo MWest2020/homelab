@@ -1,0 +1,157 @@
+---
+# Provisioning voor de nginx + Nextcloud debug-lab.
+#
+# lab_state=clean   : install + tarball, verder niets — jij configureert.
+# lab_state=broken  : install + tarball + volledige config + 5 stacked bugs.
+#
+# Inventory: inventory/nginx-lab-hosts.yml
+# Run:       ansible-playbook -i inventory/nginx-lab-hosts.yml playbooks/deploy-nginx-lab.yml
+
+- name: Provision nginx + Nextcloud lab VMs
+  hosts: nginx_lab
+  become: true
+  vars:
+    nc_version: "30.0.4"
+    nc_url: "https://download.nextcloud.com/server/releases/nextcloud-{{ nc_version }}.tar.bz2"
+    nc_root: /var/www/nextcloud
+    nc_data: /var/www/nextcloud/data
+    php_v: "8.3"
+  tasks:
+    # --- common: install + tarball (beide modes) ---
+
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install lab stack packages
+      apt:
+        name:
+          - nginx
+          - mariadb-server
+          - bzip2
+          - "php{{ php_v }}-fpm"
+          - "php{{ php_v }}-mysql"
+          - "php{{ php_v }}-gd"
+          - "php{{ php_v }}-curl"
+          - "php{{ php_v }}-zip"
+          - "php{{ php_v }}-xml"
+          - "php{{ php_v }}-mbstring"
+          - "php{{ php_v }}-bcmath"
+          - "php{{ php_v }}-intl"
+          - "php{{ php_v }}-gmp"
+          - "php{{ php_v }}-bz2"
+          - "php{{ php_v }}-imagick"
+        state: present
+
+    - name: Check if Nextcloud already extracted
+      stat:
+        path: "{{ nc_root }}/version.php"
+      register: nc_extracted
+
+    - name: Download Nextcloud tarball
+      get_url:
+        url: "{{ nc_url }}"
+        dest: /tmp/nextcloud.tar.bz2
+        mode: "0644"
+      when: not nc_extracted.stat.exists
+
+    - name: Extract Nextcloud
+      unarchive:
+        src: /tmp/nextcloud.tar.bz2
+        dest: /var/www/
+        remote_src: true
+        creates: "{{ nc_root }}/version.php"
+      when: not nc_extracted.stat.exists
+
+    - name: Set Nextcloud ownership to www-data
+      file:
+        path: "{{ nc_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        recurse: true
+
+    # --- broken-only: full config + 5 stacked bugs ---
+
+    - name: Ensure MariaDB is running
+      service:
+        name: mariadb
+        state: started
+        enabled: true
+      when: lab_state == 'broken'
+
+    - name: Create Nextcloud database and user
+      shell: |
+        mysql -u root <<'SQL'
+        CREATE DATABASE IF NOT EXISTS nextcloud CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+        CREATE USER IF NOT EXISTS 'ncuser'@'localhost' IDENTIFIED BY 'ncpass';
+        GRANT ALL ON nextcloud.* TO 'ncuser'@'localhost';
+        FLUSH PRIVILEGES;
+        SQL
+      changed_when: false
+      when: lab_state == 'broken'
+
+    - name: Run Nextcloud occ maintenance:install
+      shell: |
+        sudo -u www-data php {{ nc_root }}/occ maintenance:install \
+          --database=mysql \
+          --database-name=nextcloud \
+          --database-user=ncuser \
+          --database-pass=ncpass \
+          --admin-user=admin \
+          --admin-pass=admin
+      args:
+        creates: "{{ nc_root }}/config/config.php"
+      when: lab_state == 'broken'
+
+    - name: Deploy sabotaged nginx vhost
+      template:
+        src: ../templates/nginx-lab/nginx-broken.conf.j2
+        dest: /etc/nginx/sites-available/nextcloud
+        mode: "0644"
+      when: lab_state == 'broken'
+      notify: restart nginx
+
+    - name: Enable nextcloud nginx site
+      file:
+        src: /etc/nginx/sites-available/nextcloud
+        dest: /etc/nginx/sites-enabled/nextcloud
+        state: link
+      when: lab_state == 'broken'
+      notify: restart nginx
+
+    - name: Disable nginx default site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      when: lab_state == 'broken'
+      notify: restart nginx
+
+    - name: Drop PHP memory_limit (bug 4 — runtime laag)
+      copy:
+        content: "memory_limit = 64M\n"
+        dest: "/etc/php/{{ php_v }}/fpm/conf.d/99-lab-broken.ini"
+        mode: "0644"
+      when: lab_state == 'broken'
+      notify: restart php-fpm
+
+    - name: Sabotage Nextcloud data dir permissions (bug 5 — filesystem)
+      file:
+        path: "{{ nc_data }}"
+        owner: root
+        group: root
+        mode: "0700"
+        recurse: true
+      when: lab_state == 'broken'
+
+  handlers:
+    - name: restart nginx
+      service:
+        name: nginx
+        state: restarted
+
+    - name: restart php-fpm
+      service:
+        name: "php{{ php_v }}-fpm"
+        state: restarted

@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-05-13 — nginx + Nextcloud debug-lab
+
+### Added
+- **`terraform/nginx-lab/{main,variables,versions}.tf`** — twee Ubuntu-VMs op Proxmox (`nginx-lab-clean` id=105 op .55, `nginx-lab-broken` id=106 op .56), elk 4GB/2c/20GB, kloon van template 9000, `started=false`.
+- **`ansible/inventory/nginx-lab-hosts.yml`** — group `nginx_lab` met beide hosts en per-host `lab_state` (clean | broken).
+- **`ansible/playbooks/deploy-nginx-lab.yml`** — var-driven: gemeenschappelijk install-pad (nginx, php8.3-fpm + extensions, mariadb-server, Nextcloud 30.0.4 tarball naar `/var/www/nextcloud`, chown www-data), daarna `when: lab_state == 'broken'`-block dat MariaDB seedt, `occ maintenance:install` draait, gesaboteerde nginx-vhost + PHP memory-override deployt en data-dir permissies omgooit.
+- **`ansible/templates/nginx-lab/nginx-broken.conf.j2`** — realistische Nextcloud-vhost met 2 ingebouwde bugs: `fastcgi_pass` naar php8.1-socket (terwijl 8.3 draait) en `client_max_body_size 1M`.
+- **`~/Homelab/learning/nginx-debug-lab.md`** — lab-doc met provisioning-commands, debug-traject zonder spoilers, en tools-cheatsheet.
+
+### Why
+- Mark loopt tegen kennis-gaten in nginx + Nextcloud bare-metal aan. Container-stack verbergt te veel. Doel: één VM van scratch zelf configureren, één gesaboteerde VM debuggen — diversiteit van symptomen (nginx ↔ PHP-bridge, request-handling, PHP-runtime, NC-applaag, filesystem-permissies) traint vinden-via-symptoom in plaats van fix-via-recept.
+
+### Verify after apply
+```bash
+cd ~/Homelab/homelab/terraform/nginx-lab && terraform plan       # expect 2 VMs to add
+cd ~/Homelab/homelab/ansible
+ansible-playbook -i inventory/nginx-lab-hosts.yml playbooks/deploy-nginx-lab.yml --check
+```
+Daarna http://192.168.178.55 (clean: nginx default page of 502) versus http://192.168.178.56 (broken: 502 Bad Gateway als eerste symptoom).
+
 ## 2026-04-26 — Argo Events onder GitOps
 
 ### Added
