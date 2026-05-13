@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-13 — nginx-lab: started=true fix
+
+### Fixed
+- **`terraform/nginx-lab/main.tf`** — `started = false` → `started = true`. Cloud-init triggert na clone toch een boot; met `started=false` poolt de bpg/proxmox-provider eindeloos op state-drift (de "still creating" hang van ~12 min observed). Met `started=true` matcht terraform-state de runtime-realiteit en finisht apply direct.
+
 ## 2026-05-13 — nginx + Nextcloud debug-lab
 
 ### Added

@@ -3,7 +3,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   name      = each.key
   node_name = "proxmox"
   vm_id     = each.value.vm_id
-  started   = false
+  started   = true
 
   clone {
     vm_id = 9000
