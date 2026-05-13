@@ -1,0 +1,45 @@
+---
+# Stelt de set van Tailscale advertise-routes op een hypervisor declaratief in.
+# tailscale set --advertise-routes=... is idempotent maar NIET additive: het
+# vervangt de hele lijst. Daarom alle routes onderhouden in
+# group_vars/hypervisors.yml als single source of truth.
+#
+# Run vanaf jumpy:
+#   ansible-playbook -i inventory/hypervisors.yml playbooks/configure-tailscale-routes.yml --check
+#   ansible-playbook -i inventory/hypervisors.yml playbooks/configure-tailscale-routes.yml
+#
+# Na succesvolle run: routes goedkeuren in de Tailscale admin-console
+# (https://login.tailscale.com/admin/machines) voor deze node — eenmalig per route.
+
+- name: Configure Tailscale advertised routes on hypervisors
+  hosts: hypervisors
+  gather_facts: false
+  tasks:
+    - name: Capture current Tailscale prefs
+      command: tailscale debug prefs
+      register: ts_prefs_before
+      changed_when: false
+
+    - name: Show current AdvertiseRoutes
+      debug:
+        msg: "{{ (ts_prefs_before.stdout | from_json).AdvertiseRoutes | default([]) }}"
+
+    - name: Apply desired advertise-routes
+      command: "tailscale set --advertise-routes={{ tailscale_advertise_routes | join(',') }}"
+      changed_when: false   # tailscale set is idempotent; geen output bij no-op
+
+    - name: Capture new Tailscale prefs
+      command: tailscale debug prefs
+      register: ts_prefs_after
+      changed_when: false
+
+    - name: Show new AdvertiseRoutes
+      debug:
+        msg: "{{ (ts_prefs_after.stdout | from_json).AdvertiseRoutes | default([]) }}"
+
+    - name: Remind about admin-console approval
+      debug:
+        msg: |
+          Routes die als 'pending' verschijnen op deze node moeten nog goedgekeurd
+          worden in de Tailscale admin-console (eenmalig per route):
+          https://login.tailscale.com/admin/machines

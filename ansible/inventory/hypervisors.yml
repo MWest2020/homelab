@@ -1,0 +1,16 @@
+---
+# Hypervisor-hosts — bare-metal/VM-hosts die geen tenant-workload draaien
+# maar wel ansible-managed config nodig hebben (bv. Tailscale subnet routing).
+
+all:
+  children:
+    hypervisors:
+      hosts:
+        proxmox-laptop:
+          ansible_host: 192.168.178.10
+          ansible_user: root
+
+  vars:
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_become: false   # already root via ansible_user

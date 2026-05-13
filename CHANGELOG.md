@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-05-13 — Tailscale advertise-routes onder Ansible
+
+### Added
+- **`ansible/inventory/hypervisors.yml`** — nieuwe inventory met group `hypervisors`; host `proxmox-laptop` op 192.168.178.10 (root over de homelab-SSH-key). Bedoeld voor hypervisor-niveau config (Tailscale, host-firewall etc.), niet voor tenant-workloads.
+- **`ansible/group_vars/hypervisors.yml`** — single source of truth voor `tailscale_advertise_routes`: alle 7 VM-IPs als /32 (50/proxy, 51-53/klant-a-c, 54/portainer, 55-56/nginx-lab-{clean,broken}).
+- **`ansible/playbooks/configure-tailscale-routes.yml`** — runt `tailscale set --advertise-routes=...` op alle hypervisors. Print prefs voor- en na, met reminder dat nieuwe routes nog in de Tailscale admin-console goedgekeurd moeten worden.
+
+### Why
+- VMs `.55`/`.56` waren niet bereikbaar vanaf alma omdat de Tailscale-subnet-router op Proxmox die /32s niet adverteerde. Manuele `tailscale set` op de Proxmox-host werkt, maar drift sluipt erin zodra je er meerdere VMs bijzet. Single source of truth in group_vars maakt route-uitbreiding 1 regel + 1 playbook-run. `/24` blijft expliciet verboden (kaapt alma's eigen LAN-routing — zie `project_tailscale_subnet_routing`).
+
+### Verify after run
+```bash
+ssh jumpy
+cd ~/homelab/ansible
+ansible-playbook -i inventory/hypervisors.yml playbooks/configure-tailscale-routes.yml --check
+ansible-playbook -i inventory/hypervisors.yml playbooks/configure-tailscale-routes.yml
+# daarna goedkeuren op https://login.tailscale.com/admin/machines
+# vervolgens vanaf alma:
+ssh ubuntu@192.168.178.55 hostname     # zou moeten antwoorden
+```
+
 ## 2026-05-13 — nginx-lab: started=true fix
 
 ### Fixed

@@ -1,0 +1,17 @@
+---
+# /32 routes voor alle Proxmox-VMs op de homelab-LAN, geadverteerd via Tailscale.
+#
+# NOOIT 192.168.178.0/24 adverteren — dat zou alma's eigen LAN-routing kapen.
+# Zie project_tailscale_subnet_routing memory voor achtergrond.
+#
+# Toevoegen van een nieuwe VM = één regel onder. Volg dezelfde nummering als
+# in terraform/nginx-lab/variables.tf en inventory/proxmox-hosts.yml.
+
+tailscale_advertise_routes:
+  - 192.168.178.50/32   # proxy        (vm 100)
+  - 192.168.178.51/32   # klant-a      (vm 101)
+  - 192.168.178.52/32   # klant-b      (vm 102)
+  - 192.168.178.53/32   # klant-c      (vm 103)
+  - 192.168.178.54/32   # portainer    (vm 104)
+  - 192.168.178.55/32   # nginx-lab-clean   (vm 105)
+  - 192.168.178.56/32   # nginx-lab-broken  (vm 106)
