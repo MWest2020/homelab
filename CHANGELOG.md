@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-05-14 — bpg/proxmox provider upgrade 0.69 → 0.106
+
+### Changed
+- **`terraform/nginx-lab/versions.tf`** — provider constraint `~> 0.69` → `~> 0.106` (latest stable, 2026-05-06).
+
+### Why
+- Tijdens een schone destroy + apply test op 2026-05-14 hing terraform opnieuw 5+ minuten in `Still creating...` ondanks alle eerdere fixes. Proxmox-task-log toonde dat post-clone API-calls (memory, ipconfig0, ciuser, sshkeys) niet werden gepusht — bpg 0.69 had elk van die operaties als losse functie met eigen power-state-handling, wat in oudere versies regelmatig vastliep.
+- Bpg #2508 (in 0.7x.x reeks) refactort dat: één centrale state-machine die alle wijzigingen tracked en pas aan het eind het VM-power-state corrigeert. Precies onze pijn.
+
+### Breaking changes audit
+Tussen 0.69 en 0.106 staan deze BREAKING items, geen raakt onze code:
+- `lxc:` cpu.units default (we draaien VMs, geen containers)
+- `vm:` VM datasources refactor (we gebruiken geen datasources)
+- `vm:` `template` attribute no longer forces recreation (we zetten geen `template`)
+- `vm:` operations needing shutdown fail when `reboot_after_update = false` (we zetten dat niet)
+- `vm:` `initialization.dns.server` (singular) removed — we gebruiken `servers` (plural, current API)
+- `node:` cpu_count consistency (we gebruiken geen node datasource)
+- `proxmox_virtual_environment_download_file` overwrite default (niet in gebruik)
+- `proxmox_virtual_environment_firewall_options` validation (niet in gebruik)
+
+### Verify after pull
+```bash
+cd ~/homelab/terraform/nginx-lab
+terraform init -upgrade            # haalt 0.106 binnen, vervangt 0.69
+terraform plan                     # mag drift tonen vanwege state-mismatch, geen nieuwe resources
+```
+
+### Ook `terraform/nextcloud-vm/`
+Beide modules bumped in dezelfde commit voor consistentie — als één module op `0.106` zit en de ander op `0.69` is dat een verborgen voetangel. **Let op bij `terraform plan` op `nextcloud-vm/`:** kans bestaat dat plan-drift toont op de live VMs (klant-a/b/c, proxy, portainer) door schema-veranderingen tussen 0.69 en 0.106. Inspecteer voor je `apply` doet — accepteer state-refresh, weiger ongewenste resource-recreate.
+
 ## 2026-05-14 — template als single source of truth voor disk-size
 
 ### Changed
