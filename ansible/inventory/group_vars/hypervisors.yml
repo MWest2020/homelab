@@ -15,3 +15,4 @@ tailscale_advertise_routes:
   - 192.168.178.54/32   # portainer    (vm 104)
   - 192.168.178.55/32   # nginx-lab-clean   (vm 105)
   - 192.168.178.56/32   # nginx-lab-broken  (vm 106)
+  - 192.168.178.57/32   # nginx-proxy-lab   (vm 107)
