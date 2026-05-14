@@ -1,0 +1,18 @@
+---
+# Ansible inventory voor de nginx-host + docker proxy-lab.
+# Eén VM die zowel native nginx als een Docker-stack draait, zodat je leert
+# hoe een host-nginx een set containers reverse-proxy't.
+
+all:
+  children:
+    nginx_proxy_lab:
+      hosts:
+        nginx-proxy-lab:
+          ansible_host: 192.168.178.57
+
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_become: true
+    ansible_become_method: sudo

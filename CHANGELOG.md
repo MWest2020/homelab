@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-14 — nginx-proxy-lab toegevoegd (host-nginx + docker stack)
+
+### Added
+- **`terraform/nginx-proxy-lab/{main,variables,versions}.tf`** — single-VM module (vm 107, .57), kloont template 9000, geen hardware-overrides per het established pattern.
+- **`ansible/inventory/nginx-proxy-lab-hosts.yml`** — inventory met group `nginx_proxy_lab`.
+- **`ansible/playbooks/deploy-nginx-proxy-lab.yml`** — installeert native nginx + Docker engine (Docker's official APT-repo) + compose-plugin, deploy't `/opt/proxy-lab/docker-compose.yml`, start de stack, zet nginx default site uit zodat lab vanaf nul begint. Pre-task `wait_for_connection` voor cloud-init-readiness, `dpkg --configure -a` recovery.
+- **`docker/proxy-lab/docker-compose.yml`** — twee sample-apps (`traefik/whoami` op 127.0.0.1:8081, `kennethreitz/httpbin` op 127.0.0.1:8082). Loopback-binding zodat host-nginx de enige publieke ingang is.
+- **`~/Homelab/learning/nginx-docker-proxy-lab.md`** — lab-doc met provisioning-commands, de "ketting" browser→nginx→container, jouw werk (path- vs hostname-routing), proxy_set_header lessons, en tools-cheatsheet. Spoiler-vrij voor de nginx-config zelf.
+
+### Why
+- Tweede hands-on lab als opvolger van `nginx-lab`. Daar leerde je het bare-metal stack (nginx + php-fpm + mariadb + Nextcloud op één host). Hier leer je het patroon dat in echte productie veel vaker voorkomt: **host-nginx als publieke voordeur, applicaties in containers erachter**. Zelfde provisioning-pattern (template-clone via terraform, ansible voor packages + stack), zodat de hele "straat" reproduceerbaar blijft.
+
 ## 2026-05-14 — docs: VM-provisioning stack overzicht
 
 ### Added

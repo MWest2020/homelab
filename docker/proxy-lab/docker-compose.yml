@@ -1,0 +1,20 @@
+# Sample Docker stack voor het nginx-proxy-lab.
+#
+# Twee bewust verschillende web-apps. Beide expose'n alleen op 127.0.0.1
+# zodat ze NIET direct van buitenaf bereikbaar zijn — host-nginx is de enige
+# publieke ingang. Dat is het hele leerpunt van deze lab.
+
+services:
+  whoami:
+    image: traefik/whoami
+    container_name: lab-whoami
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+
+  httpbin:
+    image: kennethreitz/httpbin
+    container_name: lab-httpbin
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:80"

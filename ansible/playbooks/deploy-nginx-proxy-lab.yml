@@ -1,0 +1,111 @@
+---
+# Provisioning voor de nginx-host + docker proxy-lab.
+#
+# Ansible installeert:
+#   - nginx (native, op de host)
+#   - Docker engine + compose-plugin (Docker's official APT-repo)
+#   - Een sample stack van 2 apps (whoami, httpbin) op 127.0.0.1:8081 / :8082
+#
+# Wat ansible BEWUST niet doet:
+#   - geen nginx-vhosts schrijven — dat is JOUW werk, dat is de hele lab.
+#
+# Run:
+#   ansible-playbook -i inventory/nginx-proxy-lab-hosts.yml playbooks/deploy-nginx-proxy-lab.yml -vv
+
+- name: Provision nginx-host + docker proxy-lab
+  hosts: nginx_proxy_lab
+  become: true
+  tasks:
+    - name: Wait for SSH + cloud-init readiness
+      wait_for_connection:
+        delay: 5
+        timeout: 180
+
+    - name: Recover interrupted dpkg state
+      command: dpkg --configure -a
+      changed_when: false
+
+    - name: Install base packages
+      apt:
+        name:
+          - nginx
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: true
+
+    - name: Ensure /etc/apt/keyrings exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker engine + compose plugin
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: true
+
+    - name: Ensure /opt/proxy-lab exists
+      file:
+        path: /opt/proxy-lab
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    - name: Deploy docker-compose.yml
+      copy:
+        src: ../../docker/proxy-lab/docker-compose.yml
+        dest: /opt/proxy-lab/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
+      register: compose_file
+
+    - name: Pull container images
+      shell: docker compose pull
+      args:
+        chdir: /opt/proxy-lab
+
+    - name: Start docker stack
+      shell: >
+        docker compose up -d
+        {{ '--force-recreate' if compose_file.changed else '' }}
+      args:
+        chdir: /opt/proxy-lab
+
+    - name: Disable nginx default site (zodat jij vanaf 0 begint)
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: reload nginx
+
+  handlers:
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded
