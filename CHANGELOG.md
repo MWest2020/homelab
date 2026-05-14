@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-05-14 — docs: VM-provisioning stack overzicht
+
+### Added
+- **`docs/07-vm-provisioning-stack.md`** — end-to-end uitleg van de vijf lagen (Proxmox template, Terraform, cloud-init, Ansible, Caddy), eenmalige setup-stappen (API-token rol, template-aanmaak), de bridging via cloud-init, en een troubleshooting-tabel voor first-run pijn. Bevat o.a. de exacte `TerraformProv`-rol + ACL commando's, want dat was de root cause van de "Still creating"-hang gisteren.
+
+### Why
+- Twee debug-sessies (2026-05-13/14) waren bijna volledig spelen-op-de-tast omdat het mentale model van wie-doet-wat tussen Proxmox, Terraform, cloud-init, en Ansible niet ergens centraal stond. CLAUDE.md schetst de pipeline maar niet de operationele inhoud (token-perms, lessons learned). Aparte doc voorkomt dat de volgende verse VM weer hetzelfde leertraject moet aflopen.
+
 ## 2026-05-14 — nginx-lab main.tf: alleen per-VM dingen overriden
 
 ### Changed
