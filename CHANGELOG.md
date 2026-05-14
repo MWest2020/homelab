@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-05-14 — nginx-lab main.tf: alleen per-VM dingen overriden
+
+### Changed
+- **`terraform/nginx-lab/main.tf`** — `cpu`, `memory`, `operating_system` blocks verwijderd. Template `9000` levert die waardes al; ze ook in terraform zetten betekent dat bpg na de clone die properties opnieuw via `qmset` moet pushen. Dat is precies waar bpg's post-clone state-machine vastloopt — clones lukken, daarna stilte.
+
+### Why
+- Twee sessies lang debuggen (en bpg-upgrade 0.69 → 0.106) toonden hetzelfde patroon: `qmclone` OK, daarna geen `qmset`/`qmstart` operaties. Provider hangt in de centrale state-machine, vermoedelijk door een race tussen freshly-cloned VM-lock en de update-calls. Niet te fixen door provider-tuning omdat 't structureel met onze workflow conflicteert. Workaround die we *wel* in eigen hand hebben: minder werk post-clone door waardes die de template al levert, niet in terraform te zetten.
+
+### Pattern voor sizing
+- Andere CPU/memory/disk → aparte template (`9001 = larger`, etc.), niet per-VM tweaks. Hardware-shape blijft in template, per-VM-config (IP, user, key) blijft in IaC. Saait, auditeerbaar.
+
+### Verify after apply
+```
+TF_LOG=INFO terraform apply
+```
+Verwacht: clones eindigen, daarna 1 `qmset` per VM voor ipconfig0/ciuser/sshkeys, daarna `qmstart`. Apply finisht in 3-4 min met `Apply complete!`.
+
 ## 2026-05-14 — bpg/proxmox provider upgrade 0.69 → 0.106
 
 ### Changed

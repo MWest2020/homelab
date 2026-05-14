@@ -10,18 +10,14 @@ resource "proxmox_virtual_environment_vm" "vm" {
     full  = true
   }
 
-  cpu {
-    cores = each.value.cores
-    type  = "host"
-  }
-
-  memory {
-    dedicated = each.value.memory
-  }
-
-  # Disk-grootte komt uit template 9000 (nu 20.5GB na 'qm resize'). Geen disk{}
-  # block hier — bpg zou anders elke apply een resize-call doen, ook al matcht
-  # de grootte al. Single source of truth = de template.
+  # GEEN cpu/memory/disk/operating_system blocks — alles komt uit template 9000.
+  # bpg's post-clone state-machine hangt zodra ie eerst memory/cpu/etc. moet
+  # her-pushen voor ie aan initialization toekomt. Door alleen per-VM-specifieke
+  # dingen (IP, user, key) in initialization te zetten, doet bpg post-clone
+  # exact 1 batch qmset + 1 qmstart. Template levert al 2c/2GB/20.5GB/linux-2.6.
+  #
+  # Voor andere sizing: maak een aparte template (9001 = larger) ipv per-VM
+  # tweaks. Klantelf-bound config in IaC, hardware-shape in template.
 
   network_device {
     bridge = "vmbr0"
@@ -46,10 +42,6 @@ resource "proxmox_virtual_environment_vm" "vm" {
       username = "ubuntu"
       keys     = [var.ssh_public_key]
     }
-  }
-
-  operating_system {
-    type = "l26"
   }
 
   agent {
