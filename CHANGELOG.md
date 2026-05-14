@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-14 — template als single source of truth voor disk-size
+
+### Changed
+- **Proxmox template `9000` op de host gegroeid van 3.5GB → 20.5GB** (`qm resize 9000 scsi0 +17G`). Affecteert alleen toekomstige clones — bestaande klant-a/b/c zijn full-clones en blijven 20GB.
+- **`terraform/nginx-lab/main.tf`** — `disk { ... }` block verwijderd. Was een compensatie voor de te kleine template; nu overbodig en zou bij elke apply een nodeloze resize-call triggeren. Disk-grootte komt voortaan uit de template zelf.
+
+### Why
+- 3.5GB template was structureel te klein voor elke realistische Ubuntu-workload (apt liep direct vol). Compensatie via terraform werkte maar voegde een resize-API-call toe per clone — onnodig werk plus extra punt waar de bpg-provider kon haperen. Template-resize is een eenmalige actie, daarna heeft elke clone de juiste grootte by-default.
+
+### Cosmetic note
+- Template eindigt op 20.5GB ipv 20.0GB omdat `qm resize` alleen kan groeien (+17G op 3.5G = 20.5G). Shrinken zou ext4 corrumperen; recreaten van de template kost 15-20 min. Niet de moeite — clones krijgen wel exact 20GB.
+
 ## 2026-05-13 — nginx-lab robuustheid: disk-resize + dpkg-recovery
 
 ### Fixed
