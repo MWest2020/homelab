@@ -19,6 +19,12 @@
   tasks:
     # --- common: install + tarball (beide modes) ---
 
+    - name: Recover interrupted dpkg state
+      # Idempotent: no-op als dpkg clean is. Beschermt tegen halve installs
+      # door eerdere apt-fouten (bv. disk vol tijdens vorige run).
+      command: dpkg --configure -a
+      changed_when: false
+
     - name: Update apt cache
       apt:
         update_cache: true

@@ -19,6 +19,15 @@ resource "proxmox_virtual_environment_vm" "vm" {
     dedicated = each.value.memory
   }
 
+  # Resize de gecloonde template-disk (default 3.5GB) naar each.value.disk GB.
+  # interface = scsi0 moet matchen met de template; anders maakt bpg een 2e disk
+  # ipv. te resizen. Cloud-init growpart breidt partition + ext4 auto uit op boot.
+  disk {
+    datastore_id = "local-lvm"
+    interface    = "scsi0"
+    size         = each.value.disk
+  }
+
   network_device {
     bridge = "vmbr0"
     model  = "virtio"

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-13 — nginx-lab robuustheid: disk-resize + dpkg-recovery
+
+### Fixed
+- **`terraform/nginx-lab/main.tf`** — `disk` block toegevoegd. De `disk = 20` in `variables.tf` was decoratief: er stond geen disk-block in `main.tf` zodat de clone gewoon de template-disk (3.5GB) erfde. Apt liep daardoor vol bij Nextcloud + php-extensions. Nu wordt `scsi0` daadwerkelijk gegrowd naar 20GB; cloud-init's growpart breidt partition + ext4 auto uit.
+- **`ansible/playbooks/deploy-nginx-lab.yml`** — pre-task `dpkg --configure -a` toegevoegd vóór de apt-update. Herstelt automatisch interrupted package-state (bv. uit een eerdere mislukte run). Idempotent.
+
+### Why
+- Eerste end-to-end run viel om op "No space left on device" tijdens apt install op beide VMs; daarna corrupte dpkg state. Beide werden handmatig gefixt (`qm resize`, `dpkg --configure -a`). Met deze fixes overleeft de pipeline een schone `terraform destroy && terraform apply && ansible-playbook` cyclus zonder handmatige interventie.
+
+### Lessons logged uit de eerste run
+- `bpg/proxmox` provider's `still creating` hang treedt op als runtime-state niet matcht met de aangevraagde state (`started=false` terwijl cloud-init de VM toch boot). Gefixt door `started=true` (eerdere commit).
+- Tijdens een hang worden niet alle initialization-fields (ipconfig0, ciuser, sshkeys) altijd naar Proxmox doorgeduwd. Met `started=true` zou dat probleem zich niet meer voor moeten doen — maar als fallback weet je nu dat `qm set --ipconfig0` / `--sshkeys` + `qm cloudinit update` + reboot de drift handmatig oplost.
+- `disk` in een terraform var moet ook in `main.tf` gebruikt worden. Decoratieve vars zijn een fopper.
+
 ## 2026-05-13 — Tailscale advertise-routes onder Ansible
 
 ### Added
