@@ -112,7 +112,7 @@ ADR-style: one entry per non-trivial call. Each entry lists what was chosen, why
 
 **Decision**: Geen `device_passthrough` block in `proxmox_virtual_environment_vm` / `_container`. Na `terraform apply` één-malig handmatig:
 ```bash
-ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
+ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct reboot 210'
 ```
 
 ### Wat `/dev/net/tun` is
@@ -148,7 +148,7 @@ Geen bug — werkelijk een Proxmox-design-beperking.
 ### Wat het fallback-commando precies doet
 
 ```bash
-ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
+ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct reboot 210'
 ```
 
 | Onderdeel | Wat |
@@ -156,7 +156,7 @@ ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
 | `ssh root@.10` | Logt in als **root@pam** op de Proxmox-host. Lokaal, interactief, geen API-token restrictie |
 | `pct set 210` | Proxmox CLI: wijzig config van LXC 210 |
 | `-dev0 /dev/net/tun` | Voeg device-slot 0 toe, gemapped op host-pad `/dev/net/tun`. Slots `dev0`–`dev255` beschikbaar |
-| `pct restart 210` | LXC-config-changes worden pas live na restart |
+| `pct reboot 210` | LXC-config-changes worden pas live na restart |
 
 Resultaat: in `/etc/pve/lxc/210.conf` op de Proxmox-host komt een regel `dev0: /dev/net/tun`. Volgende start mount Proxmox het device in `/dev/net/tun` van de container.
 

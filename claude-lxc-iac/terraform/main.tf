@@ -71,6 +71,6 @@ resource "proxmox_virtual_environment_container" "agent_lxc" {
   # device passthrough on LXC; an API token (even with full TerraformProv role)
   # gets 403 "Permission check failed (configuring device passthrough is only
   # allowed for root@pam)". See ADR-007. Applied manually as a one-off via:
-  #   ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
+  #   ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct reboot 210'
   # See docs/runbook.md § 6.1 for verify steps.
 }

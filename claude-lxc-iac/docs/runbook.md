@@ -41,8 +41,7 @@ ssh root@192.168.178.10 'pveam download local ubuntu-24.04-standard_24.04-2_amd6
 Browser: https://login.tailscale.com/admin/settings/keys → Generate auth key.
 - Reusable: **off**
 - Ephemeral: **off**
-- Pre-approved: **on**
-- Tags: `tag:homelab-router`
+- Tags: `tag:homelab-router` (tag-approval is automatic via your existing `tagOwners` policy — no separate "Pre-approved" toggle in current Tailscale UI)
 - Description: `agent-lxc bootstrap YYYY-MM-DD`
 - Validity: 1 day (it's used once)
 
@@ -231,7 +230,7 @@ Recreate: full `terraform apply` → **§ 6.1 one-off (`pct set ... -dev0 /dev/n
 Proxmox **only allows `root@pam`** to configure device-passthrough; API tokens (even with full TerraformProv role) get 403. We removed the `device_passthrough` block from `main.tf` (see ADR-007 for the full explanation of why); after every fresh `terraform apply` you must add the tun device manually:
 
 ```bash
-ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
+ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct reboot 210'
 ```
 
 Verify inside the LXC:
