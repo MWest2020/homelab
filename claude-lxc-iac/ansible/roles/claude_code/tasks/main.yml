@@ -1,31 +1,40 @@
 ---
 # Install Claude Code globally for the dev user, drop a sensible tmux.conf,
-# and sync the operator's ~/.claude/ config (sanitised — no credentials, no
-# alma-specific hook paths).
+# and OPTIONALLY sync the operator's ~/.claude/ config (sanitised) if it's
+# present on the Ansible controller.
+#
+# Controller-local file operations (delegate_to: localhost) use
+# connection: local + become: false to avoid sudo prompts on the
+# controller host (which is jumpy, not alma).
 
-- name: Ensure operator's settings.json exists on the controller
+- name: Check operator's settings.json on controller
   ansible.builtin.stat:
     path: "{{ operator_claude_dir }}/settings.json"
   register: operator_settings_stat
   delegate_to: localhost
+  connection: local
   become: false
 
-- name: Ensure operator's CLAUDE.md exists on the controller
+- name: Check operator's CLAUDE.md on controller
   ansible.builtin.stat:
     path: "{{ operator_claude_dir }}/CLAUDE.md"
   register: operator_claude_md_stat
   delegate_to: localhost
+  connection: local
   become: false
 
-- name: Fail loudly if controller-side Claude config is missing
-  ansible.builtin.assert:
-    that:
-      - operator_settings_stat.stat.exists
-      - operator_claude_md_stat.stat.exists
-    fail_msg: >-
-      Expected the operator's Claude config under {{ operator_claude_dir }}
-      on the Ansible controller. Set operator_claude_dir if your config
-      lives elsewhere, or run from a host where ~/.claude exists.
+- name: Set fact whether Claude config can be synced from controller
+  ansible.builtin.set_fact:
+    claude_config_syncable: "{{ operator_settings_stat.stat.exists and operator_claude_md_stat.stat.exists }}"
+
+- name: Warn if controller lacks Claude config (sync will be skipped)
+  ansible.builtin.debug:
+    msg: >-
+      Operator's Claude config not found at {{ operator_claude_dir }} on the
+      controller. Sync of settings.json + CLAUDE.md skipped. To enable later:
+      rsync ~/.claude/{settings.json,CLAUDE.md} from alma to this controller
+      and re-run `--tags claude_code`.
+  when: not claude_config_syncable
 
 - name: Install Claude Code globally for {{ dev_user }}
   community.general.npm:
@@ -34,7 +43,6 @@
     state: present
   become_user: "{{ dev_user }}"
   environment:
-    # Ensure the user-local prefix is the install target — set by the nodejs role.
     NPM_CONFIG_PREFIX: "/home/{{ dev_user }}/.npm-global"
 
 - name: Verify claude --version works
@@ -53,11 +61,15 @@
     group: "{{ dev_user }}"
     mode: "0755"
 
+# --- conditional sync block (only when controller has the source files) ---
+
 - name: Read operator's settings.json from controller
   ansible.builtin.set_fact:
     operator_settings: "{{ lookup('file', operator_claude_dir + '/settings.json') | from_json }}"
   delegate_to: localhost
+  connection: local
   become: false
+  when: claude_config_syncable
 
 - name: Deploy sanitised settings.json to {{ dev_user }}
   # Strip alma-specific sections (hooks paths, enabledPlugins, extraKnownMarketplaces).
@@ -73,6 +85,7 @@
       permissions: "{{ operator_settings.permissions | default({}) }}"
       theme: "{{ operator_settings.theme | default('auto') }}"
       skipAutoPermissionPrompt: "{{ operator_settings.skipAutoPermissionPrompt | default(false) }}"
+  when: claude_config_syncable
 
 - name: Deploy CLAUDE.md (sanitised + SCOPE-section appended)
   ansible.builtin.template:
@@ -81,6 +94,9 @@
     owner: "{{ dev_user }}"
     group: "{{ dev_user }}"
     mode: "0644"
+  when: claude_config_syncable
+
+# --- always-run regardless of sync ---
 
 - name: Deploy ~/.tmux.conf for {{ dev_user }}
   ansible.builtin.copy:
@@ -98,5 +114,6 @@
   ansible.builtin.debug:
     msg:
       - "Claude Code installed: {{ claude_version.stdout }}"
+      - "Config sync: {{ 'done' if claude_config_syncable else 'SKIPPED (no controller-side ~/.claude/)' }}"
       - "SSH in as {{ dev_user }} and run 'claude' to complete account login."
       - "Browser-flow falls back to copy-paste URL on headless systems."
