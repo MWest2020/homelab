@@ -3,29 +3,19 @@
 # and OPTIONALLY sync the operator's ~/.claude/ config (sanitised) if it's
 # present on the Ansible controller.
 #
-# Controller-local file operations (delegate_to: localhost) use
-# connection: local + become: false to avoid sudo prompts on the
-# controller host (which is jumpy, not alma).
+# Controller-side reads use ansible's `lookup('file', ..., errors='ignore')`
+# which runs in-process on the controller — no ssh, no sudo, no delegation.
+# This avoids the known delegate_to + become precedence quirks in
+# Ansible 2.16.
 
-- name: Check operator's settings.json on controller
-  ansible.builtin.stat:
-    path: "{{ operator_claude_dir }}/settings.json"
-  register: operator_settings_stat
-  delegate_to: localhost
-  connection: local
-  become: false
-
-- name: Check operator's CLAUDE.md on controller
-  ansible.builtin.stat:
-    path: "{{ operator_claude_dir }}/CLAUDE.md"
-  register: operator_claude_md_stat
-  delegate_to: localhost
-  connection: local
-  become: false
-
-- name: Set fact whether Claude config can be synced from controller
+- name: Try to read operator's Claude config from the controller
   ansible.builtin.set_fact:
-    claude_config_syncable: "{{ operator_settings_stat.stat.exists and operator_claude_md_stat.stat.exists }}"
+    operator_settings_raw: "{{ lookup('file', operator_claude_dir + '/settings.json', errors='ignore') }}"
+    operator_claude_md_raw: "{{ lookup('file', operator_claude_dir + '/CLAUDE.md', errors='ignore') }}"
+
+- name: Determine whether Claude config sync is possible
+  ansible.builtin.set_fact:
+    claude_config_syncable: "{{ (operator_settings_raw | length > 0) and (operator_claude_md_raw | length > 0) }}"
 
 - name: Warn if controller lacks Claude config (sync will be skipped)
   ansible.builtin.debug:
@@ -63,12 +53,9 @@
 
 # --- conditional sync block (only when controller has the source files) ---
 
-- name: Read operator's settings.json from controller
+- name: Parse operator's settings.json
   ansible.builtin.set_fact:
-    operator_settings: "{{ lookup('file', operator_claude_dir + '/settings.json') | from_json }}"
-  delegate_to: localhost
-  connection: local
-  become: false
+    operator_settings: "{{ operator_settings_raw | from_json }}"
   when: claude_config_syncable
 
 - name: Deploy sanitised settings.json to {{ dev_user }}
