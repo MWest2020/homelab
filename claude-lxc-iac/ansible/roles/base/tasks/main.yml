@@ -34,15 +34,14 @@
     name: "{{ locale }}"
     state: present
 
+- name: Check current locale
+  ansible.builtin.command: localectl status
+  register: localectl_status
+  changed_when: false
+
 - name: Set system locale
-  ansible.builtin.command:
-    cmd: "localectl set-locale LANG={{ locale }}"
-  changed_when: locale_check.stdout != ('LANG=' ~ locale)
-  vars:
-    locale_check: "{{ lookup('pipe', 'echo dummy') }}"
-  # We avoid pure command idempotency hacks; use a separate stat:
-  register: locale_set
-  failed_when: false
+  ansible.builtin.command: "localectl set-locale LANG={{ locale }}"
+  when: ('LANG=' + locale) not in localectl_status.stdout
 
 - name: Check current timezone
   ansible.builtin.command: timedatectl show -p Timezone --value
