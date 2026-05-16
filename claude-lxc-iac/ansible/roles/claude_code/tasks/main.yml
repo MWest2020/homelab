@@ -1,0 +1,102 @@
+---
+# Install Claude Code globally for the dev user, drop a sensible tmux.conf,
+# and sync the operator's ~/.claude/ config (sanitised — no credentials, no
+# alma-specific hook paths).
+
+- name: Ensure operator's settings.json exists on the controller
+  ansible.builtin.stat:
+    path: "{{ operator_claude_dir }}/settings.json"
+  register: operator_settings_stat
+  delegate_to: localhost
+  become: false
+
+- name: Ensure operator's CLAUDE.md exists on the controller
+  ansible.builtin.stat:
+    path: "{{ operator_claude_dir }}/CLAUDE.md"
+  register: operator_claude_md_stat
+  delegate_to: localhost
+  become: false
+
+- name: Fail loudly if controller-side Claude config is missing
+  ansible.builtin.assert:
+    that:
+      - operator_settings_stat.stat.exists
+      - operator_claude_md_stat.stat.exists
+    fail_msg: >-
+      Expected the operator's Claude config under {{ operator_claude_dir }}
+      on the Ansible controller. Set operator_claude_dir if your config
+      lives elsewhere, or run from a host where ~/.claude exists.
+
+- name: Install Claude Code globally for {{ dev_user }}
+  community.general.npm:
+    name: "@anthropic-ai/claude-code"
+    global: true
+    state: present
+  become_user: "{{ dev_user }}"
+  environment:
+    # Ensure the user-local prefix is the install target — set by the nodejs role.
+    NPM_CONFIG_PREFIX: "/home/{{ dev_user }}/.npm-global"
+
+- name: Verify claude --version works
+  ansible.builtin.command: claude --version
+  become_user: "{{ dev_user }}"
+  environment:
+    PATH: "/home/{{ dev_user }}/.npm-global/bin:{{ ansible_env.PATH }}"
+  register: claude_version
+  changed_when: false
+
+- name: Ensure ~/.claude/ exists for {{ dev_user }}
+  ansible.builtin.file:
+    path: "/home/{{ dev_user }}/.claude"
+    state: directory
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0755"
+
+- name: Read operator's settings.json from controller
+  ansible.builtin.set_fact:
+    operator_settings: "{{ lookup('file', operator_claude_dir + '/settings.json') | from_json }}"
+  delegate_to: localhost
+  become: false
+
+- name: Deploy sanitised settings.json to {{ dev_user }}
+  # Strip alma-specific sections (hooks paths, enabledPlugins, extraKnownMarketplaces).
+  # Keep permissions.deny (universal), theme, skipAutoPermissionPrompt.
+  ansible.builtin.copy:
+    content: "{{ sanitised_settings | to_nice_json }}\n"
+    dest: "/home/{{ dev_user }}/.claude/settings.json"
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0600"
+  vars:
+    sanitised_settings:
+      permissions: "{{ operator_settings.permissions | default({}) }}"
+      theme: "{{ operator_settings.theme | default('auto') }}"
+      skipAutoPermissionPrompt: "{{ operator_settings.skipAutoPermissionPrompt | default(false) }}"
+
+- name: Deploy CLAUDE.md (sanitised + SCOPE-section appended)
+  ansible.builtin.template:
+    src: claude_md.j2
+    dest: "/home/{{ dev_user }}/.claude/CLAUDE.md"
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0644"
+
+- name: Deploy ~/.tmux.conf for {{ dev_user }}
+  ansible.builtin.copy:
+    dest: "/home/{{ dev_user }}/.tmux.conf"
+    content: |
+      # Managed by ansible: claude-lxc-iac/roles/claude_code.
+      set -g mouse on
+      set -g history-limit 50000
+      set -g default-terminal "screen-256color"
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0644"
+
+- name: Announce next interactive step
+  ansible.builtin.debug:
+    msg:
+      - "Claude Code installed: {{ claude_version.stdout }}"
+      - "SSH in as {{ dev_user }} and run 'claude' to complete account login."
+      - "Browser-flow falls back to copy-paste URL on headless systems."

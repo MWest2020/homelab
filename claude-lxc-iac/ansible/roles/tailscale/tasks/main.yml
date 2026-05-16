@@ -1,0 +1,64 @@
+---
+# Install Tailscale from the official apt repo (signed-by, no legacy apt-key),
+# then `tailscale up` with the operator-minted auth key. SSH stays vanilla
+# OpenSSH — Tailscale SSH disabled explicitly.
+
+- name: Ensure /usr/share/keyrings exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Tailscale signing key
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: "0644"
+
+- name: Add Tailscale apt repo (signed-by)
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/tailscale.list
+    content: |
+      # Managed by ansible: claude-lxc-iac/roles/tailscale.
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu noble main
+    owner: root
+    group: root
+    mode: "0644"
+  register: tailscale_repo
+
+- name: Refresh apt cache after adding Tailscale repo
+  ansible.builtin.apt:
+    update_cache: true
+  when: tailscale_repo.changed
+
+- name: Install tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+
+- name: Enable and start tailscaled
+  ansible.builtin.service:
+    name: tailscaled
+    enabled: true
+    state: started
+
+- name: Check tailscale login state
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
+- name: Run "tailscale up" if not already logged in
+  # tailscale status --json returns BackendState="NeedsLogin" on a fresh
+  # install. Once up it returns "Running" — that's the idempotency guard.
+  ansible.builtin.command:
+    cmd: >-
+      tailscale up
+      --hostname={{ tailscale_hostname }}
+      --advertise-tags={{ tailscale_tags | join(',') }}
+      --ssh=false
+      --auth-key={{ tailscale_authkey }}
+  when: >
+    tailscale_status.rc != 0 or
+    (tailscale_status.stdout | from_json).BackendState != "Running"
+  no_log: true   # hides the auth key from playbook output

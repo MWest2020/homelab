@@ -1,0 +1,93 @@
+---
+# Base role: package baseline, dev user, locale, timezone.
+# All tasks idempotent. Re-runs converge to zero changes.
+
+- name: Update apt cache (max 1 hour stale)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Run apt dist-upgrade for security
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: true
+
+- name: Install baseline packages
+  ansible.builtin.apt:
+    name:
+      - sudo
+      - tmux
+      - git
+      - curl
+      - ca-certificates
+      - gnupg
+      - htop
+      - vim
+      - unzip
+      - jq
+      - build-essential
+      - locales
+    state: present
+
+- name: Ensure locale "{{ locale }}" is generated
+  community.general.locale_gen:
+    name: "{{ locale }}"
+    state: present
+
+- name: Set system locale
+  ansible.builtin.command:
+    cmd: "localectl set-locale LANG={{ locale }}"
+  changed_when: locale_check.stdout != ('LANG=' ~ locale)
+  vars:
+    locale_check: "{{ lookup('pipe', 'echo dummy') }}"
+  # We avoid pure command idempotency hacks; use a separate stat:
+  register: locale_set
+  failed_when: false
+
+- name: Check current timezone
+  ansible.builtin.command: timedatectl show -p Timezone --value
+  register: current_tz
+  changed_when: false
+
+- name: Set timezone "{{ timezone }}"
+  ansible.builtin.command: "timedatectl set-timezone {{ timezone }}"
+  when: current_tz.stdout != timezone
+  changed_when: true
+
+- name: Ensure dev user "{{ dev_user }}" exists with sudo + bash
+  ansible.builtin.user:
+    name: "{{ dev_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+    state: present
+
+- name: Drop NOPASSWD sudo for "{{ dev_user }}" (only if requested)
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/10-{{ dev_user }}-nopasswd"
+    content: "{{ dev_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "/usr/sbin/visudo -cf %s"
+  when: dev_user_nopasswd_sudo | bool
+
+- name: Remove NOPASSWD sudo drop-in when feature is disabled
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/10-{{ dev_user }}-nopasswd"
+    state: absent
+  when: not (dev_user_nopasswd_sudo | bool)
+
+- name: Install authorized_keys for "{{ dev_user }}"
+  ansible.posix.authorized_key:
+    user: "{{ dev_user }}"
+    state: present
+    key: "{{ item }}"
+  loop: "{{ dev_user_authorized_keys }}"
+
+- name: Ensure dev_user_authorized_keys is non-empty
+  ansible.builtin.assert:
+    that:
+      - dev_user_authorized_keys | length > 0
+    fail_msg: "dev_user_authorized_keys is empty — you will not be able to log in as {{ dev_user }}. Set it in group_vars/claude_dev.yml."

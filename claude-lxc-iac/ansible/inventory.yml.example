@@ -1,0 +1,17 @@
+---
+# Copy to inventory.yml (gitignored) and fill in the static IP from terraform output.
+# Bootstrap connects as root; after the base role creates the dev_user, the
+# operator can switch ansible_user to that user and rerun (idempotent).
+
+all:
+  children:
+    claude_dev:
+      hosts:
+        agent-lxc:
+          ansible_host: 192.168.178.58    # from `terraform output assigned_ip`
+  vars:
+    ansible_user: root
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_become: true
+    ansible_become_method: sudo

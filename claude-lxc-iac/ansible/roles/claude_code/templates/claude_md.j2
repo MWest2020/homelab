@@ -1,0 +1,20 @@
+{# Operator's CLAUDE.md, optionally sanitised, with a SCOPE-section appended. -#}
+{%- set raw = lookup('file', operator_claude_dir + '/CLAUDE.md') -%}
+{%- if claude_md_pm_cooldown_strategy == 'strip' -%}
+{{ raw | regex_replace('bash ~/projects/workstation-security/common/install-pm-cooldown\\.sh', '# Path resolves only on the operator workstation (alma) — replicate there or skip on other hosts') }}
+{%- else -%}
+{{ raw }}
+{%- endif %}
+
+## Scope of this environment
+
+This machine (`{{ tailscale_hostname }}`) is a personal development environment
+for work on repositories under github.com/MWest2020 only.
+
+- Personal projects, side-projects, learning, experiments → here
+- Conduction / ConductionNL / client work → NOT here, use alma
+- OpenWebconcept, NLnet, municipal work → NOT here, use alma
+
+If the operator asks to work on a non-MWest2020 repository, ask
+them to confirm — this is likely an environment mix-up. If
+confirmed, proceed but flag it as an exception.

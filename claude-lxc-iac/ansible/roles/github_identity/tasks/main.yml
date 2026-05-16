@@ -1,0 +1,75 @@
+---
+# Dedicated GitHub identity for the LXC: fresh ed25519 keypair + ssh config
+# + gitconfig. We do NOT upload the key to GitHub (out of scope per spec); the
+# operator copy-pastes it from the printed banner at the end of the run.
+
+- name: Ensure ~/.ssh/ exists for {{ dev_user }}
+  ansible.builtin.file:
+    path: "/home/{{ dev_user }}/.ssh"
+    state: directory
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0700"
+
+- name: Generate dedicated ed25519 keypair for GitHub
+  community.crypto.openssh_keypair:
+    path: "/home/{{ dev_user }}/.ssh/id_ed25519_github"
+    type: ed25519
+    comment: "{{ tailscale_hostname }}-github"
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0600"
+    regenerate: never
+  register: github_keypair
+
+- name: Ensure ~/.ssh/config exists with github.com block
+  ansible.builtin.blockinfile:
+    path: "/home/{{ dev_user }}/.ssh/config"
+    marker: "# {mark} ANSIBLE MANAGED — github identity"
+    create: true
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0600"
+    block: |
+      Host github.com
+          HostName github.com
+          User git
+          IdentityFile ~/.ssh/id_ed25519_github
+          IdentitiesOnly yes
+
+- name: Deploy ~/.gitconfig for {{ dev_user }}
+  ansible.builtin.copy:
+    dest: "/home/{{ dev_user }}/.gitconfig"
+    content: |
+      # Managed by ansible: claude-lxc-iac/roles/github_identity.
+      [user]
+              name = {{ git_user_name }}
+              email = {{ git_user_email }}
+      [init]
+              defaultBranch = main
+      [pull]
+              rebase = false
+    owner: "{{ dev_user }}"
+    group: "{{ dev_user }}"
+    mode: "0644"
+
+- name: Read GitHub pubkey
+  ansible.builtin.slurp:
+    src: "/home/{{ dev_user }}/.ssh/id_ed25519_github.pub"
+  register: github_pubkey_slurp
+
+- name: Announce GitHub key (operator copies into github.com/settings/keys)
+  ansible.builtin.debug:
+    msg:
+      - "=========================================================="
+      - "GitHub SSH public key for {{ tailscale_hostname }}:"
+      - ""
+      - "{{ github_pubkey_slurp.content | b64decode | trim }}"
+      - ""
+      - "Add at: https://github.com/settings/keys"
+      - "Title:   {{ tailscale_hostname }}"
+      - "Scope:   Authentication + Signing"
+      - ""
+      - "Do NOT enable this key for SSO of organisations other than"
+      - "your own personal account (MWest2020)."
+      - "=========================================================="

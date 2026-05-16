@@ -1,0 +1,41 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+terraform.tfplan
+
+# Ansible
+ansible/inventory.yml
+!ansible/inventory.yml.example
+*.retry
+ansible/vault/secrets.yml
+!ansible/vault/secrets.yml.example
+.vault_pass
+
+# Generated SSH keys (should they ever land locally; the agent generates them on the LXC)
+id_ed25519_*
+!id_ed25519_*.pub
+*.pem
+*.key
+*_rsa
+*_rsa.*
+*.crt
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-05-16 — claude-lxc-iac ingeklapt in homelab als subfolder
+
+### Added
+- **`claude-lxc-iac/`** — Terraform + Ansible voor een single-purpose Claude Code dev LXC op Proxmox (VMID 210, IP .58, Ubuntu 24.04, agent user, Tailscale via tag:homelab-router). Was kort als standalone repo opgezet maar dat past niet bij de single-repo workflow van de homelab. Subdir-aanpak vastgelegd in `claude-lxc-iac/docs/decisions.md` (ADR-012).
+- 6 Ansible-rollen (`base`, `ssh_hardening`, `tailscale`, `nodejs`, `claude_code`, `github_identity`) + plan/runbook/decisions docs + voorbeeld-configs voor `.env`, tfvars, inventory, group_vars, vault.
+
+### Why
+- Operator wil één repo, één push, één pull. Standalone-repo-ceremonie levert niks op bij één tailnet en één operator. Folder-scope blijft helder via `claude-lxc-iac/`-prefix in commits en file-paths.
+
+### Verify after pull (jumpy)
+```bash
+cd ~/homelab/claude-lxc-iac
+ls -la                # plan.md, runbook.md, decisions.md, terraform/, ansible/
+```
+
+Daarna pre-flight in `claude-lxc-iac/docs/runbook.md` § 0 (API-token, vault, tailscale auth-key, template download — laatste twee al gedaan op 2026-05-16).
+
 ## 2026-05-14 — nginx-proxy-lab toegevoegd (host-nginx + docker stack)
 
 ### Added

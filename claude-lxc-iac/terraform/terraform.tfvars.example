@@ -1,0 +1,35 @@
+# terraform/terraform.tfvars.example
+# Copy to terraform.tfvars (gitignored) and fill in.
+# Sensitive values prefer environment variables — see comments below.
+
+# --- Proxmox endpoint ---
+# proxmox_api_url = "https://192.168.178.10:8006"  # default in variables.tf; override only if your endpoint differs
+
+# --- Proxmox API token ---
+# proxmox_api_token = "terraform@pve!automation-lxc=<uuid>"
+#
+# Prefer NOT to put this in the file. Instead export at shell:
+#   export TF_VAR_proxmox_api_token='terraform@pve!automation-lxc=<uuid>'
+# or use Proxmox's own env names that bpg/proxmox also reads:
+#   export PROXMOX_VE_API_TOKEN='terraform@pve!automation-lxc=<uuid>'
+
+# --- Network (required, no defaults — fail loudly if missing) ---
+static_ip = "192.168.178.58"      # the LXC's address on the homelab LAN
+gateway   = "192.168.178.1"       # homelab gateway
+cidr      = 24                    # /24
+
+# --- SSH ---
+# Path to the pubkey injected at LXC create time (= bootstrap key for Ansible
+# as root). Must be ONE of the keys also listed in ansible/group_vars/
+# claude_dev.yml dev_user_authorized_keys, otherwise the agent user can't
+# SSH in once base role finishes.
+# Default: ~/.ssh/id_ed25519_homelab.pub (matches homelab pattern).
+# Override here OR via env TF_VAR_ssh_public_key_path if you generated a
+# dedicated key for this LXC.
+# ssh_public_key_path = "~/.ssh/id_ed25519_agent_lxc.pub"
+
+# --- Template (must already be downloaded on Proxmox) ---
+# Default below already matches the latest Ubuntu 24.04 LTS template available
+# at time of writing (pveam available --section system | grep ubuntu-24.04).
+# Verify before apply: ssh root@192.168.178.10 'pveam list local | grep ubuntu'
+# template_file_id = "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"

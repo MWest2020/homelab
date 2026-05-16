@@ -1,0 +1,5 @@
+---
+tailscale_hostname: agent-lxc
+tailscale_tags:
+  - "tag:homelab-router"
+# tailscale_authkey MUST come from vault/secrets.yml (or env). No default.

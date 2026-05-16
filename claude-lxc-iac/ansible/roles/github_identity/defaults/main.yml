@@ -1,0 +1,5 @@
+---
+dev_user: agent
+tailscale_hostname: agent-lxc
+git_user_name: mwest2020
+git_user_email: mwesterweel@hotmail.com

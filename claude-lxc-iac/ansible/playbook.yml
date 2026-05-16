@@ -1,0 +1,32 @@
+---
+# Entry-point playbook. Runs all roles in order against the claude_dev host
+# group. First run: verbose, tee'd to log (see runbook). Subsequent runs:
+# idempotent, zero changes on converged state.
+
+- name: Provision agent-lxc (Claude Code dev container)
+  hosts: claude_dev
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vault/secrets.yml
+
+  pre_tasks:
+    - name: Wait for SSH + cloud-init readiness
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        timeout: 180
+
+  roles:
+    - role: base
+      tags: [base]
+    - role: ssh_hardening
+      tags: [ssh, ssh_hardening]
+    - role: tailscale
+      tags: [tailscale]
+    - role: nodejs
+      tags: [nodejs, node]
+    - role: claude_code
+      tags: [claude, claude_code]
+    - role: github_identity
+      tags: [github, github_identity]

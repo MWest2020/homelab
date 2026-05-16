@@ -1,0 +1,41 @@
+---
+# Copy to claude_dev.yml (committed; secrets stay in vault/secrets.yml).
+
+# --- Dev user ---
+dev_user: agent
+dev_user_nopasswd_sudo: false   # set true if you want NOPASSWD sudo (less safe)
+dev_user_authorized_keys:
+  # One entry per pubkey that may SSH in as the dev user.
+  # We reuse the operator's existing homelab key — see ADR-010 in
+  # docs/decisions.md for the rationale (jumpy-compromise is the
+  # catastrophic scenario, layered keys on the same host don't
+  # meaningfully reduce blast-radius).
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID2IyhJJu/28gTKOYR5roiYvBiNjtXlu0HH9liGD3B0f homelab-Goengoeloe-20251030-210553"
+
+# --- Locale / timezone ---
+locale: en_US.UTF-8
+timezone: Europe/Amsterdam
+
+# --- Tailscale ---
+tailscale_hostname: agent-lxc
+tailscale_tags:
+  - "tag:homelab-router"
+
+# --- Node.js ---
+node_major_version: 20
+
+# --- Git identity (for the github_identity role) ---
+git_user_name: mwest2020
+git_user_email: mwesterweel@hotmail.com
+
+# --- Claude config sync ---
+# Path on the Ansible controller (alma/jumpy) where the operator's existing
+# Claude config lives. Read at template time; sanitised before deploy.
+operator_claude_dir: "{{ lookup('env', 'HOME') }}/.claude"
+
+# CLAUDE.md sanitisation strategy for the npm-cooldown section.
+# Options:
+#   'keep'  — copy verbatim (command path won't resolve on LXC, fine if never invoked)
+#   'strip' — replace the alma-only path-references with a comment
+# Recommended: strip — keeps the global rules portable.
+claude_md_pm_cooldown_strategy: strip
