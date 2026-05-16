@@ -67,11 +67,10 @@ resource "proxmox_virtual_environment_container" "agent_lxc" {
     nesting = true
   }
 
-  # Pass /dev/net/tun into the container so Tailscale's userspace daemon can
-  # create its tun device. bpg/proxmox 0.106+ supports this natively for LXC.
-  # If a future provider version changes this schema and apply fails, the
-  # runbook documents the equivalent manual `pct set 210 -dev0` fallback.
-  device_passthrough {
-    path = "/dev/net/tun"
-  }
+  # Device passthrough disabled here: Proxmox only allows root@pam to configure
+  # device passthrough on LXC; an API token (even with full TerraformProv role)
+  # gets 403 "Permission check failed (configuring device passthrough is only
+  # allowed for root@pam)". See ADR-007. Applied manually as a one-off via:
+  #   ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
+  # See docs/runbook.md § 6.1 for verify steps.
 }
