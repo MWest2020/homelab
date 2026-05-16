@@ -212,7 +212,7 @@ terraform destroy        # confirm with 'yes'
 
 This stops and removes the LXC (id 210). Tailscale node entry for `agent-lxc` lingers in the admin console — remove it manually under Machines → agent-lxc → `...` → Remove.
 
-Recreate: full `terraform apply` + `ansible-playbook` from step 1.
+Recreate: full `terraform apply` → **§ 6.1 one-off (`pct set ... -dev0 /dev/net/tun`)** → `ansible-playbook` from step 1. The tun-device step is required on every fresh provision because terraform can't set it via API token.
 
 ---
 
@@ -226,13 +226,12 @@ Recreate: full `terraform apply` + `ansible-playbook` from step 1.
 | Ansible: `command not found: claude` for the verify step | `~/.npm-global/bin` not on PATH for the running session | The role sets PATH via `environment:`; if you also touched `.bashrc`, source it or restart shell |
 | SSH refuses `agent@agent-lxc` after ssh_hardening | Hardening reloaded sshd but `dev_user_authorized_keys` was empty | Recover via Proxmox console (`pct enter 210`), fix authorized_keys, re-run `--tags base,ssh_hardening` |
 
-### 6.1 If `/dev/net/tun` passthrough fails to apply
+### 6.1 `/dev/net/tun` passthrough — mandatory one-off after every terraform apply
 
-If `terraform apply` errors on the `device_passthrough` block (provider schema mismatch on a future bpg version), comment that block out, apply, then manually:
+Proxmox **only allows `root@pam`** to configure device-passthrough; API tokens (even with full TerraformProv role) get 403. We removed the `device_passthrough` block from `main.tf` (see ADR-007 for the full explanation of why); after every fresh `terraform apply` you must add the tun device manually:
 
 ```bash
-ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun'
-ssh root@192.168.178.10 'pct restart 210'
+ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
 ```
 
 Verify inside the LXC:
@@ -241,7 +240,11 @@ ssh root@192.168.178.10 'pct exec 210 -- ls -l /dev/net/tun'
 # expected: crw-rw-rw- 1 nobody nogroup 10, 200 ... /dev/net/tun
 ```
 
-Open an issue / update the provider once schema-fix lands upstream, then put the block back.
+The `nobody:nogroup` ownership is normal in an unprivileged LXC — the host doesn't know the remapped UID by name. File mode `rw` for all means `tailscaled` in the container can use it.
+
+**Why this is a one-off, not a recurring task**: Proxmox writes `dev0: /dev/net/tun` to `/etc/pve/lxc/210.conf` and that persists across reboots. Only a fresh `terraform destroy && terraform apply` cycle wipes the config and requires re-running the `pct set`. The runbook's destroy section reminds you of this.
+
+See `docs/decisions.md` ADR-007 for: what `/dev/net/tun` actually is, why LXC blocks devices, why Proxmox restricts passthrough to root@pam, and rejected alternatives (privileged LXC, userspace-mode Tailscale, terraform-as-root@pam).
 
 ---
 

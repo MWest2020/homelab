@@ -106,18 +106,81 @@ ADR-style: one entry per non-trivial call. Each entry lists what was chosen, why
 
 ---
 
-## ADR-007: `/dev/net/tun` via provider-native passthrough first, manual `pct set` fallback documented
+## ADR-007: `/dev/net/tun` passthrough — handmatig na create, niet via provider
 
-**Status**: provisional, 2026-05-14.
+**Status**: accepted, 2026-05-16 (was provisional, daadwerkelijk getest tijdens eerste apply).
 
-**Decision**: Use `device_passthrough { path = "/dev/net/tun" }` in the `proxmox_virtual_environment_container` resource (bpg `~> 0.106` exposes this). If a future provider release breaks the schema, fall back to the manual `pct set 210 -dev0 /dev/net/tun` documented in `docs/runbook.md` § 6.1.
+**Decision**: Geen `device_passthrough` block in `proxmox_virtual_environment_vm` / `_container`. Na `terraform apply` één-malig handmatig:
+```bash
+ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
+```
 
-**Why**:
-- Tailscale's userspace daemon needs the tun device. Unprivileged LXC blocks devices by default.
-- Provider-native is preferred: declarative, captured in state, no out-of-band drift.
-- Fallback exists because the manual `pct set` path is well-documented in the Proxmox manual and survives schema churn.
+### Wat `/dev/net/tun` is
 
-**Verification of provider-native path is part of the first end-to-end run** (Definition of Done #1). If `terraform plan` shows an error on the device_passthrough block, this ADR moves to status: **rejected**, and we adopt the runbook fallback as the canonical path.
+Een **virtual network device** in Linux (`/dev/net/tun`). Userspace-programma's mogen daar pakketten in/uit lezen alsof het een NIC was — kernel verwerkt 't alsof het van een echt netwerkkaartje kwam.
+
+Gebruikers: **Tailscale** (daemon maakt `tailscale0`-interface aan, duwt WireGuard-pakketten erdoor), OpenVPN, WireGuard userspace, allerlei VPN- en overlay-tools.
+
+Op een gewone Linux-host bestaat het device automatisch. In een **LXC-container** is het standaard geblokkeerd.
+
+### Waarom blokkeert LXC dat by default
+
+| Mode | Container-root = host-root? | Devices |
+|---|---|---|
+| Privileged | Ja (zelfde UID 0) | Vol toegang. Slecht voor isolatie |
+| **Unprivileged** (onze keuze) | Nee — UID-namespace remap (root@container = UID 100000 op host) | Geen device-toegang tenzij expliciet doorgegeven |
+
+Unprivileged geeft beduidend betere isolatie maar betekent dat we tun expliciet moeten "doorgeven" met een device-passthrough-config.
+
+### Waarom Proxmox alleen `root@pam` device-passthrough laat configureren
+
+Device passthrough = container poking aan host-kernel-devices. Verkeerde passthrough op `/dev/sda` of `/dev/kvm` = container escape risico.
+
+Proxmox-design-keuze: **alleen een interactief geverifieerde `root@pam`** mag deze config zetten. **Niet** via een API-token, zelfs niet met `Administrator`-rol. Hardgecodeerd in Proxmox, niet via bpg of rol-tuning te omzeilen.
+
+Daarom faalt het direct met:
+```
+Permission check failed (configuring device passthrough is only allowed for root@pam)
+```
+
+Geen bug — werkelijk een Proxmox-design-beperking.
+
+### Wat het fallback-commando precies doet
+
+```bash
+ssh root@192.168.178.10 'pct set 210 -dev0 /dev/net/tun && pct restart 210'
+```
+
+| Onderdeel | Wat |
+|---|---|
+| `ssh root@.10` | Logt in als **root@pam** op de Proxmox-host. Lokaal, interactief, geen API-token restrictie |
+| `pct set 210` | Proxmox CLI: wijzig config van LXC 210 |
+| `-dev0 /dev/net/tun` | Voeg device-slot 0 toe, gemapped op host-pad `/dev/net/tun`. Slots `dev0`–`dev255` beschikbaar |
+| `pct restart 210` | LXC-config-changes worden pas live na restart |
+
+Resultaat: in `/etc/pve/lxc/210.conf` op de Proxmox-host komt een regel `dev0: /dev/net/tun`. Volgende start mount Proxmox het device in `/dev/net/tun` van de container.
+
+### Verificatie na restart
+
+```bash
+ssh root@192.168.178.10 'pct exec 210 -- ls -l /dev/net/tun'
+```
+Verwacht:
+```
+crw-rw-rw- 1 nobody nogroup 10, 200 ... /dev/net/tun
+```
+
+`nobody:nogroup` is normaal in unprivileged LXC — host-`/etc/passwd` kent de geremap'te UID 100000 niet bij naam, dus toont 'nobody'. File-mode `rw` voor allen → tailscaled mag erbij.
+
+### Rejected alternatives
+
+- **`device_passthrough` block in main.tf**: faalde tijdens eerste apply met 403. Werkelijk niet mogelijk via API-token.
+- **terraform met `root@pam` credentials in plaats van token**: theoretisch mogelijk, maar:
+  - root@pam = username:password, geen scoped token = grotere blast-radius
+  - alle terraform-calls zouden dan als full-admin draaien voor één property
+  - asymmetrie ongewenst: liever scoped token + één manuele exception dan een breed-machtigde reguliere flow
+- **Privileged LXC** (`unprivileged = false`): zou device-restrictie omzeilen, maar offert UID-namespace-isolatie op. Trade-off niet de moeite voor één commando.
+- **Tailscale userspace-mode (`--tun=userspace-networking`)**: omzeilt tun-device-behoefte, maar performance is een fractie van native tun + complexer routing. Niet de moeite zolang we Proxmox-host wel kunnen aanraken.
 
 ---
 
