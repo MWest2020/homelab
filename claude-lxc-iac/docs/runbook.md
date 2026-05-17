@@ -155,13 +155,55 @@ ssh agent@agent-lxc 'ssh -T git@github.com'
 
 ## 3. Day-2 workflow
 
+### 3.1 Connect (any device)
+
 ```bash
-ssh agent@agent-lxc                    # via Tailscale (alma) or LAN (jumpy)
-tmux new -A -s main                    # attach or create the main session
+ssh agent@agent-lxc                    # via Tailscale (any tailnet device) or LAN (jumpy)
+tmux new -A -s main                    # attach-or-create the main session
 claude                                 # start Claude Code
 ```
 
-Inside tmux you can detach with `Ctrl-b d` and reattach with `tmux a` later — work survives SSH disconnection.
+Inside tmux: `Ctrl-b d` detach (sessie blijft draaien), `tmux a` reattach later. Work survives SSH disconnection.
+
+### 3.2 Multi-device shared sessions
+
+`agent-lxc` is één machine met één tmux-server per user. Meerdere clients kunnen aan dezelfde session attachen — desktop, jumpy, mobiel (Terminus), tablet. Allemaal zien hetzelfde scherm realtime.
+
+```bash
+# Desktop, eerste keer
+ssh agent@agent-lxc
+tmux new -A -s main
+
+# Mobiel (Terminus), later — attach aan dezelfde main
+ssh agent@agent-lxc
+tmux a -t main
+```
+
+Wat je op mobiel typt, ziet desktop direct. `Ctrl-b d` op één client = detach, andere clients blijven verbonden.
+
+Voor losse parallelle sessies (niet shared, wel persistent):
+```bash
+tmux new -A -s work       # bv. coding
+tmux new -A -s monitor    # bv. logs / tail
+tmux ls                   # alle sessies tonen
+tmux a -t monitor         # switch
+```
+
+### 3.3 Mobile setup (Terminus iOS/Android)
+
+1. Tailscale-app installen + inloggen met MWest2020-account → mobiel zit in tailnet, ziet `agent-lxc` als `100.x.x.x`
+2. Terminus: Settings → Keychain → New Key → ed25519 → Generate (private key blijft in Terminus' keychain)
+3. Exporteer pubkey, voeg toe als nieuwe entry in `ansible/group_vars/claude_dev.yml` `dev_user_authorized_keys` met label (bv. `terminus-iphone`)
+4. Re-run alleen base-rol: `ansible-playbook -i inventory.yml playbook.yml --tags base`
+5. In Terminus host config: Host = `100.x.x.x` (uit Tailscale admin → Machines → agent-lxc), User = `agent`, Identity = Terminus-keypair
+
+Per-device pubkeys voor mobiel = wél zinvol — mobiele apparaten hebben ander threat-model dan jumpy/alma (verlies/diefstal). Eén label per device in `authorized_keys` voor snelle revocation als nodig.
+
+### 3.4 Waar leeft de code
+
+Code-tree leeft op **`agent-lxc`** filesystem (typisch `/home/agent/repos/<project>/`). Niet op node-01 (= k8s worker), niet op jumpy, niet op alma. Multi-device-access werkt omdat alle devices SSH'en naar dezelfde LXC en dus dezelfde files zien.
+
+Wil je vanuit `agent-lxc` werken aan iets dat *elders* leeft (bv. k8s manifests op jumpy), dan clone je dat repo binnen `agent-lxc` of mount je 't via SSHFS. Maar daadwerkelijke code-editing happens on agent-lxc.
 
 ---
 
