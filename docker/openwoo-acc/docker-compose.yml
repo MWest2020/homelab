@@ -96,18 +96,27 @@ services:
       - openwoo-acc
 
   # --- Woo-website ---
+  # Env-vars verified against ConductionNL/woo-website-template-apiv2 compose
+  # + the helm-values pattern operator already runs in k8s.
+  #   - UPSTREAM_HOST  + UPSTREAM_BASE  → runtime, vereist (waar de OpenCatalogi-API leeft)
+  #   - GATSBY_*                         → per-tenant runtime branding (Gatsby leest env)
+  # OpenCatalogi-API zit straks in onze Nextcloud zodra Patrick's apps zijn
+  # geactiveerd (occ app:enable opencatalogi). Tot dan: bovenstaande URLs OK
+  # maar de site rendert leeg/error totdat de API ervoor staat.
   woo-website:
     image: ghcr.io/conductionnl/woo-website-v2:latest
     container_name: openwoo-acc-woo
     restart: unless-stopped
     ports:
-      - "8081:80"   # also exposed on host for direct testing
+      - "8081:80"
     environment:
-      # Placeholder env — confirm with Patrick Savalle which env-vars
-      # the woo-website-v2 image needs (Nextcloud URL, API creds, etc.).
-      # Internal Nextcloud reachable as http://nextcloud-nginx via the
-      # openwoo-acc network.
-      NEXTCLOUD_URL: "https://openwoo.acc.westerweel.work"
+      UPSTREAM_HOST: openwoo.acc.westerweel.work
+      UPSTREAM_BASE: https://openwoo.acc.westerweel.work/apps/opencatalogi/api
+      GATSBY_API_BASE_URL: https://openwoo.acc.westerweel.work/apps/opencatalogi/api
+      GATSBY_ORGANISATION_NAME: ${WOO_ORGANISATION_NAME:-OpenWoo Acceptatie}
+      NL_DESIGN_THEME_CLASSNAME: ${WOO_THEME_CLASSNAME:-utrecht-theme}
+      GATSBY_JUMBOTRON_IMAGE_URL: ${WOO_JUMBOTRON_URL:-}
+      GATSBY_FAVICON_URL: ${WOO_FAVICON_URL:-}
     networks:
       - openwoo-acc
 
