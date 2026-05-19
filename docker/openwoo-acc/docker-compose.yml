@@ -123,7 +123,9 @@ services:
     container_name: openwoo-acc-woo
     restart: unless-stopped
     ports:
-      - "8081:80"
+      # Image's interne nginx luistert op 8080, niet 80 (zie EXPOSE in image
+      # en /etc/nginx/conf.d/default.conf). Mapping moet matchen.
+      - "8081:8080"
     environment:
       # Image's nginx-template gebruikt lowercase envsubst-placeholders
       # ($upstream_host, $upstream_base). Daarnaast leest /docker-entrypoint.d/
