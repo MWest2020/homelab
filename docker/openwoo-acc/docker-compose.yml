@@ -43,7 +43,15 @@ services:
     depends_on:
       - nextcloud-fpm
     networks:
-      - openwoo-acc
+      openwoo-acc:
+        # Internal DNS alias zodat de woo-website-container z'n
+        # server-side proxy_pass naar `openwoo.acc.westerweel.work`
+        # binnen de Docker network resolven kan — geen externe DNS
+        # en geen public-route-loop nodig. Browser-clients hitten de
+        # publieke hostname via internet → nginx-edge → nextcloud-nginx
+        # zoals normaal.
+        aliases:
+          - openwoo.acc.westerweel.work
 
   nextcloud-fpm:
     image: nextcloud:30-fpm
