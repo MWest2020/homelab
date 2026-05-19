@@ -1,0 +1,20 @@
+---
+# Ansible inventory voor de openwoo-acc tenant.
+# Eén VM (klant-d) die de Nextcloud-fpm + woo-website stack draait,
+# inclusief een eigen nginx-edge voor publieke TLS (Caddy-bypass).
+
+all:
+  children:
+    openwoo_acc:
+      hosts:
+        klant-d:
+          ansible_host: 192.168.178.59
+          tenant_hostname_nextcloud: openwoo.acc.westerweel.work
+          tenant_hostname_woo: open.acc.westerweel.work
+
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_become: true
+    ansible_become_method: sudo

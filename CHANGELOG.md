@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-05-19 — openwoo-acc tenant (klant-d) — Caddy-bypass
+
+### Added
+- **`terraform/openwoo-acc/`** — VM 108 / `klant-d` / 192.168.178.59 / 6GB / 2c / 30GB. Clone van template 9000. Hardware-overrides terug in main.tf — token-perm-issue uit eerdere sessies was de werkelijke bpg-hang-oorzaak, niet de overrides (zie ADR-007 in claude-lxc-iac/docs).
+- **`ansible/inventory/openwoo-acc-hosts.yml`** — group `openwoo_acc`, host `klant-d`, met per-host hostnames voor de twee vhosts.
+- **`ansible/playbooks/deploy-openwoo-acc.yml`** — Docker installeren + compose stack deployen op `/opt/openwoo-acc/`.
+- **`docker/openwoo-acc/`** — `docker-compose.yml` (7 services), `nginx-edge.conf` (publieke TLS + reverse proxy voor twee vhosts), `nginx-nextcloud.conf` (FastCGI naar nextcloud-fpm), `env.example`.
+- **`ansible/inventory/group_vars/hypervisors.yml`** — `192.168.178.59/32` toegevoegd aan tailscale_advertise_routes.
+
+### Why
+- Klant wil OpenWoo-acc met **eigen NGINX als publieke voordeur** (Caddy bypass), Nextcloud-fpm + Postgres + Valkey-stack, plus de `woo-website-v2`-container ernaast. Domeinen `openwoo.acc.westerweel.work` (NC) en `open.acc.westerweel.work` (woo). Nextcloud op host-port 8080 voor directe interne toegang.
+- TLS via Let's Encrypt HTTP-01 (certbot sidecar, profile=tools). Geen Cloudflare-token-sharing met Caddy.
+
+### Open items (pre-go-live)
+- Custom Nextcloud apps in `/var/www/html/custom_apps` (post-deploy via `occ app:enable`) — afwachten welke apps van Patrick Savalle.
+- Woo-website-v2 env-vars: placeholder `NEXTCLOUD_URL` gezet, andere vereisten verifiëren met Patrick.
+- DNS A-records: operator richt zelf in (Cloudflare).
+- Router port-forward 80/443 → 192.168.178.59 (operator).
+- Eerste certbot-run interactief vóór nginx-edge TLS-vhosts werken — runbook in compose comments.
+
+### Verify after run
+```bash
+# vanaf jumpy
+ssh ubuntu@192.168.178.59 'docker compose -f /opt/openwoo-acc/docker-compose.yml ps'
+# verwacht: nginx-edge, nextcloud-nginx, nextcloud-fpm, postgres, valkey, woo-website
+curl -sI http://192.168.178.59:8080 | head -1   # nginx-nc 200
+curl -sI http://192.168.178.59:8081 | head -1   # woo-website
+```
+
 ## 2026-05-16 — claude-lxc-iac ingeklapt in homelab als subfolder
 
 ### Added

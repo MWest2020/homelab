@@ -1,0 +1,4 @@
+# Source PROXMOX_VE_API_TOKEN from your shell .env (homelab/.env) — provider reads
+# either TF_VAR_proxmox_api_token or PROXMOX_VE_API_TOKEN.
+#
+# proxmox_api_token = "terraform@pve!terraform=<uuid>"

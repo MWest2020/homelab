@@ -1,0 +1,143 @@
+# OpenWoo-acc tenant stack.
+# Single VM (klant-d) — bypasses Caddy proxy, customer wants pure nginx as edge.
+#
+# Public flow:
+#   internet → router 80/443 forward → VM .59
+#   nginx-edge (80/443) does TLS + vhost routing:
+#     openwoo.acc.westerweel.work → nextcloud-nginx (internally :80)
+#     open.acc.westerweel.work    → woo-website     (internally :80)
+#
+# Per-customer side note: nextcloud-nginx ALSO exposes :8080 on host so the
+# customer can hit Nextcloud directly via http://192.168.178.59:8080 if they
+# need to bypass nginx-edge for internal testing.
+
+services:
+  # --- nginx edge: TLS + reverse proxy for both hostnames ---
+  nginx-edge:
+    image: nginx:1.27-alpine
+    container_name: openwoo-acc-edge
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-edge.conf:/etc/nginx/conf.d/default.conf:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
+    depends_on:
+      - nextcloud-nginx
+      - woo-website
+    networks:
+      - openwoo-acc
+
+  # --- Nextcloud stack ---
+  nextcloud-nginx:
+    image: nginx:1.27-alpine
+    container_name: openwoo-acc-nc-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"   # customer wants Nextcloud on host port 8080
+    volumes:
+      - ./nginx-nextcloud.conf:/etc/nginx/conf.d/default.conf:ro
+      - nextcloud-html:/var/www/html:ro
+    depends_on:
+      - nextcloud-fpm
+    networks:
+      - openwoo-acc
+
+  nextcloud-fpm:
+    image: nextcloud:30-fpm
+    container_name: openwoo-acc-nc-fpm
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_USER: ${POSTGRES_USER:-nextcloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: valkey
+      REDIS_HOST_PORT: "6379"
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: "openwoo.acc.westerweel.work 192.168.178.59"
+      OVERWRITEHOST: openwoo.acc.westerweel.work
+      OVERWRITEPROTOCOL: https
+      TRUSTED_PROXIES: "172.16.0.0/12"
+    volumes:
+      - nextcloud-html:/var/www/html
+      - nextcloud-data:/var/www/html/data
+      - nextcloud-custom-apps:/var/www/html/custom_apps
+    depends_on:
+      - postgres
+      - valkey
+    networks:
+      - openwoo-acc
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: openwoo-acc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_USER: ${POSTGRES_USER:-nextcloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - openwoo-acc
+
+  valkey:
+    image: valkey/valkey:7-alpine
+    container_name: openwoo-acc-valkey
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - valkey-data:/data
+    networks:
+      - openwoo-acc
+
+  # --- Woo-website ---
+  woo-website:
+    image: ghcr.io/conductionnl/woo-website-v2:latest
+    container_name: openwoo-acc-woo
+    restart: unless-stopped
+    ports:
+      - "8081:80"   # also exposed on host for direct testing
+    environment:
+      # Placeholder env — confirm with Patrick Savalle which env-vars
+      # the woo-website-v2 image needs (Nextcloud URL, API creds, etc.).
+      # Internal Nextcloud reachable as http://nextcloud-nginx via the
+      # openwoo-acc network.
+      NEXTCLOUD_URL: "https://openwoo.acc.westerweel.work"
+    networks:
+      - openwoo-acc
+
+  # --- Certbot sidecar (HTTP-01 via shared webroot) ---
+  certbot:
+    image: certbot/certbot:latest
+    container_name: openwoo-acc-certbot
+    # Don't auto-start — run interactively for initial cert, then via cron.
+    # Initial:
+    #   docker compose run --rm certbot certonly --webroot \
+    #     --webroot-path=/var/www/certbot \
+    #     -d openwoo.acc.westerweel.work -d open.acc.westerweel.work \
+    #     --email mark@conduction.nl --agree-tos --no-eff-email
+    # Renew (idempotent):
+    #   docker compose run --rm certbot renew && \
+    #     docker compose exec nginx-edge nginx -s reload
+    profiles: ["tools"]
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+
+volumes:
+  nextcloud-html:
+  nextcloud-data:
+  nextcloud-custom-apps:
+  postgres-data:
+  valkey-data:
+  letsencrypt:
+  certbot-webroot:
+
+networks:
+  openwoo-acc:
+    driver: bridge

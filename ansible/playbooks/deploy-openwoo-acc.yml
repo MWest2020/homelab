@@ -1,0 +1,151 @@
+---
+# Provisioning voor de openwoo-acc tenant (klant-d, .59).
+#
+# Stack:
+#   - nextcloud-fpm (Postgres + Valkey)
+#   - nextcloud-nginx (FastCGI naar fpm, host port 8080)
+#   - woo-website (ghcr.io/conductionnl/woo-website-v2)
+#   - nginx-edge (publieke TLS-terminator, 80/443)
+#   - certbot (HTTP-01, run-once tool)
+#
+# Run:
+#   ansible-playbook -i inventory/openwoo-acc-hosts.yml playbooks/deploy-openwoo-acc.yml -vv
+
+- name: Deploy openwoo-acc tenant stack on klant-d
+  hosts: openwoo_acc
+  become: true
+  tasks:
+    - name: Wait for SSH + cloud-init readiness
+      wait_for_connection:
+        delay: 5
+        timeout: 180
+
+    - name: Recover any interrupted dpkg state
+      command: dpkg --configure -a
+      changed_when: false
+
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+
+    - name: Ensure /etc/apt/keyrings exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker engine + compose plugin
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: true
+
+    - name: Ensure /opt/openwoo-acc exists
+      file:
+        path: /opt/openwoo-acc
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../../docker/openwoo-acc/docker-compose.yml
+        dest: /opt/openwoo-acc/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
+      register: compose_file
+
+    - name: Copy nginx-edge.conf
+      copy:
+        src: ../../docker/openwoo-acc/nginx-edge.conf
+        dest: /opt/openwoo-acc/nginx-edge.conf
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
+      register: nginx_edge_conf
+
+    - name: Copy nginx-nextcloud.conf
+      copy:
+        src: ../../docker/openwoo-acc/nginx-nextcloud.conf
+        dest: /opt/openwoo-acc/nginx-nextcloud.conf
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
+      register: nginx_nc_conf
+
+    - name: Check whether .env already exists on VM
+      stat:
+        path: /opt/openwoo-acc/.env
+      register: env_stat
+
+    - name: Seed .env from example if missing
+      copy:
+        src: ../../docker/openwoo-acc/env.example
+        dest: /opt/openwoo-acc/.env
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+      when: not env_stat.stat.exists
+
+    - name: Show .env-init warning if just seeded
+      debug:
+        msg: |
+          /opt/openwoo-acc/.env is just seeded from env.example.
+          SSH in and edit POSTGRES_PASSWORD + NEXTCLOUD_ADMIN_PASSWORD with strong values
+          BEFORE running 'docker compose up -d'. Then re-run this playbook.
+      when: not env_stat.stat.exists
+
+    - name: Pull container images
+      shell: docker compose pull
+      args:
+        chdir: /opt/openwoo-acc
+      when: env_stat.stat.exists
+
+    - name: Start docker stack
+      shell: >
+        docker compose up -d
+        {{ '--force-recreate' if (compose_file.changed or nginx_edge_conf.changed or nginx_nc_conf.changed) else '' }}
+      args:
+        chdir: /opt/openwoo-acc
+      when: env_stat.stat.exists
+
+    - name: Announce next-step
+      debug:
+        msg:
+          - "Stack deployed on klant-d (192.168.178.59)."
+          - "Next: add DNS A records pointing openwoo.acc.westerweel.work and open.acc.westerweel.work to your WAN IP."
+          - "Configure router port-forward 80/443 → 192.168.178.59."
+          - "Then run certbot interactively once (see runbook in docker/openwoo-acc/docker-compose.yml comments)."
