@@ -110,8 +110,13 @@ services:
     ports:
       - "8081:80"
     environment:
+      # Image's nginx-template gebruikt lowercase envsubst-placeholders
+      # ($upstream_host, $upstream_base). Daarnaast leest /docker-entrypoint.d/
+      # 30-generate-runtime.sh ze ook. Beide casings zetten = idiot-proof.
       UPSTREAM_HOST: openwoo.acc.westerweel.work
       UPSTREAM_BASE: https://openwoo.acc.westerweel.work/apps/opencatalogi/api
+      upstream_host: openwoo.acc.westerweel.work
+      upstream_base: https://openwoo.acc.westerweel.work/apps/opencatalogi/api
       GATSBY_API_BASE_URL: https://openwoo.acc.westerweel.work/apps/opencatalogi/api
       GATSBY_ORGANISATION_NAME: ${WOO_ORGANISATION_NAME:-OpenWoo Acceptatie}
       NL_DESIGN_THEME_CLASSNAME: ${WOO_THEME_CLASSNAME:-utrecht-theme}
