@@ -67,8 +67,15 @@ services:
       NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
       NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
       NEXTCLOUD_TRUSTED_DOMAINS: "openwoo.acc.westerweel.work 192.168.178.59"
-      OVERWRITEHOST: openwoo.acc.westerweel.work
-      OVERWRITEPROTOCOL: https
+      # OVERWRITEHOST + OVERWRITEPROTOCOL bewust uit-gecomment:
+      # NC bouwt links voortaan obv. de daadwerkelijke request — dat werkt
+      # voor zowel direct :8080-testing (http) als nginx-edge productie (https
+      # via X-Forwarded-Proto, zie nginx-nextcloud.conf $fastcgi_https_flag).
+      # Mocht je later toch een vaste hostname-canonicalisatie willen,
+      # uncomment + run `occ config:system:set` om bestaande config.php
+      # bij te werken (env-vars worden alleen bij eerste install gelezen).
+      # OVERWRITEHOST: openwoo.acc.westerweel.work
+      # OVERWRITEPROTOCOL: https
       TRUSTED_PROXIES: "172.16.0.0/12"
     volumes:
       - nextcloud-html:/var/www/html
