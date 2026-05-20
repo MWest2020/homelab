@@ -40,6 +40,11 @@ services:
     volumes:
       - ./nginx-nextcloud.conf:/etc/nginx/conf.d/default.conf:ro
       - nextcloud-html:/var/www/html:ro
+      # nginx moet ook custom_apps kunnen serveren (third-party app static
+      # assets — css/js/img). Zonder deze mount returnt nginx 404 op
+      # /custom_apps/<app>/css/... wat de browser dan met text/html-MIME
+      # rejecteert voor JS/CSS-modules.
+      - nextcloud-custom-apps:/var/www/html/custom_apps:ro
     depends_on:
       - nextcloud-fpm
     networks:
