@@ -14,7 +14,7 @@ Standalone Docker-compose snippet voor de OpenWoo publieke pagina. Voor partijen
 ## Quickstart
 
 ```bash
-cp .env.example .env
+cp env.example .env
 $EDITOR .env             # vul minimaal NEXTCLOUD_HOST, NEXTCLOUD_API_URL en WOO_ORGANISATION_NAME in
 docker compose up -d
 docker compose logs -f woo-website
