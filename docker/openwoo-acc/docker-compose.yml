@@ -54,7 +54,7 @@ services:
           - openwoo.acc.westerweel.work
 
   nextcloud-fpm:
-    image: nextcloud:30-fpm
+    image: nextcloud:33-fpm
     container_name: openwoo-acc-nc-fpm
     restart: unless-stopped
     environment:
