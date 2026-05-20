@@ -1,0 +1,37 @@
+# Standalone woo-website (OpenWoo PWA) — voor klanten die al een eigen
+# Nextcloud met OpenCatalogi-app draaien en alleen deze publieke pagina
+# erbij willen. Geen Nextcloud, geen Postgres, geen reverse-proxy in dit
+# bestand — die regelen jullie zelf.
+#
+# Quickstart:
+#   cp .env.example .env
+#   $EDITOR .env             # vul de echte waarden in
+#   docker compose up -d
+#
+# Reverse-proxy / TLS regelen jullie in jullie bestaande proxy-laag
+# (Caddy / nginx / Traefik / ingress). Wijs jullie publieke hostname
+# (bv. woo.gemeenteXYZ.nl) naar deze container.
+
+services:
+  woo-website:
+    image: ghcr.io/conductionnl/woo-website-v2:latest
+    container_name: woo-website
+    restart: unless-stopped
+    ports:
+      # Image's interne nginx luistert op 8080 (zie EXPOSE).
+      # Linkerwaarde = host-port — wijzig als 8081 al in gebruik is.
+      - "${WOO_HOST_PORT:-8081}:8080"
+    environment:
+      # === Verplicht: jullie Nextcloud + OpenCatalogi-API ===
+      # Beide casings zetten (image leest deels uppercase, deels lowercase).
+      UPSTREAM_HOST: ${NEXTCLOUD_HOST}
+      UPSTREAM_BASE: ${NEXTCLOUD_API_URL}
+      upstream_host: ${NEXTCLOUD_HOST}
+      upstream_base: ${NEXTCLOUD_API_URL}
+      GATSBY_API_BASE_URL: ${NEXTCLOUD_API_URL}
+
+      # === Branding ===
+      GATSBY_ORGANISATION_NAME: ${WOO_ORGANISATION_NAME}
+      NL_DESIGN_THEME_CLASSNAME: ${WOO_THEME_CLASSNAME:-utrecht-theme}
+      GATSBY_JUMBOTRON_IMAGE_URL: ${WOO_JUMBOTRON_URL:-}
+      GATSBY_FAVICON_URL: ${WOO_FAVICON_URL:-}
