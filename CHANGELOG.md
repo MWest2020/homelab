@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-06-01 — openwoo-acc TLS: HTTP-01 → DNS-01 (Cloudflare), intern-only
+
+### Context / root cause
+- `open.acc.westerweel.work` was thuis onbereikbaar. Diagnose: **geen Tailscale-probleem** (route `192.168.178.59/32` ok, ping + SSH werken). De hele `openwoo-acc`-stack op `.59` lag plat sinds 21 mei ~18:04. Oorzaak: het `letsencrypt`-volume is **leeg** (nooit een cert uitgegeven), waardoor `nginx-edge` op het ontbrekende `fullchain.pem` crashte (`[emerg]`, exit 1, crash-loop via `restart: unless-stopped`) en de stack uiteindelijk is `down` gehaald.
+
+### Changed
+- **`docker/openwoo-acc/docker-compose.yml`** — certbot-service van `certbot/certbot` (HTTP-01 webroot) → `certbot/dns-cloudflare` (DNS-01). Mount `./cloudflare.ini:ro` i.p.v. de webroot. Runbook-comments herschreven naar de DNS-01-commando's.
+- **`ansible/playbooks/deploy-openwoo-acc.yml`** — nieuwe task genereert `/opt/openwoo-acc/cloudflare.ini` (mode 600, `no_log`) uit `CF_DNS_API_TOKEN` in `.env`; "next-step"-debug bijgewerkt naar DNS-01 i.p.v. publieke A-records + port-forward.
+- **`docker/openwoo-acc/env.example`** — `CF_DNS_API_TOKEN` gedocumenteerd.
+- **`.gitignore`** — `cloudflare.ini` toegevoegd (generated, bevat secret).
+
+### Why
+- Scope-keuze: site is **intern-only** (Tailscale + `/etc/hosts`), dus geen publieke DNS of router port-forward gewenst. HTTP-01 vereist publieke poort-80-bereikbaarheid → onbruikbaar. DNS-01 via Cloudflare bewijst zone-controle via TXT-record, sluit aan op het bestaande cluster-patroon (`*.westerweel.work`) en hergebruikt een token met `Zone:DNS:Edit` op `westerweel.work`. Token leeft in `/opt/openwoo-acc/.env` op de node (zelfde bron als de overige secrets), nooit in git.
+
+### Verify after run
+```bash
+# vanaf .59: cert aanwezig + edge healthy
+sudo docker compose -f /opt/openwoo-acc/docker-compose.yml ps
+curl -sk -o /dev/null -w "%{http_code}\n" https://open.acc.westerweel.work/   # via /etc/hosts→Tailscale
+```
+
 ## 2026-05-19 — openwoo-acc tenant (klant-d) — Caddy-bypass
 
 ### Added

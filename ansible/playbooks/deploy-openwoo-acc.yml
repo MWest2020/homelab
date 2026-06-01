@@ -5,8 +5,8 @@
 #   - nextcloud-fpm (Postgres + Valkey)
 #   - nextcloud-nginx (FastCGI naar fpm, host port 8080)
 #   - woo-website (ghcr.io/conductionnl/woo-website-v2)
-#   - nginx-edge (publieke TLS-terminator, 80/443)
-#   - certbot (HTTP-01, run-once tool)
+#   - nginx-edge (interne TLS-terminator, 80/443)
+#   - certbot (DNS-01 via Cloudflare, run-once tool)
 #
 # Run:
 #   ansible-playbook -i inventory/openwoo-acc-hosts.yml playbooks/deploy-openwoo-acc.yml -vv
@@ -128,6 +128,27 @@
           BEFORE running 'docker compose up -d'. Then re-run this playbook.
       when: not env_stat.stat.exists
 
+    - name: Generate cloudflare.ini from CF_DNS_API_TOKEN in .env (DNS-01 creds)
+      # certbot-dns-cloudflare leest credentials uit een ini-file, niet uit env.
+      # We leiden 'm af uit dezelfde .env als de overige secrets, zodat er één
+      # bron van waarheid op de node is. umask 077 => bestand wordt mode 600.
+      # no_log: token mag nooit in ansible-output belanden.
+      shell: |
+        set -euo pipefail
+        set -a; . /opt/openwoo-acc/.env; set +a
+        if [ -z "${CF_DNS_API_TOKEN:-}" ]; then
+          echo "CF_DNS_API_TOKEN ontbreekt in /opt/openwoo-acc/.env" >&2
+          exit 1
+        fi
+        umask 077
+        printf 'dns_cloudflare_api_token = %s\n' "$CF_DNS_API_TOKEN" > /opt/openwoo-acc/cloudflare.ini
+      args:
+        executable: /bin/bash
+      register: cf_ini
+      changed_when: false
+      no_log: true
+      when: env_stat.stat.exists
+
     - name: Pull container images
       shell: docker compose pull
       args:
@@ -146,6 +167,7 @@
       debug:
         msg:
           - "Stack deployed on klant-d (192.168.178.59)."
-          - "Next: add DNS A records pointing openwoo.acc.westerweel.work and open.acc.westerweel.work to your WAN IP."
-          - "Configure router port-forward 80/443 → 192.168.178.59."
-          - "Then run certbot interactively once (see runbook in docker/openwoo-acc/docker-compose.yml comments)."
+          - "TLS is intern (Tailscale + /etc/hosts), geen publieke DNS of port-forward nodig."
+          - "Eerste cert-uitgifte eenmalig via DNS-01 (zie runbook in docker/openwoo-acc/docker-compose.yml):"
+          - "  docker compose run --rm certbot certonly --dns-cloudflare --dns-cloudflare-credentials /cloudflare.ini -d openwoo.acc.westerweel.work -d open.acc.westerweel.work --email mark@conduction.nl --agree-tos --no-eff-email"
+          - "Daarna: docker compose up -d  (edge laadt dan de certs)."

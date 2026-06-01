@@ -147,23 +147,32 @@ services:
     networks:
       - openwoo-acc
 
-  # --- Certbot sidecar (HTTP-01 via shared webroot) ---
+  # --- Certbot (DNS-01 via Cloudflare) ---
+  # Intern-only TLS: site is alleen via /etc/hosts + Tailscale bereikbaar,
+  # dus geen publieke A-records of router port-forward nodig. DNS-01 bewijst
+  # zone-controle via een TXT-record i.p.v. publieke port-80-bereikbaarheid.
+  #
+  # Credentials: /opt/openwoo-acc/cloudflare.ini wordt op de node gegenereerd
+  # uit CF_DNS_API_TOKEN in .env (mode 600) en hier read-only gemount als
+  # /cloudflare.ini. Token-scope = Zone:DNS:Edit + Zone:Read op westerweel.work
+  # (dezelfde zone als de cluster-wildcard *.westerweel.work).
   certbot:
-    image: certbot/certbot:latest
+    image: certbot/dns-cloudflare:latest
     container_name: openwoo-acc-certbot
-    # Don't auto-start — run interactively for initial cert, then via cron.
+    # Don't auto-start — run once for initial issuance, daarna via cron/timer.
     # Initial:
-    #   docker compose run --rm certbot certonly --webroot \
-    #     --webroot-path=/var/www/certbot \
+    #   docker compose run --rm certbot certonly \
+    #     --dns-cloudflare --dns-cloudflare-credentials /cloudflare.ini \
+    #     --dns-cloudflare-propagation-seconds 30 \
     #     -d openwoo.acc.westerweel.work -d open.acc.westerweel.work \
     #     --email mark@conduction.nl --agree-tos --no-eff-email
-    # Renew (idempotent):
+    # Renew (idempotent, cron op .59):
     #   docker compose run --rm certbot renew && \
     #     docker compose exec nginx-edge nginx -s reload
     profiles: ["tools"]
     volumes:
       - letsencrypt:/etc/letsencrypt
-      - certbot-webroot:/var/www/certbot
+      - ./cloudflare.ini:/cloudflare.ini:ro
 
 volumes:
   nextcloud-html:
