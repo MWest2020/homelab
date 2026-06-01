@@ -43,6 +43,11 @@ notes.txt
 #environment files
 .env
 *.env
+.env.*
+
+# DNS-01 / certbot credentials (generated op de node uit .env)
+cloudflare.ini
+**/cloudflare.ini
 
 # Terraform
 **/.terraform/
