@@ -1,0 +1,26 @@
+---
+# node-maintenance.yml — roll out the node-maintenance role (journald cap +
+# weekly cleanup timer + login disk notice) to a fleet of nodes.
+#
+# This only installs housekeeping; it never upgrades packages. For package
+# upgrades use node-update.yml (drain-aware).
+#
+# K8s nodes (cp-01 / node-01 / node-02) — inventory hosts.yml:
+#   cd ansible
+#   ansible-playbook -i inventory/hosts.yml playbooks/node-maintenance.yml
+#
+# Proxmox VM fleet (proxy / nextcloud tenants / portainer) — proxmox-hosts.yml:
+#   ansible-playbook -i inventory/proxmox-hosts.yml playbooks/node-maintenance.yml
+#
+# Both inventories in one run:
+#   ansible-playbook -i inventory/hosts.yml -i inventory/proxmox-hosts.yml \
+#     playbooks/node-maintenance.yml
+#
+# jumpy keeps its own jumpy-maintenance role (adds a go build-cache clean);
+# it is intentionally NOT targeted here.
+
+- name: Configure node maintenance (cleanup + journald cap, no upgrades)
+  hosts: k8s_cluster:proxy:nextcloud:portainer
+  become: true
+  roles:
+    - node-maintenance

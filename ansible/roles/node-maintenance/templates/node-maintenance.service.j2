@@ -1,0 +1,11 @@
+[Unit]
+Description=Node periodic maintenance (apt cleanup, journald, logs)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/node-maintenance.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

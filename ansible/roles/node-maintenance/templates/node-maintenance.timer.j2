@@ -1,0 +1,11 @@
+[Unit]
+Description=Run node-maintenance on a schedule ({{ nm_timer_oncalendar }})
+
+[Timer]
+OnCalendar={{ nm_timer_oncalendar }}
+Persistent=true
+RandomizedDelaySec={{ nm_timer_randomized_delay }}
+Unit=node-maintenance.service
+
+[Install]
+WantedBy=timers.target

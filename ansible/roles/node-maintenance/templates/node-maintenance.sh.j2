@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: EUPL-1.2
+# role: entrypoint
+#
+# /usr/local/sbin/node-maintenance.sh — weekly OS housekeeping for a homelab node.
+#
+# Reclaims disk by pruning package and log cruft. Deliberately does NOT run
+# `apt upgrade` — package upgrades are a separate, drain-aware operation
+# (see ansible/playbooks/node-update.yml), so this timer can run unattended
+# without risking a surprise kernel/runtime bump on a live K8s node.
+#
+# Writes: /var/log/node-maintenance.log; deletes apt caches and old *.gz logs.
+# Idempotent: yes — safe to re-run any time.
+# Requires: apt-get, journalctl, find. Runs as root via systemd timer.
+# Style-afwijking: no `set -e` — a failing cleanup step must not abort the
+#   remaining steps (best-effort housekeeping), so we use `set -uo pipefail`.
+#
+# Usage:
+#   /usr/local/sbin/node-maintenance.sh            # normal (invoked by timer)
+#   sudo systemctl start node-maintenance.service  # run now, on demand
+#
+# Crontab: not cron — driven by node-maintenance.timer (OnCalendar={{ nm_timer_oncalendar }}).
+#
+# NOTE: rendered from roles/node-maintenance/templates/node-maintenance.sh.j2 — edit there, not here.
+
+set -uo pipefail
+
+readonly LOG=/var/log/node-maintenance.log
+exec >>"${LOG}" 2>&1
+
+echo
+echo "=== node-maintenance ({{ inventory_hostname }}) $(date --iso-8601=seconds) ==="
+df -h / | tail -1
+
+echo "--- apt autoremove + clean ---"
+DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y
+apt-get clean
+
+echo "--- journald vacuum ({{ nm_journald_vacuum_size }}) ---"
+journalctl --vacuum-size={{ nm_journald_vacuum_size }}
+
+echo "--- prune rotated logs older than {{ nm_log_prune_days }}d ---"
+find /var/log -type f -name "*.gz" -mtime +{{ nm_log_prune_days }} -print -delete
+
+echo "--- final df ---"
+df -h / | tail -1
+
+echo "=== done ==="

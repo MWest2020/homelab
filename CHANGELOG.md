@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-06-02 — node-onderhoud: generieke maintenance-role + drain-aware update-playbook
+
+### Context
+- `node-02` (.203) MOTD toonde 80 pending updates + *restart required*. Inventarisatie: alleen **jumpy** had onderhoud (`jumpy-maintenance` role: journald-cap + wekelijkse cleanup-timer). De K8s-nodes (cp-01/.201, node-01/.202, node-02/.203) en de Proxmox-VM-fleet (proxy/.50, nextcloud-tenants/.51-.53, portainer/.54) hadden géén journald-cap en géén onderhouds-loop. Package-updates op de nodes liepen alleen via de zware `prepare-nodes.yml` (bootstrap).
+
+### Added
+- **`ansible/roles/node-maintenance/`** — generieke, geparametriseerde variant van `jumpy-maintenance` (zónder de jumpy-specifieke go-cache-clean). Capt journald (`50-node-size.conf`, default 200M/500M-keep-free), installeert `node-maintenance.sh` + systemd-service + -timer (default `Sun 04:00`, weekly) die `apt autoremove --purge` + `apt clean` + `journalctl --vacuum-size` + prune van `*.gz`-logs >30d doet, en een login-disk-MOTD (`/etc/profile.d/node-disk.sh`, >70% geel / >85% rood). Tunables in `defaults/main.yml` (`nm_*`).
+  - **Security-updates: unattended-upgrades** (industrie-standaard). Installeert `unattended-upgrades`, enables de periodieke timer (`20auto-upgrades`) en pint gedrag (`52node-unattended.conf`): **alleen de `-security`-pocket** (Ubuntu-default origins ongewijzigd, bewust níét verbreed) en **`Automatic-Reboot "false"`**. `apt-mark hold` op kubelet/kubeadm/kubectl wordt gerespecteerd → clusterversie nooit geraakt. Volledige dist-upgrades + reboots blijven `node-update.yml`.
+- **`ansible/playbooks/node-maintenance.yml`** — rolt `node-maintenance` uit op `k8s_cluster:proxy:nextcloud:portainer`. jumpy houdt z'n eigen role (bewust niet getarget).
+- **`ansible/playbooks/node-update.yml`** — drain-aware package-updates, één node tegelijk (`serial: 1`).
+  - Play 1 (`k8s_cluster`): assert dat kubelet/kubeadm/kubectl op `apt-mark hold` staan → `kubectl drain` (via `delegate_to: localhost`) → `apt dist-upgrade` + autoremove → reboot-if-`/var/run/reboot-required` → `uncordon` → `kubectl wait --for=condition=Ready`.
+  - Play 2 (`proxy:nextcloud:portainer`): plain `apt dist-upgrade` + reboot-if-required. Docker-containers komen terug via hun restart-policies.
+
+### Why
+- Scope-split (industrie-standaard): **security-patches unattended** (continu, geen reboot), maar **volledige upgrades + reboots georkestreerd**. Een kernel/runtime-bump met onbewaakte reboot op een live K8s-node killt workloads → daarom blijft de reboot drain-aware in een aparte playbook. De `apt-mark hold` op de K8s-packages (gezet door `kubeadm-install-packages.yml`) zorgt dat zowel unattended-upgrades als een routine dist-upgrade de clusterversie nooit meenemen; de assert in play 1 faalt-luid als die hold ontbreekt. Cluster-versie-hops blijven `kubeadm-upgrade.yml`.
+- `unattended-upgrades` i.p.v. een zelfgebakken `apt upgrade` in bash: battle-tested, auditable, respecteert holds en de Ubuntu-security-origin out-of-the-box. Drain-aware auto-reboot (kured) komt op de roadmap zodra K8s op Proxmox-VMs draait.
+
+### ⚠️ Operationeel — alléén vanaf jumpy draaien
+- `node-update.yml` draait `kubectl drain/uncordon` via `delegate_to: localhost`. **alma's kubectl wijst naar productie** → dit playbook MOET vanaf jumpy (homelab-kubeconfig). Nooit vanaf alma.
+
+### Verify after run (vanaf jumpy)
+```bash
+# syntax-check (geen host-contact)
+cd ansible && ansible-playbook --syntax-check -i inventory/hosts.yml playbooks/node-maintenance.yml playbooks/node-update.yml
+# dry-run update op één worker
+ansible-playbook -i inventory/hosts.yml playbooks/node-update.yml --limit node-02 --check
+# na echte run: timer actief + node Ready
+ansible -i inventory/hosts.yml node-02 -b -m command -a 'systemctl is-active node-maintenance.timer'
+kubectl get nodes
+```
+
+### Open / vervolg
+- Nog niet gedraaid tegen targets (geschreven op alma; uitrol gebeurt vanaf jumpy na review).
+- Mogelijke consolidatie later: `jumpy-maintenance` herbouwen bovenop `node-maintenance` met een `nm_go_cache_clean`-toggle (nu lichte duplicatie, ~40 regels; bewust niet aangeraakt om de werkende jumpy-setup niet te migreren).
+
 ## 2026-06-01 — openwoo-acc TLS: HTTP-01 → DNS-01 (Cloudflare), intern-only
 
 ### Context / root cause

@@ -1,0 +1,30 @@
+---
+# node-maintenance role — tunables.
+# Override per host/group in inventory group_vars if a node needs different limits.
+
+# journald persistent journal size cap and reserved free space.
+nm_journald_max_use: "200M"
+nm_journald_keep_free: "500M"
+
+# Vacuum journald down to this size during the weekly run (matches the cap).
+nm_journald_vacuum_size: "200M"
+
+# Prune rotated (*.gz) logs in /var/log older than this many days.
+nm_log_prune_days: 30
+
+# When the weekly cleanup timer fires (systemd OnCalendar syntax).
+nm_timer_oncalendar: "Sun 04:00"
+nm_timer_randomized_delay: "15min"
+
+# Show a disk-usage notice at interactive login (warns >=70%, alarms >=85%).
+nm_disk_motd: true
+
+# Apply security updates automatically via Ubuntu's unattended-upgrades.
+# Origin set stays Ubuntu's default (security pocket only) — we do NOT widen it
+# to all packages. Full dist-upgrades remain node-update.yml (drain-aware).
+nm_unattended_security: true
+
+# Let unattended-upgrades reboot the host by itself. Keep FALSE everywhere:
+# a reboot without a K8s drain kills workloads. Reboots are orchestrated by
+# node-update.yml today, and by kured once we run K8s-on-Proxmox.
+nm_unattended_auto_reboot: false

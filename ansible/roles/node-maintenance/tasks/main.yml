@@ -1,0 +1,102 @@
+---
+# node-maintenance role
+# - caps journald size (drop-in)
+# - installs a weekly apt/journald/log cleanup via systemd timer
+# - optionally adds a disk-usage notice at interactive login
+#
+# Does NOT upgrade packages — that is node-update.yml (drain-aware).
+
+# ---------------------------------------------------------------------------
+# Unattended security upgrades (Ubuntu standard). Security pocket only; never
+# auto-reboots. Held K8s packages are left untouched.
+# ---------------------------------------------------------------------------
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: nm_unattended_security | bool
+
+- name: Enable periodic unattended-upgrades
+  ansible.builtin.template:
+    src: apt-auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: '0644'
+  when: nm_unattended_security | bool
+
+- name: Pin unattended-upgrades behaviour (no auto-reboot, security only)
+  ansible.builtin.template:
+    src: unattended-overrides.j2
+    dest: /etc/apt/apt.conf.d/52node-unattended.conf
+    owner: root
+    group: root
+    mode: '0644'
+  when: nm_unattended_security | bool
+
+- name: Ensure journald drop-in dir exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Cap journald size
+  ansible.builtin.template:
+    src: journald-size.conf.j2
+    dest: /etc/systemd/journald.conf.d/50-node-size.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart journald
+
+- name: Install maintenance script
+  ansible.builtin.template:
+    src: node-maintenance.sh.j2
+    dest: /usr/local/sbin/node-maintenance.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install maintenance systemd service
+  ansible.builtin.template:
+    src: node-maintenance.service.j2
+    dest: /etc/systemd/system/node-maintenance.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install maintenance systemd timer
+  ansible.builtin.template:
+    src: node-maintenance.timer.j2
+    dest: /etc/systemd/system/node-maintenance.timer
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable + start maintenance timer
+  ansible.builtin.systemd:
+    name: node-maintenance.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Install login-time disk notice
+  ansible.builtin.template:
+    src: disk-motd.sh.j2
+    dest: /etc/profile.d/node-disk.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when: nm_disk_motd | bool
+
+- name: Remove login-time disk notice when disabled
+  ansible.builtin.file:
+    path: /etc/profile.d/node-disk.sh
+    state: absent
+  when: not (nm_disk_motd | bool)

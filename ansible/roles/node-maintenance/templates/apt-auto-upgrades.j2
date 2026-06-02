@@ -1,0 +1,5 @@
+// Managed by Ansible (node-maintenance role). Do not edit by hand.
+// Enables the unattended-upgrades timer (apt-daily-upgrade.timer).
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";

@@ -1,0 +1,14 @@
+// Managed by Ansible (node-maintenance role). Do not edit by hand.
+//
+// We deliberately do NOT set Unattended-Upgrade::Allowed-Origins here: the
+// stock /etc/apt/apt.conf.d/50unattended-upgrades already restricts it to the
+// "-security" pocket, which is exactly the policy we want. Widening it to all
+// packages would turn this into an unattended full upgrade — that stays a
+// deliberate, drain-aware operation (node-update.yml).
+//
+// apt-mark hold (kubelet/kubeadm/kubectl) is honoured by unattended-upgrades,
+// so the cluster version is never bumped here.
+
+Unattended-Upgrade::Automatic-Reboot "{{ 'true' if nm_unattended_auto_reboot else 'false' }}";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";

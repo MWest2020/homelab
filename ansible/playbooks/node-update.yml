@@ -1,0 +1,142 @@
+---
+# node-update.yml — apply OS package updates safely, one node at a time.
+#
+# Two plays, selected by which inventory you pass:
+#
+#   K8s nodes (cp-01 / node-01 / node-02) — DRAIN-AWARE:
+#     cd ansible
+#     ansible-playbook -i inventory/hosts.yml playbooks/node-update.yml
+#   Per node, serially: drain -> apt dist-upgrade -> reboot-if-required ->
+#   uncordon -> wait Ready. kubelet/kubeadm/kubectl are on apt-mark hold, so a
+#   routine upgrade never bumps the cluster version (use kubeadm-upgrade.yml
+#   for that). Drain/uncordon run via kubectl on the controller (jumpy).
+#
+#   Proxmox VM fleet (proxy / nextcloud tenants / portainer) — plain:
+#     ansible-playbook -i inventory/proxmox-hosts.yml playbooks/node-update.yml
+#   Per VM, serially: apt dist-upgrade -> reboot-if-required. Docker containers
+#   return on boot via their restart policies.
+#
+# Dry run first to see what would change:
+#   ansible-playbook -i inventory/hosts.yml playbooks/node-update.yml --check
+#
+# Optional: limit to one host, e.g. only the worker that flagged updates:
+#   ansible-playbook -i inventory/hosts.yml playbooks/node-update.yml --limit node-02
+
+# =============================================================================
+# Play 1: Kubernetes nodes — cordon/drain around the upgrade.
+# =============================================================================
+- name: Update Kubernetes nodes (drain-aware)
+  hosts: k8s_cluster
+  become: true
+  serial: 1
+  max_fail_percentage: 0
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: List held packages (must include kubelet/kubeadm/kubectl)
+      ansible.builtin.command: apt-mark showhold
+      changed_when: false
+      register: nu_holds
+
+    - name: Assert Kubernetes packages are held (version stays pinned)
+      ansible.builtin.assert:
+        that:
+          - "'kubelet' in nu_holds.stdout"
+          - "'kubeadm' in nu_holds.stdout"
+          - "'kubectl' in nu_holds.stdout"
+        fail_msg: >-
+          kubelet/kubeadm/kubectl are not on apt-mark hold on {{ inventory_hostname }};
+          refusing to upgrade so a dist-upgrade cannot bump the cluster version.
+          Run kubeadm-install-packages.yml or `apt-mark hold kubeadm kubelet kubectl`.
+
+    - name: Drain node (from controller / jumpbox)
+      ansible.builtin.command: >
+        kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets
+        --delete-emptydir-data
+        --timeout=120s
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Upgrade packages (dist-upgrade; held K8s packages kept back)
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+
+    - name: Check whether a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: nu_reboot
+
+    - name: Reboot node if required
+      ansible.builtin.reboot:
+        msg: "Reboot triggered by node-update.yml after package upgrade"
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+      when: nu_reboot.stat.exists
+
+    - name: Uncordon node (from controller / jumpbox)
+      ansible.builtin.command: kubectl uncordon {{ inventory_hostname }}
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Wait for node to be Ready
+      ansible.builtin.command: kubectl wait node/{{ inventory_hostname }} --for=condition=Ready --timeout=300s
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Show node status
+      ansible.builtin.command: kubectl get nodes
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      register: nu_nodes
+
+    - name: Report node status
+      ansible.builtin.debug:
+        msg: "{{ nu_nodes.stdout_lines }}"
+
+# =============================================================================
+# Play 2: Non-K8s VMs (proxy, nextcloud tenants, portainer) — plain upgrade.
+# Matches nothing when run against inventory/hosts.yml; matches nothing on the
+# K8s side when run against inventory/proxmox-hosts.yml.
+# =============================================================================
+- name: Update non-K8s VMs (plain upgrade + reboot if required)
+  hosts: proxy:nextcloud:portainer
+  become: true
+  serial: 1
+  max_fail_percentage: 0
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade packages (dist-upgrade)
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+
+    - name: Check whether a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: nu_reboot
+
+    - name: Reboot VM if required
+      ansible.builtin.reboot:
+        msg: "Reboot triggered by node-update.yml after package upgrade"
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+      when: nu_reboot.stat.exists

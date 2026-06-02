@@ -51,6 +51,22 @@ ansible-playbook -i inventory/hosts.yml playbooks/deploy-ssh-keys.yml
 ansible-playbook -i inventory/hosts.yml playbooks/configure-passwordless-sudo.yml
 ```
 
+### Node maintenance & updates
+
+```bash
+# Housekeeping (journald cap + weekly cleanup timer, NO upgrades) — K8s + VM fleet
+ansible-playbook -i inventory/hosts.yml playbooks/node-maintenance.yml
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/node-maintenance.yml
+
+# Package updates, drain-aware, one node at a time (run from jumpy only — uses
+# kubectl via delegate_to: localhost; alma's kubectl points at production)
+ansible-playbook -i inventory/hosts.yml playbooks/node-update.yml            # K8s nodes: drain→upgrade→reboot→uncordon
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/node-update.yml    # VMs: upgrade→reboot
+```
+
+K8s package upgrades keep kubelet/kubeadm/kubectl on `apt-mark hold`; cluster
+version hops are a separate operation — `kubeadm-upgrade.yml`.
+
 ## Cilium upgrade
 
 ```bash
