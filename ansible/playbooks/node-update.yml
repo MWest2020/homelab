@@ -40,6 +40,7 @@
     - name: List held packages (must include kubelet/kubeadm/kubectl)
       ansible.builtin.command: apt-mark showhold
       changed_when: false
+      check_mode: false          # read-only; must run even under --check so the assert below works
       register: nu_holds
 
     - name: Assert Kubernetes packages are held (version stays pinned)
