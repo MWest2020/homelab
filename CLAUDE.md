@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 homelab/
 ├── ansible/                 # IaC — node provisioning and k8s bootstrap
 │   ├── ansible.cfg          # Default inventory, become=sudo, no host-key checking
-│   ├── group_vars/k8s_cluster.yml  # Cluster variables (k8s version, CIDRs, APT repo)
 │   ├── inventory/hosts.yml  # Git-ignored; copy from hosts.yml.example
+│   ├── inventory/group_vars/k8s_cluster.yml  # Cluster vars (k8s version, CIDRs, APT repo) — loaded naast inventory
 │   └── playbooks/           # Ordered playbooks (see Ansible section below)
 ├── cluster-config/infra/cilium/values.yaml  # Helm values for Cilium (example checked in)
 ├── kubernetes/infrastructure/   # Raw manifests: cert-manager, coredns, gateway, metallb
