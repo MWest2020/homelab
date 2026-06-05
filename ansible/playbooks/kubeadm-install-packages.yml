@@ -17,9 +17,8 @@
       - kubelet
       - kubeadm
       - kubectl
-    # Repo v1.29 voor packages; key van nieuwere versie (zelfde key, maar v1.29 Release.key kan verlopen zijn)
-    k8s_apt_repo_key_url: "https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key"
-    k8s_apt_repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"
+    # k8s_apt_repo_key_url + k8s_apt_repo komen uit group_vars/k8s_cluster.yml
+    # (afgeleid van k8s_version) — één plek om te bumpen, geen drift meer.
 
   tasks:
     - name: Create keyring directory

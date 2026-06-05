@@ -1,0 +1,48 @@
+# Kopieer naar terraform.tfvars en pas aan. Token via TF_VAR_proxmox_api_token (.env), niet hier.
+#
+# VOORAF — bouw de per-shape templates met qm (hardware in de template, NIET in terraform;
+# zie feedback_template_per_size). Eenmalig per Proxmox-host (local-lvm is per-node):
+#
+#   # CP-shape 9001 = 4 cores / 8GB / 50GB
+#   qm clone 9000 9001 --full --name k8s-cp-template
+#   qm resize 9001 scsi0 50G
+#   qm set 9001 --cores 4 --memory 8192
+#   qm template 9001
+#   # worker-shape 9002 = 4 cores / 16GB / 50GB
+#   qm clone 9000 9002 --full --name k8s-worker-template
+#   qm resize 9002 scsi0 50G
+#   qm set 9002 --cores 4 --memory 16384
+#   qm template 9002
+#
+# ── Fase 0: één wegwerp-test-VM op de standalone laptop ──────────────────────
+# Valideert de bpg+template+Ansible-pipeline op K8s 1.36.1 voordat baremetal wordt aangeraakt.
+# (Bouw template 9001 eerst op de laptop.)
+proxmox_endpoint = "https://192.168.178.10:8006" # laptop (standalone)
+
+vms = {
+  k8s-test = {
+    vm_id          = 199
+    node_name      = "proxmox"
+    ip             = "192.168.178.60"
+    template_vm_id = 9001 # CP-shape (4c/8GB/50GB)
+    role           = "control-plane"
+  }
+}
+
+# ── Fase 2: 6 VM's op het 3-node cluster (1 CP + 1 worker per host, anti-affinity) ──
+# Zet bovenstaande test-VM uit, repoint endpoint naar een clusternode, en gebruik:
+# (Bouw 9001 + 9002 op elke host px-01/02/03.)
+#
+# proxmox_endpoint = "https://192.168.178.11:8006"  # px-01
+#
+# vms = {
+#   cp-01   = { vm_id = 110, node_name = "px-01", ip = "192.168.178.202", template_vm_id = 9001, role = "control-plane" }
+#   cp-02   = { vm_id = 111, node_name = "px-02", ip = "192.168.178.203", template_vm_id = 9001, role = "control-plane" }
+#   cp-03   = { vm_id = 112, node_name = "px-03", ip = "192.168.178.204", template_vm_id = 9001, role = "control-plane" }
+#   node-01 = { vm_id = 113, node_name = "px-01", ip = "192.168.178.205", template_vm_id = 9002, role = "worker" }
+#   node-02 = { vm_id = 114, node_name = "px-02", ip = "192.168.178.206", template_vm_id = 9002, role = "worker" }
+#   node-03 = { vm_id = 115, node_name = "px-03", ip = "192.168.178.207", template_vm_id = 9002, role = "worker" }
+# }
+#
+# Control-plane VIP .201 (kube-vip) zit NIET in deze lijst — die wordt door Ansible/kube-vip
+# beheerd, niet als VM-IP toegekend.

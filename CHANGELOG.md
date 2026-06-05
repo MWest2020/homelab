@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-06-05 — proxmox-migration Fase 0: K8s-pin → 1.36.1 + Terraform `k8s-cluster`-module
+
+### Context
+- Greenfield-rebuild van het baremetal K8s-cluster (1.29) naar **VM's op een 3-node Proxmox-cluster** (Optie A: de 3 baremetal nodes vormen het cluster, laptop blijft standalone; oneven quorum, geen QDevice). Doel-topologie: **3 control-plane (HA) + 3 workers** op K8s **1.36.1**, control-plane-endpoint als **VIP .201 (kube-vip)** zodat jumpy's kubeconfig ongewijzigd blijft. Volledig plan: `openspec/changes/proxmox-migration/`.
+- Deze entry = **Fase 0** (geen risico): versie-bump + Terraform-module scaffolden, te valideren op de standalone laptop vóór er baremetal wordt gewipet.
+
+### Changed
+- **`ansible/group_vars/k8s_cluster.yml`** — `k8s_version` 1.29 → **1.36**. `k8s_apt_repo`/`k8s_apt_repo_key_url` nu **afgeleid van `k8s_version`** (`v{{ k8s_version }}`) → één plek om te bumpen. De v1.36-repo serveert momenteel patch 1.36.1 (latest, 2026-05-12).
+- **`ansible/playbooks/kubeadm-install-packages.yml`** — de play-level override-vars (`v1.31`-key + `v1.29`-repo) verwijderd; het playbook erft nu de repo/key uit group_vars. Dit was de bron van de versie-drift (key v1.31 vs repo v1.29).
+
+### Added
+- **`terraform/k8s-cluster/`** — nieuwe module (`bpg/proxmox ~> 0.106`), data-driven via `var.vms` (per VM `vm_id`/`node_name`/`ip`/`template_vm_id`/`role`). **Template-per-shape, géén post-clone hardware-overrides** (conform `feedback_template_per_size`: bpg hangt op cpu/memory/disk-overrides na clone — bevestigd op 0.69 én 0.106). Hardware komt uit templates 9001 (CP 4c/8GB/50GB) + 9002 (worker 4c/16GB/50GB), te bouwen met qm. Module = clone + network + cloud-init + agent, anti-affinity via `node_name`. **Veilige lege default** (`vms = {}` → apply doet niets tot opt-in via tfvars). `terraform.tfvars.example`: qm-template-recept + Fase-0 wegwerp-test-VM op de laptop + (commented) Fase-2 6-VM-layout (VMID 110–115, IP .202–.207).
+
+### Why / supply chain
+- Versies upstream-geverifieerd: K8s **1.36.1** is de laatste 1.36-patch. bpg/proxmox **0.108.0** (2026-06-01) is **bewust gemeden** — binnen de 7-daagse cooldown; module pint `~> 0.106` (uniform met bestaande modules, buiten cooldown).
+- Geen live cluster geraakt: dit zijn alleen IaC-bestanden. Data op de oude baremetal nodes (canary-Nextcloud + minio) is bewust wegwerpbaar (config zit in git/Argo CD).
+
+### Verify (vanaf jumpy, na push + `git pull`)
+```bash
+cd ansible && ansible-playbook --syntax-check -i inventory/hosts.yml playbooks/kubeadm-install-packages.yml
+cd ../terraform/k8s-cluster && terraform fmt -check && terraform init && terraform validate
+```
+
 ## 2026-06-02 — node-onderhoud: generieke maintenance-role + drain-aware update-playbook
 
 ### Context
