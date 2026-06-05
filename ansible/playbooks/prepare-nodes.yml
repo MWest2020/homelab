@@ -179,7 +179,8 @@
       loop: "{{ groups['k8s_cluster'] }}"
 
   handlers:
+    # Op Ubuntu/Debian heet de service 'ssh' (niet 'sshd' — dat is RHEL/CentOS).
     - name: Restart SSH
       ansible.builtin.service:
-        name: sshd
+        name: ssh
         state: restarted
