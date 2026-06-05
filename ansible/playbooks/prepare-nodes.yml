@@ -152,6 +152,32 @@
         - { key: 'net.ipv4.ip_forward', value: '1' }
 
     # ============================================
+    # CONTAINER RUNTIME (containerd — vereist door kubeadm)
+    # ============================================
+    - name: Install containerd
+      ansible.builtin.apt:
+        name: containerd
+        state: present
+
+    - name: Generate containerd config if missing
+      ansible.builtin.shell: mkdir -p /etc/containerd && containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Set containerd SystemdCgroup = true (cgroups v2)
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+      notify: Restart containerd
+
+    - name: Ensure containerd enabled and running
+      ansible.builtin.service:
+        name: containerd
+        state: started
+        enabled: true
+
+    # ============================================
     # SWAP (must be disabled for Kubernetes)
     # ============================================
     - name: Disable swap
@@ -183,4 +209,9 @@
     - name: Restart SSH
       ansible.builtin.service:
         name: ssh
+        state: restarted
+
+    - name: Restart containerd
+      ansible.builtin.service:
+        name: containerd
         state: restarted
