@@ -17,3 +17,4 @@ tailscale_advertise_routes:
   - 192.168.178.56/32   # nginx-lab-broken  (vm 106)
   - 192.168.178.57/32   # nginx-proxy-lab   (vm 107)
   - 192.168.178.59/32   # klant-d openwoo-acc (vm 108)
+  - 192.168.178.60/32   # k8s-test (vm 199, fase-0 wegwerp — verwijderen na test)

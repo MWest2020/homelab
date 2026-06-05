@@ -5,9 +5,11 @@ variable "proxmox_api_token" {
 }
 
 variable "proxmox_endpoint" {
-  description = "Proxmox API endpoint. Fase 0: laptop (https://192.168.178.10:8006). Fase 2: een clusternode."
+  # Vanaf jumpy bereik je de laptop via Tailscale (100.94.15.50), NIET via LAN .10
+  # (jumpy zit in 192.168.122.x en .10 wordt niet als route geadverteerd).
+  description = "Proxmox API endpoint. Fase 0: laptop via Tailscale. Fase 2: clusternode via Tailscale-IP."
   type        = string
-  default     = "https://192.168.178.10:8006"
+  default     = "https://100.94.15.50:8006"
 }
 
 variable "vm_gateway" {

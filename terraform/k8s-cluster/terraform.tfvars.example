@@ -17,7 +17,7 @@
 # ── Fase 0: één wegwerp-test-VM op de standalone laptop ──────────────────────
 # Valideert de bpg+template+Ansible-pipeline op K8s 1.36.1 voordat baremetal wordt aangeraakt.
 # (Bouw template 9001 eerst op de laptop.)
-proxmox_endpoint = "https://192.168.178.10:8006" # laptop (standalone)
+proxmox_endpoint = "https://100.94.15.50:8006" # laptop via Tailscale (vanaf jumpy; LAN .10 is daar niet routeerbaar)
 
 vms = {
   k8s-test = {
@@ -33,7 +33,7 @@ vms = {
 # Zet bovenstaande test-VM uit, repoint endpoint naar een clusternode, en gebruik:
 # (Bouw 9001 + 9002 op elke host px-01/02/03.)
 #
-# proxmox_endpoint = "https://192.168.178.11:8006"  # px-01
+# proxmox_endpoint = "https://<px-01-tailscale-ip>:8006"  # vanaf jumpy: Tailscale-IP van de host, niet LAN .11
 #
 # vms = {
 #   cp-01   = { vm_id = 110, node_name = "px-01", ip = "192.168.178.202", template_vm_id = 9001, role = "control-plane" }
