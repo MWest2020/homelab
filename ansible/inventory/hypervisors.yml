@@ -7,7 +7,9 @@ all:
     hypervisors:
       hosts:
         proxmox-laptop:
-          ansible_host: 192.168.178.10
+          # Tailscale-IP: bereikbaar vanaf zowel jumpy als alma. De LAN .10 is
+          # vanaf jumpy niet routeerbaar (host-IP wordt niet als route geadverteerd).
+          ansible_host: 100.94.15.50
           ansible_user: root
 
   vars:
