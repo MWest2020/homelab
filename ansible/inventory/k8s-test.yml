@@ -1,0 +1,25 @@
+---
+# WEGWERP-inventory — Fase-0 pipeline-validatie op de test-VM (.60).
+# Doel: bewijzen dat prepare-nodes + kubeadm-install op K8s 1.36 werken op een
+# vers gecloonde VM. Verwijderen na de test (samen met de VM, terraform destroy).
+#
+# K8s-versie + repo/key komen uit group_vars/k8s_cluster.yml (1.36) — bewust NIET
+# hier overschreven. Draai vanaf jumpy:
+#   ansible-playbook -i inventory/k8s-test.yml playbooks/prepare-nodes.yml
+#   ansible-playbook -i inventory/k8s-test.yml playbooks/kubeadm-install-packages.yml
+
+all:
+  children:
+    k8s_cluster:
+      children:
+        control_plane:
+          hosts:
+            k8s-test:
+              ansible_host: 192.168.178.60
+
+  vars:
+    ansible_user: ubuntu                                  # cloud-init user
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_become: true
+    ansible_become_method: sudo
