@@ -1,18 +1,31 @@
 ---
 # Hypervisor-hosts — bare-metal/VM-hosts die geen tenant-workload draaien
 # maar wel ansible-managed config nodig hebben (bv. Tailscale subnet routing).
+#
+# Tailscale-IP's: bereikbaar vanaf zowel jumpy als alma. LAN-IP's zijn vanaf
+# jumpy niet routeerbaar (host-IP wordt niet als route geadverteerd).
 
 all:
   children:
+    # De standalone laptop-Proxmox (Nextcloud-VM's). Adverteert de .50-.59 routes
+    # (zie group_vars/hypervisors.yml). px-cluster zit hier BEWUST niet bij.
     hypervisors:
       hosts:
         proxmox-laptop:
-          # Tailscale-IP: bereikbaar vanaf zowel jumpy als alma. De LAN .10 is
-          # vanaf jumpy niet routeerbaar (host-IP wordt niet als route geadverteerd).
           ansible_host: 100.94.15.50
-          ansible_user: root
+
+    # Het 3-node Proxmox-cluster voor de K8s-VM's (Fase 1+).
+    proxmox_cluster:
+      hosts:
+        px-01:
+          ansible_host: 100.120.76.22
+        px-02:
+          ansible_host: 100.89.39.27
+        px-03:
+          ansible_host: 100.94.64.49
 
   vars:
+    ansible_user: root
     ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
     ansible_python_interpreter: /usr/bin/python3
     ansible_become: false   # already root via ansible_user
