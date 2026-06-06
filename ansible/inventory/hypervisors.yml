@@ -27,5 +27,8 @@ all:
   vars:
     ansible_user: root
     ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    # Alleen deze key aanbieden; anders biedt de agent te veel keys aan en kapt
+    # de server af op MaxAuthTries ("Too many authentication failures").
+    ansible_ssh_common_args: '-o IdentitiesOnly=yes'
     ansible_python_interpreter: /usr/bin/python3
     ansible_become: false   # already root via ansible_user
