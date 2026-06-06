@@ -35,13 +35,15 @@ vms = {
 #
 # proxmox_endpoint = "https://<px-01-tailscale-ip>:8006"  # vanaf jumpy: Tailscale-IP van de host, niet LAN .11
 #
+# template_vm_id verschilt per host (VMID's cluster-breed uniek, per-node reeks):
+# px-01 -> CP 9001 / worker 9002, px-02 -> 9011/9012, px-03 -> 9021/9022.
 # vms = {
 #   cp-01   = { vm_id = 110, node_name = "px-01", ip = "192.168.178.202", template_vm_id = 9001, role = "control-plane" }
-#   cp-02   = { vm_id = 111, node_name = "px-02", ip = "192.168.178.203", template_vm_id = 9001, role = "control-plane" }
-#   cp-03   = { vm_id = 112, node_name = "px-03", ip = "192.168.178.204", template_vm_id = 9001, role = "control-plane" }
+#   cp-02   = { vm_id = 111, node_name = "px-02", ip = "192.168.178.203", template_vm_id = 9011, role = "control-plane" }
+#   cp-03   = { vm_id = 112, node_name = "px-03", ip = "192.168.178.204", template_vm_id = 9021, role = "control-plane" }
 #   node-01 = { vm_id = 113, node_name = "px-01", ip = "192.168.178.205", template_vm_id = 9002, role = "worker" }
-#   node-02 = { vm_id = 114, node_name = "px-02", ip = "192.168.178.206", template_vm_id = 9002, role = "worker" }
-#   node-03 = { vm_id = 115, node_name = "px-03", ip = "192.168.178.207", template_vm_id = 9002, role = "worker" }
+#   node-02 = { vm_id = 114, node_name = "px-02", ip = "192.168.178.206", template_vm_id = 9012, role = "worker" }
+#   node-03 = { vm_id = 115, node_name = "px-03", ip = "192.168.178.207", template_vm_id = 9022, role = "worker" }
 # }
 #
 # Control-plane VIP .201 (kube-vip) zit NIET in deze lijst — die wordt door Ansible/kube-vip

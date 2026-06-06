@@ -1,16 +1,18 @@
 ---
-# Bouwt de Kubernetes-VM-templates op elke Proxmox-clusterhost (idempotent):
-#   9000 = ubuntu-24.04 cloud base
-#   9001 = control-plane shape (4 cores / 8GB / 50G)
-#   9002 = worker shape        (4 cores / 16GB / 50G)
+# Bouwt de Kubernetes-VM-templates op elke Proxmox-clusterhost (idempotent).
 #
-# Hardware-shape zit BEWUST in de template, niet in terraform (bpg hangt op
-# post-clone overrides — zie feedback_template_per_size).
+# LET OP: VMID's zijn CLUSTER-BREED uniek (niet per-node), en met local-lvm kun je
+# een template niet cross-node clonen. Daarom heeft elke host een EIGEN VMID-reeks,
+# bepaald door `tmpl_base` (host-var in de inventory):
+#   px-01 tmpl_base=9000 -> 9000 (base) / 9001 (CP 4c/8GB/50G) / 9002 (worker 4c/16GB/50G)
+#   px-02 tmpl_base=9010 -> 9010 / 9011 / 9012
+#   px-03 tmpl_base=9020 -> 9020 / 9021 / 9022
 #
-# Run vanaf jumpy (na Tailscale op de hosts + px-01/02/03 in de inventory):
-#   ansible-playbook -i inventory/hypervisors.yml playbooks/build-k8s-templates.yml
-#   # eerst één host testen:
+# Hardware-shape zit in de template, niet in terraform (bpg hangt op post-clone overrides).
+#
+# Run vanaf jumpy:
 #   ansible-playbook -i inventory/hypervisors.yml playbooks/build-k8s-templates.yml --limit px-01
+#   ansible-playbook -i inventory/hypervisors.yml playbooks/build-k8s-templates.yml
 
 - name: Build Kubernetes VM templates on Proxmox cluster hosts
   hosts: proxmox_cluster
@@ -20,6 +22,9 @@
     ubuntu_img_url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
     ubuntu_img: "/var/lib/vz/template/noble-server-cloudimg-amd64.img"
     storage: local-lvm
+    base_id: "{{ tmpl_base }}"
+    cp_id: "{{ tmpl_base + 1 }}"
+    worker_id: "{{ tmpl_base + 2 }}"
 
   tasks:
     - name: Download ubuntu-24.04 cloud image (idempotent)
@@ -28,58 +33,58 @@
         dest: "{{ ubuntu_img }}"
         mode: '0644'
 
-    # ---- 9000: base template ----
-    - name: Check of 9000 bestaat
-      ansible.builtin.command: qm config 9000
-      register: t9000
+    # ---- base template ----
+    - name: Check of base-template {{ base_id }} bestaat
+      ansible.builtin.command: "qm config {{ base_id }}"
+      register: t_base
       changed_when: false
       failed_when: false
 
-    - name: Build base-template 9000
-      when: t9000.rc != 0
+    - name: Build base-template {{ base_id }}
+      when: t_base.rc != 0
       changed_when: true
       ansible.builtin.shell: |
         set -e
-        qm create 9000 --name ubuntu-24.04-template --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
-        qm importdisk 9000 {{ ubuntu_img }} {{ storage }}
-        qm set 9000 --scsihw virtio-scsi-pci --scsi0 {{ storage }}:vm-9000-disk-0
-        qm set 9000 --ide2 {{ storage }}:cloudinit
-        qm set 9000 --boot order=scsi0 --serial0 socket --vga serial0
-        qm template 9000
+        qm create {{ base_id }} --name ubuntu-24.04-template --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
+        qm importdisk {{ base_id }} {{ ubuntu_img }} {{ storage }}
+        qm set {{ base_id }} --scsihw virtio-scsi-pci --scsi0 {{ storage }}:vm-{{ base_id }}-disk-0
+        qm set {{ base_id }} --ide2 {{ storage }}:cloudinit
+        qm set {{ base_id }} --boot order=scsi0 --serial0 socket --vga serial0
+        qm template {{ base_id }}
 
-    # ---- 9001: control-plane shape (4c/8GB/50G) ----
-    - name: Check of 9001 bestaat
-      ansible.builtin.command: qm config 9001
-      register: t9001
+    # ---- control-plane shape (4c/8GB/50G) ----
+    - name: Check of CP-template {{ cp_id }} bestaat
+      ansible.builtin.command: "qm config {{ cp_id }}"
+      register: t_cp
       changed_when: false
       failed_when: false
 
-    - name: Build CP-template 9001
-      when: t9001.rc != 0
+    - name: Build CP-template {{ cp_id }}
+      when: t_cp.rc != 0
       changed_when: true
       ansible.builtin.shell: |
         set -e
-        qm clone 9000 9001 --full --name k8s-cp-template
-        qm resize 9001 scsi0 50G
-        qm set 9001 --cores 4 --memory 8192
-        qm template 9001
+        qm clone {{ base_id }} {{ cp_id }} --full --name k8s-cp-template
+        qm resize {{ cp_id }} scsi0 50G
+        qm set {{ cp_id }} --cores 4 --memory 8192
+        qm template {{ cp_id }}
 
-    # ---- 9002: worker shape (4c/16GB/50G) ----
-    - name: Check of 9002 bestaat
-      ansible.builtin.command: qm config 9002
-      register: t9002
+    # ---- worker shape (4c/16GB/50G) ----
+    - name: Check of worker-template {{ worker_id }} bestaat
+      ansible.builtin.command: "qm config {{ worker_id }}"
+      register: t_worker
       changed_when: false
       failed_when: false
 
-    - name: Build worker-template 9002
-      when: t9002.rc != 0
+    - name: Build worker-template {{ worker_id }}
+      when: t_worker.rc != 0
       changed_when: true
       ansible.builtin.shell: |
         set -e
-        qm clone 9000 9002 --full --name k8s-worker-template
-        qm resize 9002 scsi0 50G
-        qm set 9002 --cores 4 --memory 16384
-        qm template 9002
+        qm clone {{ base_id }} {{ worker_id }} --full --name k8s-worker-template
+        qm resize {{ worker_id }} scsi0 50G
+        qm set {{ worker_id }} --cores 4 --memory 16384
+        qm template {{ worker_id }}
 
     - name: Toon aanwezige templates
       ansible.builtin.command: qm list
@@ -88,4 +93,4 @@
 
     - name: Print template-overzicht
       ansible.builtin.debug:
-        msg: "{{ qmlist.stdout_lines | select('search', '900[012]') | list }}"
+        msg: "{{ qmlist.stdout_lines | select('search', 'template') | list }}"

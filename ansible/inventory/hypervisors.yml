@@ -15,14 +15,19 @@ all:
           ansible_host: 100.94.15.50
 
     # Het 3-node Proxmox-cluster voor de K8s-VM's (Fase 1+).
+    # tmpl_base = eigen VMID-reeks per host (VMID's zijn cluster-breed uniek,
+    # local-lvm kan niet cross-node clonen): base / +1 = CP / +2 = worker.
     proxmox_cluster:
       hosts:
         px-01:
           ansible_host: 100.120.76.22
+          tmpl_base: 9000        # 9000 / 9001 (CP) / 9002 (worker)
         px-02:
           ansible_host: 100.89.39.27
+          tmpl_base: 9010        # 9010 / 9011 / 9012
         px-03:
           ansible_host: 100.94.64.49
+          tmpl_base: 9020        # 9020 / 9021 / 9022
 
   vars:
     ansible_user: root
