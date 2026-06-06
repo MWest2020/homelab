@@ -1,0 +1,25 @@
+---
+# Bootstrap: zet jumpbox' SSH-pubkey in authorized_keys van de connect-user op de
+# target-hosts, zodat daarna key-based Ansible werkt. Lost het kip-ei op: één run
+# met wachtwoord-auth, daarna alles via de key.
+#
+# Run vanaf jumpy (eenmalig, per nieuwe host-groep):
+#   ansible-playbook -i inventory/hypervisors.yml playbooks/bootstrap-ssh-key.yml --limit proxmox_cluster --ask-pass
+#
+# Vereist: 'sshpass' op jumpy (apt install -y sshpass) + dezelfde root-pw op de hosts
+# (anders per host met --limit px-01 etc.). De IdentitiesOnly=yes in de inventory zorgt
+# dat er maar 1 key wordt aangeboden -> geen "Too many authentication failures" meer.
+
+- name: Bootstrap jumpbox SSH key on target hosts
+  hosts: all
+  gather_facts: false
+
+  vars:
+    pubkey_file: ~/.ssh/id_ed25519_homelab.pub
+
+  tasks:
+    - name: Add jumpbox public key to {{ ansible_user }} authorized_keys
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user }}"
+        key: "{{ lookup('file', pubkey_file) }}"
+        state: present
