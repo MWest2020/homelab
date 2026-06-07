@@ -12,9 +12,19 @@
 # (https://login.tailscale.com/admin/machines) voor deze node — eenmalig per route.
 
 - name: Configure Tailscale advertised routes on hypervisors
-  hosts: hypervisors
+  hosts: hypervisors:proxmox_cluster
   gather_facts: false
   tasks:
+    - name: Ensure IP forwarding (vereist voor subnet-routing)
+      ansible.posix.sysctl:
+        name: "{{ item }}"
+        value: "1"
+        sysctl_file: /etc/sysctl.d/99-tailscale.conf
+        reload: true
+      loop:
+        - net.ipv4.ip_forward
+        - net.ipv6.conf.all.forwarding
+
     - name: Capture current Tailscale prefs
       command: tailscale debug prefs
       register: ts_prefs_before

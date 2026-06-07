@@ -1,0 +1,16 @@
+---
+# /32 routes die de px-cluster-hosts adverteren via Tailscale: de K8s-VM's + de
+# kube-vip VIP. Alle 3 de hosts adverteren de hele lijst (alles op dezelfde LAN-bridge
+# 192.168.178.0/24) -> Tailscale kiest een actieve router, met failover.
+#
+# NOOIT 192.168.178.0/24 adverteren — dat kaapt de LAN-routing. Zie
+# project_tailscale_subnet_routing.
+
+tailscale_advertise_routes:
+  - 192.168.178.201/32   # kube-vip VIP (control-plane endpoint)
+  - 192.168.178.202/32   # cp-01
+  - 192.168.178.203/32   # cp-02
+  - 192.168.178.204/32   # cp-03
+  - 192.168.178.205/32   # node-01
+  - 192.168.178.206/32   # node-02
+  - 192.168.178.207/32   # node-03
