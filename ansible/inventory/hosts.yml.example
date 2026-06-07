@@ -1,7 +1,10 @@
 ---
-# Ansible Inventory - EXAMPLE
-# Copy to hosts.yml and fill in your values:
-#   cp hosts.yml.example hosts.yml
+# Ansible Inventory - EXAMPLE (K8s-cluster op Proxmox-VM's)
+# Kopieer naar hosts.yml (git-ignored):  cp hosts.yml.example hosts.yml
+#
+# 3 control-plane + 3 workers VM's. Eerste control_plane host = kubeadm init-node.
+# Control-plane endpoint = kube-vip VIP 192.168.178.201 (zit NIET als node in de lijst).
+# K8s-versie/CIDR's/repo komen uit inventory/group_vars/k8s_cluster.yml.
 
 all:
   children:
@@ -10,27 +13,24 @@ all:
         control_plane:
           hosts:
             cp-01:
-              ansible_host: <CONTROL_PLANE_IP>  # e.g., 192.168.x.201
+              ansible_host: 192.168.178.202
+            cp-02:
+              ansible_host: 192.168.178.203
+            cp-03:
+              ansible_host: 192.168.178.204
         workers:
           hosts:
             node-01:
-              ansible_host: <WORKER_01_IP>      # e.g., 192.168.x.202
+              ansible_host: 192.168.178.205
             node-02:
-              ansible_host: <WORKER_02_IP>      # e.g., 192.168.x.203
+              ansible_host: 192.168.178.206
+            node-03:
+              ansible_host: 192.168.178.207
 
   vars:
-    # SSH settings
-    ansible_user: <SSH_USER>                    # e.g., admin
-    ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-    
-    # Python interpreter
+    ansible_user: ubuntu                     # cloud-init user (key via terraform)
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    ansible_ssh_common_args: '-o IdentitiesOnly=yes'
     ansible_python_interpreter: /usr/bin/python3
-    
-    # Become settings
     ansible_become: true
     ansible_become_method: sudo
-    
-    # Kubernetes settings
-    k8s_version: "1.29.2"
-    k8s_api_server: <CONTROL_PLANE_IP>
-    k8s_api_port: 6443

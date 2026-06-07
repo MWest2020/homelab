@@ -1,86 +1,169 @@
 ---
-# kubeadm init (cp-01) en join (workers). Draai na kubeadm-install-packages.yml.
-# Vereisten: Fase B gedaan (Hard Way gestopt), packages geïnstalleerd.
+# HA kubeadm-bootstrap: kube-vip VIP (.201) + 3 control-plane + workers.
+# Draai NA prepare-nodes.yml + kubeadm-install-packages.yml. Idempotent:
+#   - init alleen als /etc/kubernetes/admin.conf nog niet bestaat
+#   - join alleen als /etc/kubernetes/kubelet.conf nog niet bestaat
 #
-# Gebruik (vanaf jumpbox, in ansible/):
-#   ansible-playbook playbooks/kubeadm-bootstrap.yml
+# Eerste host in groep control_plane = init-node; de rest joint als control-plane.
+# Vereist inventory met groepen control_plane (3) + workers (3).
 #
-# Idempotent: init alleen als /etc/kubernetes/admin.conf nog niet bestaat;
-# join alleen als op de worker /etc/kubernetes/kubelet.conf nog niet bestaat.
-# Na eerste run: kopieer admin.conf naar jumpbox (Fase K in 30-migratie-kubeadm.md).
+#   ansible-playbook -i inventory/hosts.yml playbooks/kubeadm-bootstrap.yml
+#
+# Na de eerste run: kopieer admin.conf naar jumpy (kubeconfig wijst op .201 = VIP).
 
-- name: kubeadm init on control plane
+- name: kube-vip VIP + init eerste control-plane
   hosts: control_plane
   become: true
 
   vars:
-    # Defaults (overschreven door group_vars/k8s_cluster.yml indien aanwezig)
-    k8s_control_plane_endpoint: "192.168.178.201:6443"
-    k8s_pod_network_cidr: "10.200.0.0/16"
-    k8s_service_cidr: "10.32.0.0/24"
+    kube_vip_version: "v1.2.0"
+    kube_vip_image: "ghcr.io/kube-vip/kube-vip:v1.2.0"
+    vip_address: "192.168.178.201"
+    vip_interface: "eth0"
 
   tasks:
-    - name: Check if already initialized
+    - name: Bepaal init-node (eerste control_plane host)
+      ansible.builtin.set_fact:
+        is_init_node: "{{ inventory_hostname == groups['control_plane'][0] }}"
+
+    - name: Check of al geïnitialiseerd
       ansible.builtin.stat:
         path: /etc/kubernetes/admin.conf
-      register: k8s_admin_conf
+      register: admin_conf
 
-    - name: Copy kubeadm config (cgroupDriver systemd voor cgroups v2)
+    - name: Manifests-dir bestaat (kube-vip static pod)
+      ansible.builtin.file:
+        path: /etc/kubernetes/manifests
+        state: directory
+        mode: '0755'
+      when: is_init_node
+
+    - name: Pull kube-vip image (ctr, default namespace — idempotent)
+      ansible.builtin.command: "ctr image pull {{ kube_vip_image }}"
+      when: is_init_node
+      changed_when: false
+
+    - name: Genereer kube-vip static pod manifest (ARP, control-plane, leaderElection)
+      ansible.builtin.shell: >
+        ctr run --rm --net-host {{ kube_vip_image }} vip
+        /kube-vip manifest pod
+        --interface {{ vip_interface }}
+        --address {{ vip_address }}
+        --controlplane --arp --leaderElection
+        > /etc/kubernetes/manifests/kube-vip.yaml
+      args:
+        creates: /etc/kubernetes/manifests/kube-vip.yaml
+      when: is_init_node
+
+    - name: Kopieer kubeadm-config
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../files/kubeadm-config.yaml"
         dest: /tmp/kubeadm-config.yaml
         mode: '0644'
-      when: not k8s_admin_conf.stat.exists
+      when: is_init_node and not admin_conf.stat.exists
 
-    - name: Run kubeadm init with config
-      ansible.builtin.command: /usr/bin/kubeadm init --config /tmp/kubeadm-config.yaml
+    - name: kubeadm init (HA, --upload-certs)
+      ansible.builtin.command: /usr/bin/kubeadm init --config /tmp/kubeadm-config.yaml --upload-certs
       register: kubeadm_init
-      when: not k8s_admin_conf.stat.exists
+      when: is_init_node and not admin_conf.stat.exists
       changed_when: true
 
-    - name: Create .kube directory for admin user
+    - name: .kube-dir voor ubuntu-user
       ansible.builtin.file:
         path: "{{ ansible_env.HOME }}/.kube"
         state: directory
         mode: '0755'
-      when: not k8s_admin_conf.stat.exists
+      when: is_init_node
 
-    - name: Copy admin.conf to user .kube/config
+    - name: admin.conf -> ~/.kube/config
       ansible.builtin.copy:
         src: /etc/kubernetes/admin.conf
         dest: "{{ ansible_env.HOME }}/.kube/config"
         remote_src: true
         owner: "{{ ansible_user_id }}"
-        group: "{{ ansible_user_gid | default(ansible_user_id) }}"
         mode: '0600'
-      when: not k8s_admin_conf.stat.exists
+      when: is_init_node
 
-    - name: Get join command (worker) from cp-01
-      ansible.builtin.shell: KUBECONFIG=/etc/kubernetes/admin.conf /usr/bin/kubeadm token create --print-join-command
-      register: join_command_result
+    - name: Genereer verse certificate-key (voor CP-joins)
+      ansible.builtin.shell: |
+        set -o pipefail
+        KUBECONFIG=/etc/kubernetes/admin.conf /usr/bin/kubeadm init phase upload-certs --upload-certs | tail -1
+      args:
+        executable: /bin/bash
+      register: cert_key_result
       changed_when: false
-      failed_when: join_command_result.rc != 0
+      when: is_init_node
 
-    - name: Set join command fact for workers
+    - name: Genereer worker join-command
+      ansible.builtin.command: KUBECONFIG=/etc/kubernetes/admin.conf /usr/bin/kubeadm token create --print-join-command
+      register: join_cmd_result
+      changed_when: false
+      when: is_init_node
+
+    - name: Bewaar join-gegevens als facts (op init-node)
       ansible.builtin.set_fact:
-        kubeadm_join_command: "{{ join_command_result.stdout }}"
-      run_once: true
+        worker_join_command: "{{ join_cmd_result.stdout }}"
+        cp_cert_key: "{{ cert_key_result.stdout }}"
+      when: is_init_node
 
-- name: kubeadm join on workers
+- name: Join overige control-plane nodes
+  hosts: control_plane
+  become: true
+
+  vars:
+    kube_vip_image: "ghcr.io/kube-vip/kube-vip:v1.2.0"
+    vip_address: "192.168.178.201"
+    vip_interface: "eth0"
+
+  tasks:
+    - name: Init-node? (overslaan)
+      ansible.builtin.set_fact:
+        is_init_node: "{{ inventory_hostname == groups['control_plane'][0] }}"
+
+    - name: Check of al gejoind
+      ansible.builtin.stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Join als control-plane (--control-plane --certificate-key)
+      ansible.builtin.shell: >
+        {{ hostvars[groups['control_plane'][0]].worker_join_command | replace('kubeadm ', '/usr/bin/kubeadm ', 1) }}
+        --control-plane --certificate-key {{ hostvars[groups['control_plane'][0]].cp_cert_key }}
+      when:
+        - not is_init_node
+        - not kubelet_conf.stat.exists
+      changed_when: true
+
+    - name: Pull kube-vip image op deze CP
+      ansible.builtin.command: "ctr image pull {{ kube_vip_image }}"
+      when: not is_init_node
+      changed_when: false
+
+    - name: kube-vip manifest op deze CP (VIP-failover)
+      ansible.builtin.shell: >
+        ctr run --rm --net-host {{ kube_vip_image }} vip
+        /kube-vip manifest pod
+        --interface {{ vip_interface }}
+        --address {{ vip_address }}
+        --controlplane --arp --leaderElection
+        > /etc/kubernetes/manifests/kube-vip.yaml
+      args:
+        creates: /etc/kubernetes/manifests/kube-vip.yaml
+      when: not is_init_node
+
+- name: Join workers
   hosts: workers
   become: true
 
   tasks:
-    - name: Check if already joined
+    - name: Check of al gejoind
       ansible.builtin.stat:
         path: /etc/kubernetes/kubelet.conf
-      register: k8s_kubelet_conf
+      register: kubelet_conf
 
-    - name: Run kubeadm join
-      ansible.builtin.shell: "{{ hostvars[groups['control_plane'][0]]['kubeadm_join_command'] | replace('kubeadm ', '/usr/bin/kubeadm ', 1) }}"
+    - name: kubeadm join (worker)
+      ansible.builtin.shell: "{{ hostvars[groups['control_plane'][0]].worker_join_command | replace('kubeadm ', '/usr/bin/kubeadm ', 1) }}"
       when:
-        - not k8s_kubelet_conf.stat.exists
-        - hostvars[groups['control_plane'][0]] is defined
-        - hostvars[groups['control_plane'][0]].get('kubeadm_join_command') is defined
-      register: kubeadm_join
+        - not kubelet_conf.stat.exists
+        - hostvars[groups['control_plane'][0]].worker_join_command is defined
       changed_when: true

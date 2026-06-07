@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-06-07 — proxmox-migration Fase 1+2: 3-node Proxmox-cluster + HA-K8s-bootstrap
+
+### Context
+- Fase 1 (USB): 3 baremetal nodes gewipet → **Proxmox VE 8.4**, hostnames px-01/02/03 (.11/.12/.13), `pvecm` → **3-node cluster (quorate, geen QDevice)**. Tailscale per host. Per-host template-reeksen (VMID's zijn cluster-breed uniek): px-01 9000/01/02, px-02 9010/11/12, px-03 9020/21/22.
+- Fase 2: terraform rolt **6 VM's** uit (3 CP .202-.204 + 3 worker .205-.207), daarna HA-bootstrap.
+
+### Added
+- **`scripts/bootstrap-proxmox-token.sh`** — terraform API-token + rol `TerraformProv` op een cluster (idempotent, secret 1x geprint).
+- **`ansible/playbooks/build-k8s-templates.yml`** — bouwt 9000/CP/worker-templates per host (`tmpl_base` host-var; VMID's cluster-breed uniek + local-lvm kan niet cross-node clonen).
+- **`ansible/playbooks/bootstrap-ssh-key.yml`** — jumpy-key uitrollen via `--ask-pass` (kip-ei), daarna key-based.
+- **`ansible/inventory/group_vars/proxmox_cluster.yml`** + route-advertising voor .201-.207 (kube-vip VIP + VM's) incl. IP-forwarding.
+- **kube-vip HA-bootstrap** in `kubeadm-bootstrap.yml`: kube-vip v1.2.0 static pod (VIP .201, ARP, leaderElection) + `kubeadm init --upload-certs` op de eerste CP + control-plane-joins + worker-joins.
+
+### Changed
+- **`ansible/files/kubeadm-config.yaml`** → **v1beta4** (K8s 1.36), controlPlaneEndpoint .201, cgroupDriver systemd via KubeletConfiguration.
+- **`ansible/inventory/hosts.yml.example`** → 6-VM HA-layout (control_plane 3 + workers 3, user ubuntu).
+- **`ansible/inventory/hypervisors.yml`** → `proxmox_cluster`-groep (Tailscale-IP's, `tmpl_base`, IdentitiesOnly=yes).
+- **`terraform/k8s-cluster/`** → endpoint px-01, 6 VM's met per-node `template_vm_id`; tfvars.example zonder comment-toggle.
+
+### Why / supply chain
+- kube-vip **v1.2.0** (2026-05-28) upstream-geverifieerd, buiten 7-daagse cooldown. bpg blijft `~> 0.106.0`.
+- Per-host template-reeksen: VMID's zijn cluster-breed uniek (`reference_proxmox_cluster_vmid`).
+
+### Verify (vanaf jumpy)
+```bash
+cd ansible
+ansible-playbook -i inventory/hosts.yml playbooks/prepare-nodes.yml
+ansible-playbook -i inventory/hosts.yml playbooks/kubeadm-install-packages.yml
+ansible-playbook -i inventory/hosts.yml playbooks/kubeadm-bootstrap.yml
+ssh ubuntu@192.168.178.202 'kubectl get nodes'   # 6 nodes, 3 control-plane
+```
+
 ## 2026-06-05 — proxmox-migration Fase 0: K8s-pin → 1.36.1 + Terraform `k8s-cluster`-module
 
 ### Context

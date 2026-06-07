@@ -1,14 +1,18 @@
-# Kubeadm config: cgroupDriver systemd voor cgroups v2 (Ubuntu 22.04)
-apiVersion: kubeadm.k8s.io/v1beta3
+# kubeadm config voor K8s 1.36 (v1beta4). controlPlaneEndpoint = kube-vip VIP .201.
+# cgroupDriver systemd (matcht containerd SystemdCgroup=true). kubernetesVersion bewust
+# weggelaten -> kubeadm gebruikt z'n eigen versie (geen mismatch met de repo-patch).
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
 controlPlaneEndpoint: "192.168.178.201:6443"
 networking:
   podSubnet: "10.200.0.0/16"
   serviceSubnet: "10.32.0.0/24"
 ---
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: InitConfiguration
 nodeRegistration:
   criSocket: "unix:///run/containerd/containerd.sock"
-  kubeletExtraArgs:
-    cgroup-driver: "systemd"
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
