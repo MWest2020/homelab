@@ -93,9 +93,13 @@ We bouwen stap-voor-stap naar een GitOps-beheerde omgeving:
 
 | Netwerk | Range | Nodes |
 |---------|-------|-------|
-| LAN | 192.168.178.0/24 | cp-01 (.201), node-01 (.202), node-02 (.203) |
+| Proxmox-hosts | 192.168.178.0/24 | px-01 (.11), px-02 (.12), px-03 (.13) — 3-node Proxmox-cluster |
+| K8s control-plane (VM's) | 192.168.178.0/24 | cp-01 (.202), cp-02 (.203), cp-03 (.204) |
+| K8s workers (VM's) | 192.168.178.0/24 | node-01 (.205), node-02 (.206), node-03 (.207) |
+| Control-plane VIP | 192.168.178.201 | kube-vip (HA-endpoint, kubeconfig wijst hierop) |
 | Pod CIDR | 10.200.0.0/16 | /24 per node |
 | Service CIDR | 10.32.0.0/24 | ClusterIP's |
+| MetalLB pool | 192.168.178.220–230 | LoadBalancer-IP's |
 
 ## Status
 

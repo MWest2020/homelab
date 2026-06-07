@@ -21,7 +21,10 @@ homelab/
 
 | Network | Range | Details |
 |---------|-------|---------|
-| LAN | 192.168.178.0/24 | cp-01 (.201), node-01 (.202), node-02 (.203) |
+| Proxmox hosts | 192.168.178.0/24 | px-01 (.11), px-02 (.12), px-03 (.13) — 3-node Proxmox cluster |
+| K8s control-plane (VMs) | 192.168.178.0/24 | cp-01 (.202), cp-02 (.203), cp-03 (.204) |
+| K8s workers (VMs) | 192.168.178.0/24 | node-01 (.205), node-02 (.206), node-03 (.207) |
+| Control-plane VIP | 192.168.178.201 | kube-vip (HA endpoint, kubeconfig server) |
 | Pod CIDR | 10.200.0.0/16 | /24 per node |
 | Service CIDR | 10.32.0.0/24 | CoreDNS at 10.32.0.10 |
 | MetalLB pool | 192.168.178.220–230 | Outside DHCP range (reserved) |
@@ -180,7 +183,7 @@ Claude is **authorized to autonomously operate** on the homelab environment. Thi
 - Dropping databases, deleting persistent volumes
 
 ### Homelab vs production boundary
-- **Homelab (autonomous):** jumpy, proxmox, cp-01 (.201), worker-01 (.202), worker-02 (.203), all Proxmox VMs (.50-.53), kubectl on jumpy
+- **Homelab (autonomous):** jumpy, proxmox (laptop), px-01/02/03 (Proxmox cluster, .11-.13), K8s-VMs cp-01/02/03 (.202-.204) + node-01/02/03 (.205-.207), control-plane VIP .201, all laptop-Proxmox VMs (.50-.54), kubectl on jumpy
 - **Production (read-only, requires confirmation):** alma, kubectl on alma — this points to the production cluster, never run writes without explicit approval
 
 ### Outside this project
