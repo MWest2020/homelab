@@ -1,0 +1,76 @@
+# MetalLB + Cilium-Gateway workaround:
+# Cilium maakt voor de Gateway-LB-service een EndpointSlice zónder het standaard
+# label kubernetes.io/service-name. Zonder dat label associeert MetalLB de endpoints
+# niet met de service en announce't het de LoadBalancer-IP (.220) niet -> Gateway dicht.
+# Bij her-aanmaak van de Gateway-svc gaat een handmatig gezet label verloren.
+#
+# Deze CronJob borgt het label elke 2 min (idempotent, self-healing).
+# Kandidaat om later te vervangen door een echte reconciler of een upstream-fix.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: endpointslice-labeler
+  namespace: gateway-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: endpointslice-labeler
+  namespace: gateway-system
+rules:
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: endpointslice-labeler
+  namespace: gateway-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: endpointslice-labeler
+subjects:
+  - kind: ServiceAccount
+    name: endpointslice-labeler
+    namespace: gateway-system
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gateway-endpointslice-labeler
+  namespace: gateway-system
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: endpointslice-labeler
+          restartPolicy: OnFailure
+          containers:
+            # registry.k8s.io/kubectl is distroless (geen shell) -> ENTRYPOINT=kubectl,
+            # dus alleen args. Geen '|| true': als de EndpointSlice (heel even) niet
+            # bestaat faalt deze run en retriet de volgende -> self-healing.
+            - name: labeler
+              image: registry.k8s.io/kubectl:v1.36.1
+              args:
+                - label
+                - endpointslice
+                - cilium-gateway-main-gateway
+                - -n
+                - gateway-system
+                - kubernetes.io/service-name=cilium-gateway-main-gateway
+                - --overwrite
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 32Mi

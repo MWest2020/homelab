@@ -203,6 +203,11 @@
         KUBECONFIG: "{{ kubeconfig_path }}"
       failed_when: false
 
+    - name: Deploy EndpointSlice-labeler CronJob (borgt label na her-aanmaak Gateway-svc)
+      ansible.builtin.command: kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/endpointslice-labeler.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
     - name: Apply gateway test app and HTTPRoute
       ansible.builtin.command: >
         kubectl apply -f {{ repo_root }}/kubernetes/infrastructure/gateway/gateway-test-app.yaml
