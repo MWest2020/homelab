@@ -1,0 +1,11 @@
+/* Minimale theme-overrides. Docusaurus-default verder behouden. */
+:root {
+  --ifm-color-primary: #2a6f4e;
+  --ifm-color-primary-dark: #26643f;
+  --ifm-color-primary-darker: #234e3a;
+  --ifm-code-font-size: 95%;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #4fae82;
+}

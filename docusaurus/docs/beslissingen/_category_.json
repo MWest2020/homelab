@@ -1,0 +1,5 @@
+{
+  "label": "Beslissingen",
+  "position": 5,
+  "link": { "type": "generated-index", "description": "Afwegingen, gekoppeld aan de OpenSpec-changes." }
+}
