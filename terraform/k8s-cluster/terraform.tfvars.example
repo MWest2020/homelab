@@ -1,50 +1,23 @@
-# Kopieer naar terraform.tfvars en pas aan. Token via TF_VAR_proxmox_api_token (.env), niet hier.
+# Kopieer naar terraform.tfvars en pas aan. Token via TF_VAR_proxmox_api_token
+# (terraform/k8s-cluster/.env op jumpy, cluster-token), niet hier.
 #
-# VOORAF — bouw de per-shape templates met qm (hardware in de template, NIET in terraform;
-# zie feedback_template_per_size). Eenmalig per Proxmox-host (local-lvm is per-node):
-#
-#   # CP-shape 9001 = 4 cores / 8GB / 50GB
-#   qm clone 9000 9001 --full --name k8s-cp-template
-#   qm resize 9001 scsi0 50G
-#   qm set 9001 --cores 4 --memory 8192
-#   qm template 9001
-#   # worker-shape 9002 = 4 cores / 16GB / 50GB
-#   qm clone 9000 9002 --full --name k8s-worker-template
-#   qm resize 9002 scsi0 50G
-#   qm set 9002 --cores 4 --memory 16384
-#   qm template 9002
-#
-# ── Fase 0: één wegwerp-test-VM op de standalone laptop ──────────────────────
-# Valideert de bpg+template+Ansible-pipeline op K8s 1.36.1 voordat baremetal wordt aangeraakt.
-# (Bouw template 9001 eerst op de laptop.)
-proxmox_endpoint = "https://100.94.15.50:8006" # laptop via Tailscale (vanaf jumpy; LAN .10 is daar niet routeerbaar)
+# Templates staan per host (build-k8s-templates.yml): VMID's cluster-breed uniek, dus
+# per host een eigen reeks -> px-01 CP=9001/worker=9002, px-02 9011/9012, px-03 9021/9022.
 
+# Endpoint = px-01 via Tailscale (vanaf jumpy; LAN .11 is daar niet routeerbaar).
+proxmox_endpoint = "https://100.120.76.22:8006"
+
+# 6 VM's: 1 control-plane + 1 worker per host (anti-affinity over px-01/02/03).
+# Control-plane VIP .201 (kube-vip) zit hier NIET in — die beheert Ansible/kube-vip.
 vms = {
-  k8s-test = {
-    vm_id          = 199
-    node_name      = "proxmox"
-    ip             = "192.168.178.60"
-    template_vm_id = 9001 # CP-shape (4c/8GB/50GB)
-    role           = "control-plane"
-  }
+  cp-01   = { vm_id = 110, node_name = "px-01", ip = "192.168.178.202", template_vm_id = 9001, role = "control-plane" }
+  cp-02   = { vm_id = 111, node_name = "px-02", ip = "192.168.178.203", template_vm_id = 9011, role = "control-plane" }
+  cp-03   = { vm_id = 112, node_name = "px-03", ip = "192.168.178.204", template_vm_id = 9021, role = "control-plane" }
+  node-01 = { vm_id = 113, node_name = "px-01", ip = "192.168.178.205", template_vm_id = 9002, role = "worker" }
+  node-02 = { vm_id = 114, node_name = "px-02", ip = "192.168.178.206", template_vm_id = 9012, role = "worker" }
+  node-03 = { vm_id = 115, node_name = "px-03", ip = "192.168.178.207", template_vm_id = 9022, role = "worker" }
 }
 
-# ── Fase 2: 6 VM's op het 3-node cluster (1 CP + 1 worker per host, anti-affinity) ──
-# Zet bovenstaande test-VM uit, repoint endpoint naar een clusternode, en gebruik:
-# (Bouw 9001 + 9002 op elke host px-01/02/03.)
-#
-# proxmox_endpoint = "https://<px-01-tailscale-ip>:8006"  # vanaf jumpy: Tailscale-IP van de host, niet LAN .11
-#
-# template_vm_id verschilt per host (VMID's cluster-breed uniek, per-node reeks):
-# px-01 -> CP 9001 / worker 9002, px-02 -> 9011/9012, px-03 -> 9021/9022.
-# vms = {
-#   cp-01   = { vm_id = 110, node_name = "px-01", ip = "192.168.178.202", template_vm_id = 9001, role = "control-plane" }
-#   cp-02   = { vm_id = 111, node_name = "px-02", ip = "192.168.178.203", template_vm_id = 9011, role = "control-plane" }
-#   cp-03   = { vm_id = 112, node_name = "px-03", ip = "192.168.178.204", template_vm_id = 9021, role = "control-plane" }
-#   node-01 = { vm_id = 113, node_name = "px-01", ip = "192.168.178.205", template_vm_id = 9002, role = "worker" }
-#   node-02 = { vm_id = 114, node_name = "px-02", ip = "192.168.178.206", template_vm_id = 9012, role = "worker" }
-#   node-03 = { vm_id = 115, node_name = "px-03", ip = "192.168.178.207", template_vm_id = 9022, role = "worker" }
-# }
-#
-# Control-plane VIP .201 (kube-vip) zit NIET in deze lijst — die wordt door Ansible/kube-vip
-# beheerd, niet als VM-IP toegekend.
+# ── Fase 0 (historisch) — wegwerp-test-VM op de laptop, inmiddels gesloopt:
+#   proxmox_endpoint = "https://100.94.15.50:8006"
+#   vms = { k8s-test = { vm_id = 199, node_name = "proxmox", ip = "192.168.178.60", template_vm_id = 9001, role = "control-plane" } }
