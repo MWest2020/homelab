@@ -85,17 +85,19 @@
       when: is_init_node
 
     - name: Genereer verse certificate-key (voor CP-joins)
-      ansible.builtin.shell: |
-        set -o pipefail
-        KUBECONFIG=/etc/kubernetes/admin.conf /usr/bin/kubeadm init phase upload-certs --upload-certs | tail -1
+      ansible.builtin.shell: "set -o pipefail; /usr/bin/kubeadm init phase upload-certs --upload-certs | tail -1"
       args:
         executable: /bin/bash
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
       register: cert_key_result
       changed_when: false
       when: is_init_node
 
     - name: Genereer worker join-command
-      ansible.builtin.command: KUBECONFIG=/etc/kubernetes/admin.conf /usr/bin/kubeadm token create --print-join-command
+      ansible.builtin.command: /usr/bin/kubeadm token create --print-join-command
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
       register: join_cmd_result
       changed_when: false
       when: is_init_node
