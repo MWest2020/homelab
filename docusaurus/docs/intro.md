@@ -22,8 +22,3 @@ gebouwd is en **hoe** je het draait.
 
 Naslag + referentie. Het bredere verhaal en de achtergrond staan op
 [westerweel.work](https://westerweel.work).
-
-:::note Scrub-policy
-Publieke docs. Bevatten **nooit** Tailscale-IP's (`100.x`), tokens of secrets — alleen
-RFC1918-LAN (`192.168.178.x`) en publieke hostnames.
-:::

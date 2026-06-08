@@ -52,14 +52,22 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      colorMode: {
+        respectPrefersColorScheme: true,
+      },
       navbar: {
-        title: 'Homelab',
+        title: 'homelab',
         items: [
           {
             type: 'docSidebar',
             sidebarId: 'docs',
             position: 'left',
             label: 'Docs',
+          },
+          {
+            href: 'https://westerweel.work',
+            label: 'westerweel.work',
+            position: 'right',
           },
           {
             href: 'https://github.com/MWest2020/homelab',
@@ -69,8 +77,10 @@ const config = {
         ],
       },
       footer: {
-        style: 'dark',
-        copyright: 'Homelab — interne kennisbank.',
+        style: 'light',
+        links: [],
+        copyright:
+          'Mark Westerweel — Platform & DevOps · <a href="https://westerweel.work">westerweel.work</a>',
       },
       prism: {
         theme: themes.github,

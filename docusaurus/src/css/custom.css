@@ -1,11 +1,34 @@
-/* Minimale theme-overrides. Docusaurus-default verder behouden. */
+/* Minimaal & neutraal, in lijn met westerweel.work (Hugo/PaperMod): system-fonts,
+   grijstinten + één understated blauw-accent. Leesbaarheid boven decoratie. */
+
 :root {
-  --ifm-color-primary: #2a6f4e;
-  --ifm-color-primary-dark: #26643f;
-  --ifm-color-primary-darker: #234e3a;
-  --ifm-code-font-size: 95%;
+  --ifm-color-primary: #34518a;
+  --ifm-color-primary-dark: #2f4a7d;
+  --ifm-color-primary-darker: #2c4575;
+  --ifm-color-primary-darkest: #243961;
+  --ifm-color-primary-light: #3b5897;
+  --ifm-color-primary-lighter: #3e5c9e;
+  --ifm-color-primary-lightest: #4a68ab;
+
+  --ifm-font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ifm-font-family-monospace: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --ifm-code-font-size: 92%;
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-background-color: #ffffff;
 }
 
 [data-theme='dark'] {
-  --ifm-color-primary: #4fae82;
+  --ifm-color-primary: #8aa6d6;
+  --ifm-color-primary-dark: #6f91cc;
+  --ifm-color-primary-darker: #6286c7;
+  --ifm-color-primary-darkest: #466fb8;
+  --ifm-color-primary-light: #a5bbe0;
+  --ifm-color-primary-lighter: #b2c5e5;
+  --ifm-color-primary-lightest: #d9e2f2;
+  --ifm-navbar-background-color: #1b1b1d;
+}
+
+/* Strakke navbar-rand i.p.v. schaduw — minimalistischer. */
+.navbar {
+  border-bottom: 1px solid var(--ifm-toc-border-color);
 }
