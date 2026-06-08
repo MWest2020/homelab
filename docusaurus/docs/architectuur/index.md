@@ -31,6 +31,8 @@ Een **3-node Proxmox-cluster** met een **HA-Kubernetes** erop, volledig op VM's.
 - **Cilium** (eBPF CNI, kubeProxyReplacement, Gateway API).
 - **MetalLB** (L2, pool `192.168.178.220-230`).
 - **cert-manager** (Let's Encrypt DNS-01, wildcard `*.westerweel.work`).
-- **Argo CD** (GitOps).
+- **Argo CD** (GitOps) — naast de bredere Argo-suite onder `kubernetes/infrastructure/`:
+  **Argo Workflows** (ns `argo`), **Argo Rollouts** (ns `argo-rollouts`) en **Argo Events**
+  (ns `argo-events`).
 
 *(Per onderwerp volgen detail-pagina's; de freshness-agent houdt dit synchroon met de repo.)*
