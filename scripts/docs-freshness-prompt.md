@@ -26,7 +26,14 @@ WEL toegestaan: RFC1918-LAN-adressen (`192.168.178.x`), publieke hostnames
 
 Bij twijfel: weglaten of generaliseren ("een interne LAN-IP").
 
-## Stijl
-- Nederlands, beknopt, accuraat. Match de bestaande toon in `docusaurus/docs/`.
-- Geen verzinsels — alleen wat uit de repo/OpenSpec blijkt.
-- Kleine, gerichte wijzigingen.
+## Doelgroep & stijl
+- **Publiek showcase + persoonlijk naslag.** Showcase-waardig en accuraat.
+- **Toon = technische referentie + handboek/runbooks** ("zo werkt het" + "zo doe je het").
+  GEEN verhalend/blog/opinie — dat hoort op [westerweel.work](https://westerweel.work);
+  link daarheen waar het verhaal/de achtergrond past.
+- **Nadruk: het waarom** (filosofie/beslissingen) **en het hoe** (runbooks).
+- **Beknopt & scanbaar.** Korte pagina's, koppen, lijsten, tabellen. Externe links waar
+  passend (upstream docs, westerweel.work) i.p.v. alles zelf uitschrijven.
+- Nederlands. Geen verzinsels — alleen wat uit de repo blijkt. Kleine, gerichte wijzigingen.
+- **Verbeter ook dunne stubs**: laat een pagina niet ongemoeid alleen omdat 'ie "accuraat"
+  is — is 'ie te dun, vul 'm aan tot het niveau van de andere secties.
