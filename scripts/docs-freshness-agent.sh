@@ -5,12 +5,12 @@
 # scripts/docs-freshness-agent.sh — houdt de Docusaurus-docs synchroon via een Claude-agent.
 #
 # Draait op agent-lxc (cron/systemd-timer). Pullt de repo, berekent de wijzigingen sinds de
-# laatste docs-update, laat `claude` headless de docs onder `docusaurus/` bijwerken, en opent
-# een PR via `gh` (nooit direct naar main — mens reviewt). Claude krijgt alleen edit-rechten;
-# git/gh doet deze wrapper, zodat de agent geen shell-toegang nodig heeft. Scrub-policy zit in
-# de prompt (nooit Tailscale-100.x/secrets in de docs).
+# laatste docs-update, laat `claude` headless de docs onder `docusaurus/` bijwerken, en commit
+# direct op main (trunk-based). Claude krijgt alleen edit-rechten; git doet deze wrapper, zodat
+# de agent geen shell-toegang nodig heeft. Twee scrub-lagen: de prompt (nooit 100.x/secrets) én
+# een harde grep-gate in de wrapper die commit+push blokkeert bij een leak.
 #
-# Writes: een docs/*-branch + PR op origin (alleen bij wijzigingen).
+# Writes: commits op main (origin), alleen bij doc-wijzigingen die de scrub-gate passeren.
 # Idempotent: yes (geen wijziging -> geen PR, branch opgeruimd).
 # Requires: claude (auth), git, gh (auth), een homelab-clone in $REPO_DIR.
 #
@@ -46,28 +46,31 @@ main() {
     exit 0
   fi
 
-  local branch="docs/auto-$(date +%Y%m%d-%H%M%S)"
-  git checkout -q -b "${branch}"
-
-  # Claude headless: alleen edits (acceptEdits); geen Bash nodig (context wordt meegegeven).
+  # Trunk-based: direct op main. Claude headless: alleen edits (acceptEdits); geen Bash
+  # nodig (context wordt meegegeven).
   printf '%s\n\n## Recente repo-wijzigingen (context):\n%s\n' \
     "$(cat "${PROMPT_FILE}")" "${context}" \
     | "${CLAUDE}" -p --permission-mode acceptEdits
 
   if git diff --quiet -- docusaurus/; then
-    echo "agent maakte geen doc-wijzigingen; branch opruimen."
-    git checkout -q "${BASE_BRANCH}"
-    git branch -q -D "${branch}"
+    echo "agent maakte geen doc-wijzigingen."
     exit 0
   fi
 
   git add docusaurus/
+
+  # HARDE scrub-gate (deterministisch, los van de prompt): blokkeer commit/push als er
+  # een Tailscale-IP, token of secret in de docs-diff staat. Vangnet zonder PR-review.
+  if git diff --cached -- docusaurus/ \
+      | grep -qE '100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}|tskey-[A-Za-z0-9]|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'; then
+    echo "ABORT: scrub-gate vond gevoelige data (Tailscale-IP/token/secret) in de docs-diff." >&2
+    git reset -q
+    exit 1
+  fi
+
   git commit -q -m "docs: auto-update via freshness-agent ($(date +%F))"
-  git push -q -u origin "${branch}"
-  gh pr create --base "${BASE_BRANCH}" --head "${branch}" \
-    --title "docs: auto-update (freshness-agent)" \
-    --body "Automatisch voorstel van de docs-freshness-agent (agent-lxc). Review vóór merge. Scrub-policy: geen Tailscale-100.x/secrets."
-  echo "PR aangemaakt vanaf ${branch}."
+  git push -q origin "${BASE_BRANCH}"
+  echo "naar ${BASE_BRANCH} gepusht."
 }
 
 main "$@"
