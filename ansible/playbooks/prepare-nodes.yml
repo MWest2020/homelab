@@ -120,6 +120,14 @@
         rule: allow
         src: 192.168.178.0/24
 
+    # hubble-peer (en andere host-network ClusterIP-backends, bv. Cilium health) draaien op
+    # de host op :4244. Een pod die daar via de ClusterIP heen gaat, arriveert met pod-IP als
+    # source op de host-INPUT-chain → zonder deze regel dropt UFW 'm (dial-timeout in hubble-relay).
+    - name: Allow pod-CIDR naar de host (host-network backends zoals hubble-peer :4244)
+      community.general.ufw:
+        rule: allow
+        src: 10.200.0.0/16
+
     - name: Enable UFW
       community.general.ufw:
         state: enabled

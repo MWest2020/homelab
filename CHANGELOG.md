@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-11 — Fix: hubble-relay i/o timeout (UFW dropte pod→host:4244)
+
+### Fixed
+- **`ansible/playbooks/prepare-nodes.yml`** — UFW liet alleen `192.168.178.0/24` toe. De
+  `hubble-peer`-service heeft **host-network** backends (cilium-agents op `:4244`); een pod
+  (hubble-relay, `10.200.x`) die via de ClusterIP daarheen ging arriveerde met pod-IP op de
+  host-INPUT-chain → UFW dropte 'm → `dial tcp 10.32.0.250:443: i/o timeout`, relay in CrashLoop.
+  Regel toegevoegd: `ufw allow from 10.200.0.0/16` (pod-CIDR → host). Live toegepast op alle
+  6 nodes (.202-.207) én in de playbook gezet. Relay daarna `1/1 Ready` binnen ~20s.
+
 ## 2026-06-07 — proxmox-migration Fase 1+2: 3-node Proxmox-cluster + HA-K8s-bootstrap
 
 ### Context
