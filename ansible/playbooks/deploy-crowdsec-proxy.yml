@@ -1,0 +1,57 @@
+---
+# Deploy the CrowdSec engine (detection-only) alongside the Caddy proxy on the
+# proxy VM (.50). Mirrors the docker-compose style of deploy-proxy.yml.
+#
+# Prerequisite: run deploy-proxy.yml first so Caddy writes JSON access logs to
+# the shared /var/log/caddy bind mount.
+#
+# Usage:
+#   ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-crowdsec-proxy.yml
+- name: Deploy CrowdSec engine (detection-only) on the Caddy proxy VM
+  hosts: proxy
+  become: true
+  tasks:
+    - name: Ensure shared Caddy log directory exists
+      file:
+        path: /var/log/caddy
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create crowdsec directory
+      file:
+        path: /opt/crowdsec
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../../docker/crowdsec/docker-compose.yml
+        dest: /opt/crowdsec/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+      register: compose_file
+
+    - name: Copy acquisition config
+      copy:
+        src: ../../docker/crowdsec/acquis.yaml
+        dest: /opt/crowdsec/acquis.yaml
+        owner: ubuntu
+        group: ubuntu
+      register: acquis_file
+
+    - name: Pull images
+      shell: docker compose pull
+      args:
+        chdir: /opt/crowdsec
+      become: false
+
+    - name: Start CrowdSec stack
+      shell: >
+        docker compose up -d
+        {{ '--force-recreate' if (compose_file.changed or acquis_file.changed) else '' }}
+      args:
+        chdir: /opt/crowdsec
+      become: false

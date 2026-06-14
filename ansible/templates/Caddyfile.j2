@@ -1,6 +1,20 @@
+# Reusable JSON access log → tailed by the CrowdSec engine (detection-only).
+# Writes to /var/log/caddy/access.log, host-bind-mounted and shared read-only
+# with the crowdsec stack (docker/crowdsec/). See deploy-crowdsec-proxy.yml.
+(accesslog) {
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+		format json
+	}
+}
+
 # React frontends (public)
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] | replace('westerweel.work', 'woo.westerweel.work') }} {
+	import accesslog
 	tls internal
 	reverse_proxy woo-{{ hostvars[host]['inventory_hostname'] }}:8080
 }
@@ -9,6 +23,7 @@
 # Nextcloud backends (API public, admin via LAN firewall)
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] }} {
+	import accesslog
 	tls internal
 	reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
 }

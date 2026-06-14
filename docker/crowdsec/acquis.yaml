@@ -1,0 +1,6 @@
+# CrowdSec acquisition — Caddy JSON access log from the proxy stack.
+# The crowdsecurity/caddy collection parses entries tagged type: caddy.
+filenames:
+  - /var/log/caddy/access.log
+labels:
+  type: caddy

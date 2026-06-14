@@ -1,0 +1,28 @@
+# CrowdSec engine (detection-only) for the Caddy proxy VM (.50).
+# Reads Caddy's JSON access log and generates alerts/decisions. There is NO
+# bouncer yet, so nothing is actually blocked — inspect with `cscli`.
+# Deployed by ansible/playbooks/deploy-crowdsec-proxy.yml.
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:v1.7.8
+    container_name: crowdsec
+    restart: always
+    environment:
+      # Collections installed on startup (idempotent). Caddy parser + Nextcloud
+      # scenarios + generic HTTP scenarios (scanning, path traversal, ...).
+      - COLLECTIONS=crowdsecurity/caddy crowdsecurity/nextcloud crowdsecurity/base-http-scenarios
+      # Group for the local API socket (used by a bouncer in fase A.2).
+      - GID=1000
+    volumes:
+      # Caddy access log, shared read-only via host bind mount.
+      - /var/log/caddy:/var/log/caddy:ro
+      # Acquisition config — which logs to parse (NOT :ro; entrypoint may touch).
+      - ./acquis.yaml:/etc/crowdsec/acquis.yaml
+      # Persist engine config + state across restarts. The entrypoint bootstraps
+      # an empty config volume on first run.
+      - crowdsec_config:/etc/crowdsec
+      - crowdsec_data:/var/lib/crowdsec/data
+
+volumes:
+  crowdsec_config:
+  crowdsec_data:

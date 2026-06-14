@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-06-13 — CrowdSec Fase A.1: detection-only engine op de Caddy-proxy
+
+### Context
+- CrowdSec (collaboratieve fail2ban-opvolger) op de twee publieke surfaces,
+  gefaseerd. Fase A = VM-proxy (.50, Caddy). Dit is **A.1: detection-only** —
+  de engine parst Caddy-access-logs, er is **géén bouncer**, dus niets wordt
+  geblokkeerd. Volledig plan: `~/Homelab/learning/crowdsec.md`.
+- ext_authz voor fase B (K8s) is los geverifieerd: Cilium **v1.19.4** +
+  `CiliumEnvoyConfig`-CRD aanwezig, `cilium-envoy` als losse DaemonSet →
+  haalbaar. Fase B volgt later.
+
+### Added
+- **`docker/crowdsec/docker-compose.yml`** — CrowdSec-engine **v1.7.8**, leest
+  `/var/log/caddy/access.log` (ro), collections `caddy` + `nextcloud` +
+  `base-http-scenarios`. Bewust **geen docker.sock** (gedeeld logbestand is
+  auditbaarder dan socket-toegang).
+- **`docker/crowdsec/acquis.yaml`** — acquisition `type: caddy` op het access-log.
+- **`ansible/playbooks/deploy-crowdsec-proxy.yml`** — rolt de stack uit op
+  `hosts: proxy` (stijl van `deploy-proxy.yml`); maakt `/var/log/caddy` +
+  `/opt/crowdsec`.
+
+### Changed
+- **`ansible/templates/Caddyfile.j2`** — `(accesslog)`-snippet + `import
+  accesslog` in elk site-block → JSON-access-log naar `/var/log/caddy/access.log`
+  (roll 20MiB×5). **Vereist `deploy-proxy.yml` opnieuw draaien** vóór de
+  crowdsec-deploy.
+- **`docker/proxy/docker-compose.yml`** — Caddy-service krijgt host-bind-mount
+  `/var/log/caddy` (gedeeld met de crowdsec-stack).
+
+### Why / supply chain
+- Engine **v1.7.8** (2026-05-11) + chart-pin **0.24.0** (fase B) upstream-
+  geverifieerd (`gh release list`), ruim buiten de 7-daagse cooldown.
+- Detection-only first: bouncer-keuze (`cs-firewall-bouncer` vs. Caddy-L7-plugin)
+  en community-blocklist-deelname zijn bewust uitgesteld tot **A.2**.
+
+### Deploy
+```
+# 1. Caddy mét access-logging herdeployen (prerequisite)
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
+# 2. CrowdSec-engine erbij
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-crowdsec-proxy.yml
+# 3. Verifieer (detection-only — alerts, geen blocks)
+ssh 192.168.178.50 'docker exec crowdsec cscli metrics'
+ssh 192.168.178.50 'docker exec crowdsec cscli alerts list'
+```
+
 ## 2026-06-11 — Fix: hubble-relay i/o timeout (UFW dropte pod→host:4244)
 
 ### Fixed
