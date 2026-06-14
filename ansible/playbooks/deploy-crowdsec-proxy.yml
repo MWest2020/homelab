@@ -55,3 +55,24 @@
       args:
         chdir: /opt/crowdsec
       become: false
+
+    # Health-check: fail the deploy if the engine's local API is not healthy.
+    # Retries because collections install + LAPI startup take a few seconds.
+    - name: Wait for CrowdSec local API to be healthy
+      command: docker exec crowdsec cscli lapi status
+      register: lapi_status
+      until: lapi_status.rc == 0
+      retries: 12
+      delay: 5
+      changed_when: false
+      become: false
+
+    - name: Show CrowdSec acquisition/parser metrics
+      command: docker exec crowdsec cscli metrics
+      register: cs_metrics
+      changed_when: false
+      become: false
+
+    - name: Report CrowdSec status
+      debug:
+        msg: "{{ lapi_status.stdout_lines + [''] + cs_metrics.stdout_lines }}"

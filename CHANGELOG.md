@@ -19,7 +19,9 @@
 - **`docker/crowdsec/acquis.yaml`** — acquisition `type: caddy` op het access-log.
 - **`ansible/playbooks/deploy-crowdsec-proxy.yml`** — rolt de stack uit op
   `hosts: proxy` (stijl van `deploy-proxy.yml`); maakt `/var/log/caddy` +
-  `/opt/crowdsec`.
+  `/opt/crowdsec`. **Post-deploy health-check** (`cscli lapi status`, 12×5s
+  retry) faalt de deploy hard als de engine niet gezond opkomt; toont daarna
+  `cscli metrics`.
 
 ### Changed
 - **`ansible/templates/Caddyfile.j2`** — `(accesslog)`-snippet + `import
