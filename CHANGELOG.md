@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-06-14 — CrowdSec Fase B klaargezet: K8s helm-values (nog niet uitgerold)
+
+### Context
+- Fase B = CrowdSec op het K8s-cluster. **Klaargezet, niet gedeployed.** Volledig
+  plan + beslissingen: `~/Homelab/learning/crowdsec.md`.
+- **Logbron beslist:** container-logs via de agent-DaemonSet (gedocumenteerde
+  CrowdSec-K8s-modus, future-proof voor een toekomstige Nextcloud). Bewust niet
+  Cilium-Envoy-stdout (Cilium levert L7 via gRPC→Hubble) of Hubble (geen native
+  consumer).
+- Fase A (proxy-VM) draait al en is geënrolld in de CrowdSec Console; CAPI
+  signal-sharing staat default aan.
+
+### Added
+- **`kubernetes/infrastructure/crowdsec/values.yaml`** — Helm-values, engine +
+  chart gepind (chart **0.24.0** → engine **v1.7.8**, geverifieerd via
+  `helm show chart`). LAPI als Deployment (PVC's), agent als DaemonSet,
+  collections `base-http-scenarios` + `nextcloud` via env. `agent.acquisition`
+  **dormant** (`[]`) tot er een web-app landt.
+- **`kubernetes/infrastructure/crowdsec/README.md`** — install (helm), verify,
+  Console-enroll (`--quick`, geen key in Git), acquisition-aanzetten-later.
+  Volgt de cert-manager-conventie (per component map met values + README).
+
+### Why / supply chain
+- Chart 0.24.0 (2026-05-12) + engine v1.7.8 (2026-05-11) upstream-geverifieerd,
+  ruim buiten de 7-daagse cooldown.
+- Geen ArgoCD Application: app-of-apps (GitOps-stap 7) is nog niet ingericht;
+  install nu via `helm upgrade --install -f values.yaml` (bootstrap-conventie).
+
+### Deploy (wanneer gewenst)
+```
+helm repo add crowdsec https://crowdsecurity.github.io/helm-charts
+helm repo update crowdsec
+helm upgrade --install crowdsec crowdsec/crowdsec -n crowdsec --create-namespace \
+  --version 0.24.0 -f kubernetes/infrastructure/crowdsec/values.yaml
+```
+
 ## 2026-06-13 — CrowdSec Fase A.1: detection-only engine op de Caddy-proxy
 
 ### Context

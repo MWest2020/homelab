@@ -1,0 +1,46 @@
+# CrowdSec Helm values – homelab (fase B, K8s-cluster)
+#
+# Install:
+#   helm repo add crowdsec https://crowdsecurity.github.io/helm-charts
+#   helm repo update crowdsec
+#   helm upgrade --install crowdsec crowdsec/crowdsec -n crowdsec --create-namespace \
+#     --version 0.24.0 -f kubernetes/infrastructure/crowdsec/values.yaml
+#
+# Chart 0.24.0 -> engine v1.7.8 (geverifieerd via `helm show chart`). Beide gepind.
+# Later kan een Argo CD Application deze dir (chart + values) gebruiken.
+#
+# Logbron-beslissing (fase B): de AGENT draait als DaemonSet en tailt
+# CONTAINER-LOGS per node. Bewust NIET Cilium-Envoy-stdout (Cilium levert L7 via
+# gRPC -> Hubble, niet via Envoy-stdout) en NIET Hubble (geen native CrowdSec-
+# consumer). Acquisition matcht pods op namespace/podName/program.
+
+image:
+  repository: crowdsecurity/crowdsec
+  # Pin de engine expliciet; leeg zou de chart-appVersion pakken (ook v1.7.8).
+  tag: "v1.7.8"
+
+# Local API (brein + beslissingen-datastore) als Deployment.
+# Persistentie staat default aan (PVC's) -> vereist een default StorageClass
+# op het cluster (homelab heeft local-path).
+lapi:
+  persistentVolume:
+    data:
+      enabled: true
+      size: 1Gi
+    config:
+      enabled: true
+      size: 100Mi
+
+# Agent (parsers + scenarios) als DaemonSet; leest container-logs.
+agent:
+  env:
+    # Collections installeren bij start (idempotent). base-http voor scanning/
+    # path-traversal; nextcloud alvast voor de toekomstige Nextcloud-op-cluster.
+    - name: COLLECTIONS
+      value: "crowdsecurity/base-http-scenarios crowdsecurity/nextcloud"
+  # DORMANT: leeg tot er een parseerbare web-app staat. De agent idlet dan
+  # gewoon. Zet de Nextcloud-acquisition aan zodra die landt en `helm upgrade`:
+  acquisition: []
+    # - namespace: nextcloud
+    #   podName: nextcloud-*
+    #   program: nginx
