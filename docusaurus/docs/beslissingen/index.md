@@ -36,6 +36,24 @@ Storage is `local-lvm` per Proxmox-node. Geen Ceph: dat is binnen homelab-scope 
 overhead. HA wordt op cluster-niveau (etcd-quorum + anti-affinity over hosts) opgelost,
 niet op storage-niveau.
 
+## CrowdSec: eerst detecteren, dan pas blokkeren
+
+CrowdSec is op de Caddy-proxy uitgerold in **detection-only**: de engine parst de
+access-logs en genereert alerts/decisions, maar er is **bewust geen bouncer** — niets
+wordt geblokkeerd. Eerst kijken wat er binnenkomt (en welke scenario's vals-positief
+vuren) voordat je actief verkeer afknijpt; een verkeerd afgestelde bouncer sluit je
+sneller buiten dan een aanvaller. De bouncer-keuze en deelname aan de community-blocklist
+zijn uitgesteld tot een volgende fase. De engine leest een **gedeeld logbestand**, niet de
+docker-socket — auditbaarder en minder rechten.
+
+## Host-firewall: alleen LAN + pod-CIDR
+
+UFW op de K8s-nodes laat standaard alleen `192.168.178.0/24` (intra-LAN: etcd-peer,
+Cilium, kube-vip) toe. Daar is `10.200.0.0/16` (pod-CIDR → host) aan toegevoegd: services
+met **host-network-backends** (zoals `hubble-peer` op `:4244`) krijgen verkeer met een
+*pod-IP* op de host-INPUT-chain, dat anders gedropt wordt. Zonder die regel liep
+hubble-relay in een dial-timeout/CrashLoop.
+
 ## Docs extern gehost, niet in-cluster
 
 Deze kennisbank (Docusaurus, statische build) wordt **buiten** het cluster gehost, zodat

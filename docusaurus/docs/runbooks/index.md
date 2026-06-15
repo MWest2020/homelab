@@ -103,3 +103,38 @@ ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-nextcloud.yml
 ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
 ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-portainer.yml
 ```
+
+## CrowdSec uitrollen (proxy, detection-only)
+
+CrowdSec draait als losse engine naast Caddy op de proxy-VM (`192.168.178.50`). Het
+parst Caddy's JSON-access-log en genereert alerts/decisions — er is **(nog) geen
+bouncer**, dus er wordt niets geblokkeerd (zie [Beslissingen](../beslissingen/)).
+
+```bash
+# 1. Caddy mét access-logging herdeployen (prerequisite — schrijft /var/log/caddy)
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
+
+# 2. CrowdSec-engine erbij
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-crowdsec-proxy.yml
+```
+
+De deploy is **zelf-verifiërend**: hij faalt hard als de local API niet gezond opkomt
+(`cscli lapi status`, 12×5s retry) en print daarna `cscli metrics`. Handmatig inspecteren:
+
+```bash
+ssh 192.168.178.50 'docker exec crowdsec cscli metrics'     # parser/acquisition
+ssh 192.168.178.50 'docker exec crowdsec cscli alerts list' # gedetecteerd (geen blocks)
+```
+
+## Graceful shutdown (stroomonderbreking)
+
+`scripts/graceful-shutdown.sh` sluit de hele homelab netjes af vóór een geplande
+stroomonderbreking. Draait vanaf **jumpy** (die blijft up): per Proxmox-host alle VM's/CT's
+gracefully afsluiten → host halten → pollen tot alles down is → sein *"stroom kan eraf"*.
+
+```bash
+./scripts/graceful-shutdown.sh
+```
+
+Power-up daarna is handmatig (hosts aanzetten); K8s-VM's met `onboot=1` starten vanzelf.
+Verifieer met `pvecm status` (3 quorate) en `kubectl get nodes` (6 Ready).

@@ -33,4 +33,12 @@ Een **3-node Proxmox-cluster** met een **HA-Kubernetes** erop, volledig op VM's.
 - **cert-manager** (Let's Encrypt DNS-01, wildcard `*.westerweel.work`).
 - **Argo CD** (GitOps).
 
+## Publieke proxy-laag (parallel spoor)
+
+Naast het K8s-cluster draait op de laptop-Proxmox-node een **Caddy-proxy** (`192.168.178.50`)
+die de Nextcloud-tenants ontsluit (hostname-routing + TLS). Daarop draait sinds kort een
+**CrowdSec**-engine in detection-only modus: hij parst Caddy's access-logs en genereert
+alerts, zonder (nog) te blokkeren — zie [Beslissingen](../beslissingen/). Deploy- en
+inspectie-stappen staan in de [runbooks](../runbooks/).
+
 *(Per onderwerp volgen detail-pagina's; de freshness-agent houdt dit synchroon met de repo.)*
