@@ -36,6 +36,18 @@ Storage is `local-lvm` per Proxmox-node. Geen Ceph: dat is binnen homelab-scope 
 overhead. HA wordt op cluster-niveau (etcd-quorum + anti-affinity over hosts) opgelost,
 niet op storage-niveau.
 
+## CrowdSec detection-only first, gedeeld logbestand i.p.v. docker.sock
+
+CrowdSec op de proxy start bewust **detection-only**: de engine parst Caddy's access-log
+en genereert alerts, maar er is geen bouncer — niets wordt geblokkeerd. Zo zie je eerst
+wat een bouncer zou tegenhouden, vóórdat je het risico op false-positive-blocks op de
+publieke surface neemt. De bouncer-keuze (firewall-bouncer vs. Caddy-L7-plugin) en
+deelname aan de community-blocklist zijn bewust uitgesteld naar een volgende fase.
+
+De engine leest het access-log via een **gedeelde, read-only host-bind-mount**, niet via
+`docker.sock`: een logbestand is auditbaarder en veel minder geprivilegieerd dan
+socket-toegang tot de Docker-daemon.
+
 ## Docs extern gehost, niet in-cluster
 
 Deze kennisbank (Docusaurus, statische build) wordt **buiten** het cluster gehost, zodat
