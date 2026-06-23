@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-06-23 — CORRECTIE: geen herinstall, cluster was altijd al gezond + HA (15d)
+
+### Wat ik fout had
+- De diagnose "nodes opnieuw geïnstalleerd / cluster leeg" was ONJUIST. Read-only
+  check toonde een **draaiend HA-cluster, 15 dagen oud**: 6 nodes Ready (3 CP + 3
+  worker), k8s v1.36.1, 3× stacked etcd, kube-vip VIP .201, Cilium + Hubble, en een
+  platform-stack (argocd, cert-manager, metallb, gateway-system). Geen PV/PVC.
+- De "dubbele hostnames" waren een artefact van stale ssh-aliassen (oude 3-node
+  mapping) die naar de VIP .201 + verkeerde IP's wezen — de OS-hostnames waren nooit
+  kapot. De `gongoeloe`-vs-`ubuntu` en known_hosts-symptomen waren puur config-drift
+  aan workstation/jumpy-kant.
+
+### Daadwerkelijk gedaan vandaag (en effect)
+- `configure-passwordless-sudo.yml` + `prepare-nodes.yml` draaiden tegen het LIVE
+  cluster. Geverifieerd ONSCHADELIJK: kube-packages (kubeadm/kubectl/kubelet) staan
+  op `apt-mark hold` → dist-upgrade raakte ze niet; geen reboot-required; geen verse
+  pod-restarts (restarts dateren 11–14d). prepare-nodes was effectief idempotent want
+  dit cluster is met diezelfde playbooks gebouwd.
+
+### Conclusie
+- Geen rebuild nodig/gewenst — het cluster is gezond. Het oorspronkelijke probleem
+  (SSH-toegang) is opgelost via de config-fixes; zie entry 2026-06-22.
+
+## 2026-06-22 — fix: SSH-toegang nodes (config-drift, GEEN herinstall — zie correctie 06-23)
+
+### Symptoom
+- Vanaf jumpy: `ssh worker-02` → `Received disconnect ... Too many authentication
+  failures`. Vanaf alma: stale host keys (`REMOTE HOST IDENTIFICATION HAS CHANGED`)
+  en op de `-lan`-aliassen dezelfde "too many auth failures".
+
+### Diagnose (drie gestapelde oorzaken, geen ervan was "SSH stuk")
+1. **User-drift.** Configs/inventory logden in als `gongoeloe`, maar cloud-init zet
+   by-design de **`ubuntu`**-user (`terraform/k8s-cluster/main.tf` → `user_account
+   { username = "ubuntu" }`). `gongoeloe` wordt nergens aangemaakt — oude template
+   gebruikte 'm vermoedelijk; huidige niet.
+2. **"Too many authentication failures".** Doorgestuurde alma-agent heeft 24 keys.
+   Zonder `IdentitiesOnly yes` blaast ssh ze allemaal → server kapt af na
+   `MaxAuthTries` (6). Op jumpy ontbrak `IdentitiesOnly` op de node-blocks; op alma
+   ontbrak 't op de `-lan`-aliassen (die erfden de gedeelde block niet, want
+   first-match-wins matcht op alias-token, niet op resolved IP).
+3. **Herinstall-bijwerking.** Nieuwe host keys (known_hosts stale) en tailscale
+   /32-routes nog niet geadverteerd → 100.x-IP's timen out; LAN (192.168.178.x) werkt.
+
+### Gewijzigd
+- **`ansible/inventory/hosts.yml`** — `ansible_user: gongoeloe` → `ubuntu`.
+- Buiten de repo (workstation): `~/.ssh/config` op alma (User → ubuntu; `-lan`-aliassen
+  toegevoegd aan de gedeelde block zodat ze `IdentitiesOnly` erven) en op jumpy
+  (`IdentitiesOnly yes` + `IdentityFile` per node-block, User → ubuntu; backup
+  `~/.ssh/config.bak.20260622`). Stale host keys opgeruimd op beide.
+
+### Geverifieerd
+- alma → `{cp-01,worker-01,worker-02}-lan` en jumpy → `{cp-01,worker-01,worker-02}`
+  loggen weer in als `ubuntu`. Geen "too many auth failures" meer.
+- ⚠️ Hostnames nog niet uniek/geprovisioned: .201+.202 heten beide `cp-01`, .203 =
+  `cp-02`. Tailscale-routes (100.x) liggen plat. Volgende stap = ansible-run
+  (`configure-tailscale-routes.yml` e.a.) + hostnames zetten.
+
 ## 2026-06-14 — CrowdSec Fase B klaargezet: K8s helm-values (nog niet uitgerold)
 
 ### Context
