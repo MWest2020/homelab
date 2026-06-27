@@ -103,3 +103,50 @@ ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-nextcloud.yml
 ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
 ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-portainer.yml
 ```
+
+## CrowdSec uitrollen (edge-detectie op de proxy)
+
+CrowdSec draait **detection-only** naast Caddy op de proxy-VM (`192.168.178.50`): de
+engine parst Caddy's JSON-access-log en genereert alerts/decisions, maar er is (nog) geen
+bouncer — er wordt niets geblokkeerd. Achtergrond: zie [Beslissingen](../beslissingen/).
+
+Prerequisite: Caddy moet zijn access-log schrijven naar de gedeelde host-bind-mount
+`/var/log/caddy/access.log` (de `(accesslog)`-snippet in de Caddyfile). Draai daarom eerst
+`deploy-proxy.yml`:
+
+```bash
+# 1. Caddy mét access-logging (prerequisite — schrijft /var/log/caddy/access.log)
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
+
+# 2. CrowdSec-engine ernaast
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-crowdsec-proxy.yml
+```
+
+De deploy is **zelf-verifiërend**: hij faalt hard als `cscli lapi status` niet binnen
+~1 min gezond opkomt (collections + LAPI-startup duren even) en print daarna `cscli metrics`.
+
+Inspecteren (detection-only — alerts, geen blocks):
+
+```bash
+ssh 192.168.178.50 'docker exec crowdsec cscli metrics'
+ssh 192.168.178.50 'docker exec crowdsec cscli alerts list'
+```
+
+## Homelab gracefully afsluiten (stroomonderbreking)
+
+`scripts/graceful-shutdown.sh` draait vanaf **jumpy** (die blijft up) en zet de hele
+homelab netjes uit voor een geplande stroomonderbreking: per Proxmox-host worden alle
+draaiende VM's en containers gracefully afgesloten (ACPI), daarna halt de host. Het script
+pollt tot alles down is en geeft het sein "stroom kan eraf".
+
+```bash
+./scripts/graceful-shutdown.sh
+```
+
+Power-up daarna (handmatig): hosts weer aanzetten — de K8s-VM's (`onboot=1`) starten
+vanzelf. Verifieer:
+
+```bash
+pvecm status        # 3 nodes quorate
+kubectl get nodes   # 6× Ready (vanaf jumpy)
+```
