@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-06-26 — feat: CloudNativePG-database via GitOps (cnpg-database)
+
+### Wat & waarom
+- Nieuwe homelab-capability: een **HA PostgreSQL via CloudNativePG**, volledig declaratief
+  via ArgoCD. Staat LOS van nextcloud-base / nextcloud-pg. ESO bewust uit scope (CNPG
+  genereert/owned zelf het credential-secret → geen handmatige secret, geen plaintext in Git).
+- Aanleiding: op de herbouwde 3-node-cluster ontbrak de keten — ArgoCD managet live 0 apps
+  (root-app niet toegepast, GitOps-roadmap stap 7 ⏳), geen StorageClass, geen CNPG-operator.
+  Zonder die voorwaarden wordt een Cluster-CR nooit Healthy.
+
+### Bestanden
+- `apps/infrastructure/cnpg-operator.yaml` — ArgoCD Application, helm `cloudnative-pg`
+  0.28.3 (=appVersion 1.29.1), ns `cnpg-system`, sync-wave 2.
+- `apps/infrastructure/cnpg-database.yaml` — ArgoCD Application, sync-wave 4 (ná operator),
+  ns `cnpg-database`, `SkipDryRunOnMissingResource` + retry tegen de CRD-race.
+- `cluster-config/infra/cnpg-database/{cluster.yaml,kustomization.yaml}` — Cluster `homelab-pg`,
+  3 instances, PG17 digest-gepind, 30Gi op `local-path` (interim; doel 100Gi na disk-groei,
+  zie aparte change worker-disk-grow), podAntiAffinity op
+  `kubernetes.io/hostname` (nodes hebben geen zone-labels → zone-affinity ware no-op), preferred.
+- OpenSpec-change: `../openspec/changes/cnpg-database/` (proposal/design/specs/tasks, validate groen).
+
+### Geverifieerd
+- Cluster-state read-only via **jumpy**: geen CNPG-CRDs, geen StorageClass, argo 0 apps,
+  nodes zonder zone-labels (vandaar hostname-topologie).
+- Upstream-pins gecheckt: CNPG-operator v1.29.1 = laatste stable (v1.30.0 nog RC); PG17-image
+  digest uit de officiële `ClusterImageCatalog-bookworm`.
+- `kubectl kustomize` op cnpg-database bouwt; Application-YAML valide.
+
+### Nog te doen (uitrol)
+- Bootstrap vanaf jumpy: `kubectl apply -f apps/root-app.yaml`, daarna ArgoCD self-drive
+  (local-path default-SC → operator → cluster). Open punten (namespace-naam, PVC-grootte,
+  required-vs-preferred) staan in de openspec design.md.
+
 ## 2026-06-23 — CORRECTIE: geen herinstall, cluster was altijd al gezond + HA (15d)
 
 ### Wat ik fout had

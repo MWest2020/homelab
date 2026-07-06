@@ -1,0 +1,46 @@
+---
+# Homelab PostgreSQL via CloudNativePG. 3 instances, HA-gespreid over de drie nodes.
+# Credentials: CNPG genereert/owned zelf het app-secret (homelab-pg-app) — geen handmatige
+# secret, geen plaintext in Git. enableSuperuserAccess staat default uit (geen extra secret).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: homelab-pg
+  namespace: cnpg-database
+spec:
+  instances: 3
+  # PG17 (volwassen), digest-gepind uit de officiële CNPG ClusterImageCatalog (bookworm).
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.10-202606221003-system-bookworm@sha256:f7ee6ba4f221a4c8ee8a83edf6e7eb8acd373fb118237665080ab6f9cdec8618
+  primaryUpdateStrategy: unsupervised
+
+  storage:
+    # Interim 30Gi: past binnen de ~42 GiB vrij op de 50GB worker-disks. Doelgrootte is
+    # 100Gi, maar dat vereist eerst grotere worker-disks (aparte change: worker-disk-grow).
+    # NB: local-path ondersteunt geen online volume-expansion → opschalen gaat via een
+    # rolling PVC-replace van de CNPG-instances, niet via een simpele size-edit.
+    size: 30Gi
+    storageClassName: local-path # expliciet; local-path is óók de default-SC
+
+  # Echte 3-node-HA: spreiden op hostname (de nodes hebben GEEN zone-labels, dus
+  # topology.kubernetes.io/zone zou een no-op zijn). 'preferred' i.p.v. 'required' zodat
+  # een instance bij node-uitval elders kan herstarten i.p.v. eeuwig Pending te blijven.
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: preferred
+    topologyKey: kubernetes.io/hostname
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+
+  monitoring:
+    enablePodMonitor: false # geen Prometheus-operator/PodMonitor-CRD aanwezig

@@ -1,0 +1,35 @@
+---
+# Homelab CloudNativePG database (Cluster CR). Staat los van nextcloud-base / nextcloud-pg.
+# Sync-wave 4: ná de operator (wave 2) zodat de postgresql.cnpg.io-CRDs Established zijn.
+# SkipDryRunOnMissingResource + retry vangen een tijdelijke CRD-race bij eerste sync af.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnpg-database
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MWest2020/homelab.git
+    targetRevision: main
+    path: cluster-config/infra/cnpg-database
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-database
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

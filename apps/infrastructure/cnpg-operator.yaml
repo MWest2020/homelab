@@ -1,0 +1,29 @@
+---
+# CloudNativePG operator — installs the postgresql.cnpg.io CRDs + controller.
+# Sync-wave 2: must be healthy (CRDs Established) before the Cluster CR (cnpg-database, wave 4) syncs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnpg-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.io
+spec:
+  project: default
+  source:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: cloudnative-pg
+    targetRevision: 0.28.3 # appVersion 1.29.1 (latest stable; v1.30.0 is nog RC)
+    helm:
+      releaseName: cnpg
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
