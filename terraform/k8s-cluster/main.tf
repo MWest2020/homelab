@@ -2,8 +2,9 @@
 # Proxmox-cluster door per-shape templates te clonen. Data-driven via var.vms (zie tfvars).
 # K8s zelf wordt door de Ansible-playbooks geconfigureerd, niet hier.
 #
-# BEWUST GEEN cpu/memory/disk/operating_system blocks (zie feedback_template_per_size):
-# de bpg-provider hangt op post-clone hardware-overrides. Shape komt 100% uit de template.
+# BEWUST GEEN memory/disk/operating_system blocks (zie feedback_template_per_size):
+# de bpg-provider hangt op post-clone hardware-overrides. Shape komt uit de template.
+# Enige uitzondering: cpu.type (zie comment bij het cpu-block).
 
 resource "proxmox_virtual_environment_vm" "vm" {
   for_each  = var.vms
@@ -17,6 +18,17 @@ resource "proxmox_virtual_environment_vm" "vm" {
   clone {
     vm_id = each.value.template_vm_id
     full  = true
+  }
+
+  # Bewuste uitzondering op de no-override-regel hierboven: cpu *type* is een
+  # instructieset-vlag, geen hardware-shape (cores/mem/disk). Default
+  # x86-64-v2-AES mist AVX2; "host" geeft alle vlaggen van de i7-6700T. Kan
+  # veilig omdat alle drie px-hosts identiek zijn en er geen live-migratie is
+  # (local-lvm). Pakt pas na volledige stop/start van de VM (reboot in de gast
+  # is niet genoeg). Eerst plan + apply -target op één worker (bpg-historie
+  # met post-clone overrides, zie feedback_template_per_size).
+  cpu {
+    type = "host"
   }
 
   network_device {

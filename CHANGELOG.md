@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-06 — feat: CPU-type "host" voor K8s-VM's (AVX2)
+
+### Wat & waarom
+- K8s-VM's draaien op het qm-default CPU-model (x86-64-v2-AES), dat **geen AVX2**
+  doorgeeft. `cpu { type = "host" }` geeft de gast alle vlaggen van de i7-6700T.
+  Veilig omdat de drie px-hosts identiek zijn en er geen live-migratie is (local-lvm).
+- Bewuste, gedocumenteerde uitzondering op de no-post-clone-overrides-regel
+  (feedback_template_per_size): cpu-*type* is een instructieset-vlag, geen
+  hardware-shape. Templates krijgen `--cpu host` zodat toekomstige clones 'm al hebben.
+
+### Bestanden
+- `terraform/k8s-cluster/main.tf` — `cpu { type = "host" }` in de VM-resource + comment.
+- `ansible/playbooks/build-k8s-templates.yml` — `--cpu host` op CP- en worker-template.
+
+### Uitrol (op jumpy, nog te doen)
+- `git pull`, dan `terraform plan` in `terraform/k8s-cluster/` — verwacht 6× update in-place.
+- Eerst `apply -target='proxmox_virtual_environment_vm.vm["node-01"]'` (bpg-historie).
+- Pakt pas na **volledige stop/start** per VM: workers eerst drainen, CP's één voor
+  één i.v.m. etcd-quorum. Verifieer met `grep avx2 /proc/cpuinfo` in de gast.
+
 ## 2026-06-26 — feat: CloudNativePG-database via GitOps (cnpg-database)
 
 ### Wat & waarom
