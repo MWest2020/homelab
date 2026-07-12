@@ -1,3 +1,8 @@
+---
+status: draft
+last_reviewed: 2026-07-12
+---
+
 # Migratie: Kubernetes the Hard Way → kubeadm
 
 Dit document beschrijft de **exacte stappen** om het bestaande cluster (Kubernetes the Hard Way, systemd) te **vervangen** door een kubeadm-cluster op **dezelfde hosts**. Er draaien geen twee clusters naast elkaar: je stopt het oude cluster en brengt op dezelfde machines het nieuwe cluster omhoog. De jumpbox, hostnamen en IP’s blijven gelijk; alleen de cluster-inhoud wordt opnieuw opgezet.
@@ -74,7 +79,7 @@ Dus: **Hard Way uit → install-packages → bootstrap → post-bootstrap**; all
 
 Als je de migratie **handmatig** uitvoert, kun je per fase noteren wat je gedaan hebt en wat de output was. Daarmee is de migratie later herhaalbaar of door iemand anders te volgen.
 
-**Template:** [BUILDLOG-migratie-kubeadm.md](BUILDLOG-migratie-kubeadm.md) – vul per fase (A–L) datum, commando’s en resultaat in.
+**Template:** [BUILDLOG-migratie-kubeadm.md](../explanation/BUILDLOG-migratie-kubeadm.md) – vul per fase (A–L) datum, commando’s en resultaat in.
 
 ---
 
@@ -172,7 +177,7 @@ Containerd wordt hergebruikt; die hoef je niet opnieuw te installeren. Zorg dat 
 
 ## 7. Fase D – kubeadm init op cp-01
 
-**Alleen op cp-01.** We gebruiken de **zelfde** pod- en service-CIDR als het Hard Way-cluster, zodat bestaande Cilium-values en documentatie blijven kloppen (zie [02-network.md](02-network.md)).
+**Alleen op cp-01.** We gebruiken de **zelfde** pod- en service-CIDR als het Hard Way-cluster, zodat bestaande Cilium-values en documentatie blijven kloppen (zie [02-network.md](../reference/02-network.md)).
 
 ```bash
 sudo kubeadm init \
@@ -434,7 +439,7 @@ Als dit lukt, is de migratie geslaagd: **zelfde hosts, zelfde jumpbox, nieuw kub
 | Onderwerp | Link |
 |-----------|------|
 | Stappenplan GitOps | [20-stappenplan-gitops.md](20-stappenplan-gitops.md) |
-| Netwerk / IP-schema | [02-network.md](02-network.md) |
+| Netwerk / IP-schema | [02-network.md](../reference/02-network.md) |
 | Gateway + TLS (stap 5) | [25-gateway-tls.md](25-gateway-tls.md) |
 | cert-manager | [24-cert-manager.md](24-cert-manager.md) |
 | MetalLB | [23-metallb.md](23-metallb.md) |

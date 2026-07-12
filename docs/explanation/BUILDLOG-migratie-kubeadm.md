@@ -1,8 +1,13 @@
+---
+status: draft
+last_reviewed: 2026-07-12
+---
+
 # Build log – Migratie Hard Way → kubeadm
 
 Bij **handmatige** uitrol van de migratie kun je per fase hier noteren wat je gedaan hebt en wat de output was. Zo is de migratie de volgende keer (of door iemand anders) te volgen of te herhalen.
 
-**Migratiedoc:** [30-migratie-kubeadm.md](30-migratie-kubeadm.md)  
+**Migratiedoc:** [30-migratie-kubeadm.md](../how-to/30-migratie-kubeadm.md)  
 **Ansible-optie:** Zie sectie "Automatisering met Ansible" in die doc.
 
 ---

@@ -1,8 +1,13 @@
+---
+status: draft
+last_reviewed: 2026-07-12
+---
+
 # Build Log - Homelab GitOps Journey
 
 Dit logboek documenteert elke stap in het opzetten van GitOps voor onze Kubernetes the Hard Way cluster.
 
-**Stappenplan:** Zie [20-stappenplan-gitops.md](20-stappenplan-gitops.md)
+**Stappenplan:** Zie [20-stappenplan-gitops.md](../how-to/20-stappenplan-gitops.md)
 
 ## Cluster Context
 
@@ -85,8 +90,8 @@ kubectl apply -f kubernetes/infrastructure/coredns/
 ### 2026-02-24 - Stap 2 documentatie: Cilium Gateway
 
 **Actie:** Documentatie voor Stap 2 (Cilium Gateway API enablen) toegevoegd.
-- **Check vóór Stap 2** in [20-stappenplan-gitops.md](20-stappenplan-gitops.md): nodes, CoreDNS, Cilium, Hubble Relay, Gateway CRDs.
-- **Nieuwe doc** [22-cilium-gateway.md](22-cilium-gateway.md): dezelfde checks, Helm upgrade commando's, verificatie (`kubectl get gatewayclass`).
+- **Check vóór Stap 2** in [20-stappenplan-gitops.md](../how-to/20-stappenplan-gitops.md): nodes, CoreDNS, Cilium, Hubble Relay, Gateway CRDs.
+- **Nieuwe doc** [22-cilium-gateway.md](../how-to/22-cilium-gateway.md): dezelfde checks, Helm upgrade commando's, verificatie (`kubectl get gatewayclass`).
 - Values in `cluster-config/infra/cilium/values.yaml` hebben al `gatewayAPI.enabled: true`; alleen `helm upgrade` uitvoeren.
 
 **Achteraf:** GatewayClass stond al ~6 dagen in het cluster; Stap 2 was dus al uitgevoerd. Voortgang in stappenplan en status-overzichten bijgewerkt naar ✅.
@@ -96,9 +101,9 @@ kubectl apply -f kubernetes/infrastructure/coredns/
 ### 2026-02-24 - Stap 3: MetalLB documentatie en config
 
 **Actie:** MetalLB (Stap 3) uitwerking toegevoegd.
-- **Doc** [23-metallb.md](23-metallb.md): check vóór start, install (upstream v0.14.8 manifest), IP-pool apply, verificatie.
+- **Doc** [23-metallb.md](../how-to/23-metallb.md): check vóór start, install (upstream v0.14.8 manifest), IP-pool apply, verificatie.
 - **IP-pool** `kubernetes/infrastructure/metallb/ip-pool.yaml`: range 192.168.178.220–230, L2 mode.
-- **Netwerk** [02-network.md](02-network.md): MetalLB-range vastgelegd; DHCP mag dit bereik niet gebruiken.
+- **Netwerk** [02-network.md](../reference/02-network.md): MetalLB-range vastgelegd; DHCP mag dit bereik niet gebruiken.
 - **README** in `kubernetes/infrastructure/metallb/README.md` voor snelle referentie.
 
 **Commando's (jumpbox):**
@@ -112,7 +117,7 @@ kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 ### 2026-02-24 - Stap 4: cert-manager documentatie en config
 
 **Actie:** cert-manager (Stap 4) uitgewerkt.
-- **Doc** [24-cert-manager.md](24-cert-manager.md): Cloudflare API-token, Helm install, Secret (niet in Git), ClusterIssuers staging + prod, verificatie.
+- **Doc** [24-cert-manager.md](../how-to/24-cert-manager.md): Cloudflare API-token, Helm install, Secret (niet in Git), ClusterIssuers staging + prod, verificatie.
 - **Manifests** `kubernetes/infrastructure/cert-manager/`: `values.yaml` (Helm, in repo voor Argo CD later), `cluster-issuer-prod.yaml` (e-mail aanpassen; DNS-01: Cloudflare of RFC2136/open source). Geen staging; doc beschrijft ook alternatief zonder Cloudflare (RFC2136/BIND).
 
 ---
@@ -120,7 +125,7 @@ kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 ### 2026-02-24 - Stap 5: Gateway + TLS documentatie en manifests
 
 **Actie:** Gateway + TLS (Stap 5) uitgewerkt voor morgen samen doornemen.
-- **Doc** [25-gateway-tls.md](25-gateway-tls.md): check, volgorde (namespace → Certificate → Gateway → DNS → test-app + HTTPRoute), verificatie.
+- **Doc** [25-gateway-tls.md](../how-to/25-gateway-tls.md): check, volgorde (namespace → Certificate → Gateway → DNS → test-app + HTTPRoute), verificatie.
 - **Manifests** `kubernetes/infrastructure/gateway/`: namespace, Certificate (*.westerweel.work), Gateway (HTTPS, Secret-ref), echo-test app + HTTPRoute voor test.westerweel.work.
 - **Migratie-cutoff** in stappenplan: logisch moment is na Stap 7 (volledige stack in Git); alternatief na 5 of 6.
 
