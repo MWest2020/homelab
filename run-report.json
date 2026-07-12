@@ -1,13 +1,13 @@
 {
-  "role": "builder",
+  "role": "reviewer",
   "change": "apply-docs-contract",
-  "run_id": "builder-apply-docs-contract-20260712-185049",
+  "run_id": "reviewer-apply-docs-contract-20260712-185756",
   "repo": "https://github.com/MWest2020/homelab.git",
   "verdict": "ok",
   "subtype": "success",
-  "total_cost_usd": "1.9536714999999996",
-  "num_turns": "30",
+  "total_cost_usd": "0.5623575000000001",
+  "num_turns": "12",
   "claude_exit": "0",
-  "finished_at": "2026-07-12T18:57:07Z",
-  "diff_hash": "ed6fcc0393101943e358ea65d6eb2cf538ea5dbb8a59f6c7b8c1e86a7b5db0ec"
+  "finished_at": "2026-07-12T18:59:35Z",
+  "diff_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }
