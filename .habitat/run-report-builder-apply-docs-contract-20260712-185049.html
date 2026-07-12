@@ -1,0 +1,77 @@
+<!doctype html><html lang=nl><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>Habitat run builder-apply-docs-contract-20260712-185049</title>
+<style>
+:root{color-scheme:light dark}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:2rem;
+ max-width:60rem;margin-inline:auto;line-height:1.5}
+h1{font-size:1.4rem;margin:0 0 .25rem}
+.sub{color:#888;margin-bottom:1.5rem}
+.badge{display:inline-block;padding:.1rem .6rem;border-radius:1rem;font-weight:600;font-size:.85rem}
+.ok{background:#1b7f3b;color:#fff}.bad{background:#b3261e;color:#fff}
+.grid{display:flex;gap:2rem;flex-wrap:wrap;margin:1rem 0}
+.grid div{font-size:.9rem}.grid b{display:block;color:#888;font-weight:500}
+pre{background:#8881;padding:1rem;border-radius:.5rem;overflow-x:auto;font-size:.85rem}
+table{border-collapse:collapse;width:100%;font-size:.8rem}
+th,td{text-align:left;padding:.4rem .5rem;border-bottom:1px solid #8883}
+code{font-family:ui-monospace,monospace}
+.v-ok{color:#1b7f3b;font-weight:700}.v-bad{color:#b3261e;font-weight:700}
+</style></head><body>
+<h1>builder · apply-docs-contract <span class="badge ok">ok</span></h1>
+<div class=sub>Habitat run-rapport · 2026-07-12T18:57:07Z</div>
+<div class=grid>
+ <div><b>verdict</b>ok</div><div><b>kosten (USD)</b>1.9536714999999996</div>
+ <div><b>turns</b>30</div>
+</div>
+<h2>Diff-samenvatting</h2><pre>docs/00-overview.md                                |  56 +----
+ docs/01-hardware.md                                |  59 +----
+ docs/02-network.md                                 |  84 +------
+ docs/03-installation.md                            |  82 +------
+ docs/04-post-install.md                            | 164 +------------
+ docs/07-vm-provisioning-stack.md                   | 144 +-----------
+ docs/20-stappenplan-gitops.md                      | 254 +-------------------
+ docs/22-cilium-gateway.md                          | 103 +-------
+ docs/23-metallb.md                                 | 105 +--------
+ docs/24-cert-manager.md                            | 133 +----------
+ docs/25-gateway-tls.md                             | 144 +-----------
+ .../{ =&gt; explanation}/BUILDLOG-migratie-kubeadm.md |   7 +-
+ docs/{ =&gt; explanation}/BUILDLOG.md                 |  19 +-
+ docs/how-to/03-installation.md                     |  83 +++++++
+ docs/how-to/04-post-install.md                     | 165 +++++++++++++
+ docs/{ =&gt; how-to}/05-ansible.md                    |   5 +
+ docs/{ =&gt; how-to}/06-kubernetes.md                 |   5 +
+ docs/how-to/07-vm-provisioning-stack.md            | 145 ++++++++++++
+ docs/how-to/20-stappenplan-gitops.md               | 259 +++++++++++++++++++++
+ docs/{ =&gt; how-to}/21-gateway-api-crds.md           |   5 +
+ docs/how-to/22-cilium-gateway.md                   | 108 +++++++++
+ docs/how-to/23-metallb.md                          | 110 +++++++++
+ docs/how-to/24-cert-manager.md                     | 138 +++++++++++
+ docs/how-to/25-gateway-tls.md                      | 149 ++++++++++++
+ docs/{ =&gt; how-to}/26-argocd-bootstrap.md           |   5 +
+ docs/{ =&gt; how-to}/30-migratie-kubeadm.md           |  11 +-
+ docs/how-to/gpu-cuda-reset.md                      |  37 +++
+ docs/index.md                                      |  22 ++
+ docs/reference/00-overview.md                      |  57 +++++
+ docs/reference/01-hardware.md                      |  60 +++++
+ docs/reference/02-network.md                       |  87 +++++++
+ openspec/changes/apply-docs-contract/tasks.md      |  23 +-
+ 32 files changed, 1548 insertions(+), 1280 deletions(-)</pre>
+<h2>Audit-hashketen</h2>
+<p class=sub>Herberekend in je browser — geen server, geen CDN.</p>
+<table><thead><tr><th>run</th><th>rol</th><th>verdict</th><th>entry_hash</th><th>keten</th></tr></thead>
+<tbody id=rows></tbody></table>
+<script>
+const FIELDS=["prev_hash", "ts", "role", "change", "run_id", "verdict", "subtype", "diff_hash", "cost", "turns"], CHAIN=[{"ts": "2026-07-12T18:57:07Z", "role": "builder", "change": "apply-docs-contract", "run_id": "builder-apply-docs-contract-20260712-185049", "verdict": "ok", "subtype": "success", "cost": "1.9536714999999996", "turns": "30", "diff_hash": "ed6fcc0393101943e358ea65d6eb2cf538ea5dbb8a59f6c7b8c1e86a7b5db0ec", "prev_hash": "", "entry_hash": "84708d599bd800c8be95b69cd61fdbd4a593b307a74f14bddc0cafd75bad6c8c"}];
+const payload=e=>FIELDS.map(f=>String(e[f]??"")).join("|");
+async function sha(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+ return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+(async()=>{const tb=document.getElementById("rows");let prev="";
+ for(const e of CHAIN){const calc=await sha(payload(e));
+  const ok=calc===e.entry_hash && e.prev_hash===prev;
+  const tr=document.createElement("tr");
+  // textContent (nooit innerHTML) — audit-waarden worden niet als HTML uitgevoerd
+  const mk=(t,cls)=>{const td=document.createElement("td");td.textContent=t;if(cls)td.className=cls;tr.appendChild(td)};
+  mk(e.run_id);mk(e.role);mk(e.verdict);mk((e.entry_hash||"").slice(0,12)+"\u2026");
+  mk(ok?"\u2713 geldig":"\u2717 gebroken", ok?"v-ok":"v-bad");
+  tb.appendChild(tr);prev=e.entry_hash;}
+})();
+</script></body></html>
