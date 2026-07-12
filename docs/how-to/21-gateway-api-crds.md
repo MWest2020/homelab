@@ -1,3 +1,8 @@
+---
+status: draft
+last_reviewed: 2026-07-12
+---
+
 # Gateway API CRDs
 
 ## Wat is Gateway API?

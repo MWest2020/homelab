@@ -1,3 +1,8 @@
+---
+status: draft
+last_reviewed: 2026-07-12
+---
+
 # Argo CD – Stap 6
 
 Argo CD is de GitOps controller. Vanaf hier gaan alle deployments via Git.

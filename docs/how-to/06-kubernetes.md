@@ -1,3 +1,8 @@
+---
+status: draft
+last_reviewed: 2026-07-12
+---
+
 # Kubernetes the Hard Way
 
 We installeren Kubernetes volledig handmatig volgens de [Kelsey Hightower tutorial](https://github.com/kelseyhightower/kubernetes-the-hard-way), aangepast voor onze homelab setup.
