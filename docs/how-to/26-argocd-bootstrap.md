@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Argo CD – Stap 6
@@ -45,8 +45,8 @@ kubectl apply -f kubernetes/infrastructure/argocd/httproute.yaml
 
 Geen publiek DNS-record nodig. Toegang via LAN of Tailscale subnet router:
 
-- **LAN / Tailscale:** `/etc/hosts` → `192.168.178.220  argocd.westerweel.work`
-- **Jumpbox** heeft al dit entry en Tailscale subnet routing (`192.168.178.0/24`)
+- **LAN / Tailscale:** `/etc/hosts` → `192.0.2.220  argocd.westerweel.work`
+- **`<beheer-vm>`** heeft al dit entry en Tailscale subnet routing (`192.0.2.0/24`)
 
 ---
 
@@ -71,7 +71,7 @@ Zonder dit blijft de HTTPRoute unaccepted en is Argo CD niet bereikbaar.
 
 ### 2. MetalLB kondigt IP niet aan na Cilium Gateway install
 
-Symptoom: `ping 192.168.178.220` geeft 100% packet loss.
+Symptoom: `ping 192.0.2.220` geeft 100% packet loss.
 
 Cilium's Gateway controller maakt een EndpointSlice zonder het `kubernetes.io/service-name` label dat MetalLB vereist. Fix (eenmalig na install):
 

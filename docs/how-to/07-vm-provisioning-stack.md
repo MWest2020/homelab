@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # 07 — VM-provisioning stack
@@ -11,7 +11,7 @@ End-to-end overzicht hoe een nieuwe VM op de homelab Proxmox bestaat van "niks" 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ PROXMOX HOST (192.168.178.10) — hypervisor                      │
+│ PROXMOX HOST (192.0.2.10) — hypervisor                      │
 │                                                                 │
 │  ├─ Tailscale subnet-router                                     │
 │  │  └─ /32-routes per VM-IP, NOOIT /24                          │
@@ -81,7 +81,7 @@ Module `terraform/nginx-lab/` als referentie. Belangrijke principes:
 - Token uit `.env` via `TF_VAR_proxmox_api_token`.
 
 ```bash
-# vanaf jumpy
+# vanaf <beheer-vm>
 cd ~/homelab/terraform/<module>
 source ../../.env
 TF_LOG=DEBUG terraform apply 2>&1 | tee /tmp/tf.log    # DEBUG bij eerste runs
@@ -129,7 +129,7 @@ ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
 
 ## Wat van Tailscale komt
 
-Per-VM IP-bereikbaarheid vanaf alma (en andere niet-LAN Tailscale-nodes) gaat via subnet-routing op de Proxmox-host. Adverteren van /32-routes is volledig ansible-managed; zie `ansible/playbooks/configure-tailscale-routes.yml` en `inventory/group_vars/hypervisors.yml`. Approval per route gebeurt eenmalig in de Tailscale admin-console.
+Per-VM IP-bereikbaarheid vanaf het `<werkstation>` (en andere niet-LAN Tailscale-nodes) gaat via subnet-routing op de Proxmox-host. Adverteren van /32-routes is volledig ansible-managed; zie `ansible/playbooks/configure-tailscale-routes.yml` en `inventory/group_vars/hypervisors.yml`. Approval per route gebeurt eenmalig in de Tailscale admin-console.
 
 ## Troubleshooting first-run
 
@@ -138,7 +138,7 @@ Per-VM IP-bereikbaarheid vanaf alma (en andere niet-LAN Tailscale-nodes) gaat vi
 | `terraform apply` blijft "Still creating" 5+ min | Token mist `VM.Audit` → `TF_LOG=DEBUG` toont 403's | Zie "API-token permissions" |
 | Clone OK, maar `qm config <id>` toont geen `ipconfig0`/`ciuser`/`sshkeys` | bpg-hang stopte voor initialization push | Token-perms fixen, dan opnieuw |
 | SSH `connection refused` (niet timeout) | VM is op, sshd komt nog | 30-60s wachten, cloud-init still seeding |
-| SSH `connection timed out` | VM heeft geen IP of bridge/route fout | `qm config <id> \| grep ipconfig`; check Tailscale-routes vanaf alma |
+| SSH `connection timed out` | VM heeft geen IP of bridge/route fout | `qm config <id> \| grep ipconfig`; check Tailscale-routes vanaf het `<werkstation>` |
 | Ansible: `apt-mark manual ... No space left on device` | Template-disk te klein | Template resizen, zie laag 1 |
 | Ansible: `dpkg was interrupted` | Vorige run brak halverwege af | Pre-task `dpkg --configure -a` herstelt — al in lab-playbook |
 

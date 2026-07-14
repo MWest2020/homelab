@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Build Log - Homelab GitOps Journey
@@ -44,7 +44,7 @@ Dit logboek documenteert elke stap in het opzetten van GitOps voor onze Kubernet
 
 **Actie:** Gateway API CRDs v1.2.0 geïnstalleerd (standard channel).
 
-**Commando's uitgevoerd (jumpbox):**
+**Commando's uitgevoerd (`<beheer-vm>`):**
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
@@ -78,7 +78,7 @@ kubectl get crd | grep gateway.networking.k8s.io | wc -l
 - Deployment, ConfigMap (Corefile), ServiceAccount, ClusterRole/Binding
 - Zie `kubernetes/infrastructure/coredns/README.md` voor deploy en verificatie
 
-**Deploy (vanaf jumpbox):**
+**Deploy (vanaf `<beheer-vm>`):**
 ```bash
 kubectl apply -f kubernetes/infrastructure/coredns/
 ```
@@ -102,11 +102,11 @@ kubectl apply -f kubernetes/infrastructure/coredns/
 
 **Actie:** MetalLB (Stap 3) uitwerking toegevoegd.
 - **Doc** [23-metallb.md](../how-to/23-metallb.md): check vóór start, install (upstream v0.14.8 manifest), IP-pool apply, verificatie.
-- **IP-pool** `kubernetes/infrastructure/metallb/ip-pool.yaml`: range 192.168.178.220–230, L2 mode.
+- **IP-pool** `kubernetes/infrastructure/metallb/ip-pool.yaml`: range 192.0.2.220–230, L2 mode.
 - **Netwerk** [02-network.md](../reference/02-network.md): MetalLB-range vastgelegd; DHCP mag dit bereik niet gebruiken.
 - **README** in `kubernetes/infrastructure/metallb/README.md` voor snelle referentie.
 
-**Commando's (jumpbox):**
+**Commando's (`<beheer-vm>`):**
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
 kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
@@ -135,7 +135,7 @@ kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 
 **Actie:** MetalLB, cert-manager en Gateway+TLS live gezet. Playbook `kubeadm-post-bootstrap.yml` dekt deze stappen volledig automatisch bij herbouw.
 
-**Commando's (jumpbox, handmatig uitgevoerd):**
+**Commando's (`<beheer-vm>`, handmatig uitgevoerd):**
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
 kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
@@ -175,7 +175,7 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
      -n gateway-system kubernetes.io/service-name=cilium-gateway-main-gateway
    ```
 
-3. **Tailscale jumpbox** — Jumpbox had geen Tailscale; SSH naar nodes van buiten LAN werkte niet. Fix: Tailscale installeren op jumpbox met subnet routing (`--advertise-routes=192.168.178.0/24`).
+3. **Tailscale `<beheer-vm>`** — `<beheer-vm>` had geen Tailscale; SSH naar nodes van buiten LAN werkte niet. Fix: Tailscale installeren op `<beheer-vm>` met subnet routing (`--advertise-routes=192.0.2.0/24`).
 
 **Resultaat:** `argocd.westerweel.work` bereikbaar via LAN/Tailscale, login werkt.
 

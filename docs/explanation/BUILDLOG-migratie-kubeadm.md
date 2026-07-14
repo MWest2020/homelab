@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Build log – Migratie Hard Way → kubeadm
@@ -27,7 +27,7 @@ Bij **handmatige** uitrol van de migratie kun je per fase hier noteren wat je ge
 
 **Datum:** …
 
-**Commando's (jumpbox):**
+**Commando's (`<beheer-vm>`):**
 ```bash
 kubectl get ns
 kubectl get pods -A -o wide
@@ -83,14 +83,14 @@ sudo systemctl disable kubelet
 **Commando:**
 ```bash
 sudo kubeadm init \
-  --control-plane-endpoint 192.168.178.201:6443 \
+  --control-plane-endpoint 192.0.2.201:6443 \
   --pod-network-cidr 10.200.0.0/16 \
   --service-cidr 10.32.0.0/24
 ```
 
 **Join-command genoteerd (voor Fase E):** …
 ```text
-kubeadm join 192.168.178.201:6443 --token ... --discovery-token-ca-cert-hash sha256:...
+kubeadm join 192.0.2.201:6443 --token ... --discovery-token-ca-cert-hash sha256:...
 ```
 
 **Kubeconfig op cp-01:**
@@ -125,7 +125,7 @@ kubectl get nodes
 
 **Datum:** …
 
-**Commando's (repo root, jumpbox of cp-01):**
+**Commando's (repo root, `<beheer-vm>` of cp-01):**
 ```bash
 helm repo add cilium https://helm.cilium.io/
 helm repo update
@@ -209,13 +209,13 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 
 ---
 
-## Fase K – Kubeconfig op jumpbox
+## Fase K – Kubeconfig op `<beheer-vm>`
 
 **Datum:** …
 
-**Hoe:** scp admin.conf van cp-01 naar jumpbox `~/.kube/config`  
+**Hoe:** scp admin.conf van cp-01 naar `<beheer-vm>` `~/.kube/config`  
 
-**Verificatie:** `kubectl get nodes` vanaf jumpbox: …
+**Verificatie:** `kubectl get nodes` vanaf `<beheer-vm>`: …
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Stappenplan: Van Kubernetes naar GitOps
@@ -17,7 +17,7 @@ Dit document beschrijft het pad van een werkend Kubernetes cluster naar een voll
 | CoreDNS (kube-dns) | ✅ Cluster DNS 10.32.0.10 |
 | Gateway API CRDs | ✅ Geïnstalleerd (Stap 1) |
 | Cilium Gateway controller | ✅ Actief (GatewayClass aanwezig) |
-| MetalLB | ✅ L2 mode, pool 192.168.178.220–230 |
+| MetalLB | ✅ L2 mode, pool 192.0.2.220–230 |
 | cert-manager | ✅ DNS-01 wildcard *.westerweel.work |
 | Argo CD | ✅ argocd.westerweel.work |
 
@@ -120,7 +120,7 @@ kubectl get gatewayclass
 - IP conflict met DHCP range (gebruik range buiten DHCP; zie [02-network.md](../reference/02-network.md))
 - ARP issues in L2 mode
 
-**Check vóór je begint:** Nodes Ready, GatewayClass aanwezig, Cilium draait. DHCP-range (switch/router/…) niet over 192.168.178.220–230.
+**Check vóór je begint:** Nodes Ready, GatewayClass aanwezig, Cilium draait. DHCP-range (switch/router/…) niet over 192.0.2.220–230.
 
 **Uitvoeren:** Zie [23-metallb.md](23-metallb.md) — MetalLB manifest van upstream, daarna `kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml`.
 
@@ -241,7 +241,7 @@ curl -v https://test.westerweel.work
 
 | Netwerk | Range | Nodes |
 |---------|-------|-------|
-| LAN | 192.168.178.0/24 | cp-01 (.201), node-01 (.202), node-02 (.203) |
+| LAN | 192.0.2.0/24 | cp-01 (.201), node-01 (.202), node-02 (.203) |
 | Pod CIDR | 10.200.0.0/16 | /24 per node |
 | Service CIDR | 10.32.0.0/24 | ClusterIP's |
 

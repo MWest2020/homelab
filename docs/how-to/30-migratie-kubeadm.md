@@ -1,11 +1,11 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Migratie: Kubernetes the Hard Way → kubeadm
 
-Dit document beschrijft de **exacte stappen** om het bestaande cluster (Kubernetes the Hard Way, systemd) te **vervangen** door een kubeadm-cluster op **dezelfde hosts**. Er draaien geen twee clusters naast elkaar: je stopt het oude cluster en brengt op dezelfde machines het nieuwe cluster omhoog. De jumpbox, hostnamen en IP’s blijven gelijk; alleen de cluster-inhoud wordt opnieuw opgezet.
+Dit document beschrijft de **exacte stappen** om het bestaande cluster (Kubernetes the Hard Way, systemd) te **vervangen** door een kubeadm-cluster op **dezelfde hosts**. Er draaien geen twee clusters naast elkaar: je stopt het oude cluster en brengt op dezelfde machines het nieuwe cluster omhoog. De `<beheer-vm>`, hostnamen en IP’s blijven gelijk; alleen de cluster-inhoud wordt opnieuw opgezet.
 
 **Stappenplan:** [20-stappenplan-gitops.md](20-stappenplan-gitops.md)
 
@@ -14,19 +14,19 @@ Dit document beschrijft de **exacte stappen** om het bestaande cluster (Kubernet
 ## 1. Waarom zo (geen twee clusters naast elkaar)
 
 - **Eén kubelet per node:** Op dezelfde fysieke/virtuele machine kun je niet twee clusters laten draaien; elke node hoort bij één cluster.
-- **Zelfde hosts = vervanging:** cp-01 (192.168.178.201), node-01 (192.168.178.202), node-02 (192.168.178.203) en de jumpbox blijven. Je bouwt het **nieuwe** cluster op deze machines en gebruikt daarna alleen dat cluster. Er is **downtime** tijdens de overstap (ongeveer 30–60 minuten, afhankelijk van hoe snel je de stappen doorloopt).
-- **Jumpbox blijft:** Na de migratie gebruik je weer `kubectl` vanaf de jumpbox; de kubeconfig wijst naar dezelfde API-endpoint (cp-01:6443). Geen nieuwe machines of hostnamen.
+- **Zelfde hosts = vervanging:** cp-01 (192.0.2.201), node-01 (192.0.2.202), node-02 (192.0.2.203) en de `<beheer-vm>` blijven. Je bouwt het **nieuwe** cluster op deze machines en gebruikt daarna alleen dat cluster. Er is **downtime** tijdens de overstap (ongeveer 30–60 minuten, afhankelijk van hoe snel je de stappen doorloopt).
+- **`<beheer-vm>` blijft:** Na de migratie gebruik je weer `kubectl` vanaf de `<beheer-vm>`; de kubeconfig wijst naar dezelfde API-endpoint (cp-01:6443). Geen nieuwe machines of hostnamen.
 
 ---
 
 ## 2. Wat je nodig hebt vóór je begint
 
-- Toegang tot **cp-01**, **node-01**, **node-02** (SSH, liefst vanaf jumpbox).
-- Repo **homelab** op de jumpbox (en eventueel op cp-01 voor `kubectl apply`-commando’s, of je kopieert kubeconfig en runt alles vanaf jumpbox).
+- Toegang tot **cp-01**, **node-01**, **node-02** (SSH, liefst vanaf `<beheer-vm>`).
+- Repo **homelab** op de `<beheer-vm>` (en eventueel op cp-01 voor `kubectl apply`-commando’s, of je kopieert kubeconfig en runt alles vanaf `<beheer-vm>`).
 - **Documentatie van de huidige staat** (optioneel maar handig): welke Secrets bestaan (cert-manager Cloudflare-token, etc.), welk EXTERNAL-IP de Gateway had, welke DNS-records je gebruikt.
 - Een **korte onderhoudsruimte** waarin niemand van het cluster afhankelijk is.
 
-**Kubeconfig en certs op de jumpbox:** De huidige kubeconfig op de jumpbox bevat clientcertificaten van het Hard Way-cluster. Na `kubeadm init` heeft de API-server **nieuwe** certs; de oude clientcertificaten worden niet geaccepteerd. Je moet dus de **nieuwe** admin.conf van cp-01 gebruiken (het post-bootstrap playbook haalt die op). De Let's Encrypt / Gateway-certificaten (`*.westerweel.work`) stonden als Secrets **in** het oude cluster; na het uitzetten zijn die weg. In het nieuwe cluster vraagt cert-manager ze opnieuw aan (DNS-01). Wil je het oude Gateway-cert hergebruiken, exporteer dan vóór Fase B het Secret `westerweel-work-tls` uit `gateway-system` en importeer het na de migratie in het nieuwe cluster (optioneel; meestal is opnieuw aanvragen eenvoudiger).
+**Kubeconfig en certs op de `<beheer-vm>`:** De huidige kubeconfig op de `<beheer-vm>` bevat clientcertificaten van het Hard Way-cluster. Na `kubeadm init` heeft de API-server **nieuwe** certs; de oude clientcertificaten worden niet geaccepteerd. Je moet dus de **nieuwe** admin.conf van cp-01 gebruiken (het post-bootstrap playbook haalt die op). De Let's Encrypt / Gateway-certificaten (`*.westerweel.work`) stonden als Secrets **in** het oude cluster; na het uitzetten zijn die weg. In het nieuwe cluster vraagt cert-manager ze opnieuw aan (DNS-01). Wil je het oude Gateway-cert hergebruiken, exporteer dan vóór Fase B het Secret `westerweel-work-tls` uit `gateway-system` en importeer het na de migratie in het nieuwe cluster (optioneel; meestal is opnieuw aanvragen eenvoudiger).
 
 ---
 
@@ -44,25 +44,25 @@ Dit document beschrijft de **exacte stappen** om het bestaande cluster (Kubernet
 | H | MetalLB (controller + speaker + IP-pool) |
 | I | cert-manager (Helm) + ClusterIssuer + Secret (Cloudflare-token) |
 | J | Gateway-stack: namespace, Certificate, Gateway, test-app, HTTPRoute |
-| K | Kubeconfig op jumpbox; DNS/port-forward controleren |
+| K | Kubeconfig op `<beheer-vm>`; DNS/port-forward controleren |
 | L | Verificatie (o.a. `curl https://test.westerweel.work`) |
 
 ---
 
 ## 3b. Automatisering met Ansible (optioneel)
 
-Een deel van de stappen kun je met Ansible doen; de rest (Cilium, MetalLB, cert-manager, Gateway) voer je daarna vanaf de jumpbox uit met `kubectl` en `helm` (zelfde als handmatig).
+Een deel van de stappen kun je met Ansible doen; de rest (Cilium, MetalLB, cert-manager, Gateway) voer je daarna vanaf de `<beheer-vm>` uit met `kubectl` en `helm` (zelfde als handmatig).
 
-**Playbooks (vanaf jumpbox, in `ansible/`):**
+**Playbooks (vanaf `<beheer-vm>`, in `ansible/`):**
 
 | Playbook | Wat het doet | Wanneer |
 |----------|----------------|--------|
 | `playbooks/kubeadm-install-packages.yml` | Installeert kubeadm, kubelet, kubectl op **alle** nodes (apt, Debian/Ubuntu) | Na Fase B; vervangt Fase C |
 | `playbooks/kubeadm-bootstrap.yml` | `kubeadm init` op cp-01 (als nog niet gedaan), daarna `kubeadm join` op workers | Na packages; vervangt Fase D + E |
 
-**Vereisten:** Inventory `ansible/inventory/hosts.yml` (control_plane + workers), SSH vanaf jumpbox. Variabelen (versie, endpoint, CIDRs) staan in `ansible/group_vars/k8s_cluster.yml`. Cluster-nodes en jumpbox zijn **Ubuntu** (apt); Alma is je workstation, geen cluster-node.
+**Vereisten:** Inventory `ansible/inventory/hosts.yml` (control_plane + workers), SSH vanaf `<beheer-vm>`. Variabelen (versie, endpoint, CIDRs) staan in `ansible/group_vars/k8s_cluster.yml`. Cluster-nodes en `<beheer-vm>` zijn **Ubuntu** (apt); het `<werkstation>` is je werkstation, geen cluster-node.
 
-**Korte volgorde (vanaf jumpbox):**
+**Korte volgorde (vanaf `<beheer-vm>`):**
 
 1. `git pull` (repo met playbooks up-to-date).
 2. **Fase B** handmatig: Hard Way overal uitzetten (systemd stop/disable op cp-01 en alle nodes).
@@ -85,7 +85,7 @@ Als je de migratie **handmatig** uitvoert, kun je per fase noteren wat je gedaan
 
 ## 4. Fase A – Huidige staat vastleggen (optioneel)
 
-Vanaf de **jumpbox** (met werkend cluster):
+Vanaf de **`<beheer-vm>`** (met werkend cluster):
 
 ```bash
 # Welke namespaces en wat draait daar
@@ -99,7 +99,7 @@ kubectl get secrets -A | grep -E 'cert-manager|gateway'
 kubectl get svc -n gateway-system
 ```
 
-Noteer het **EXTERNAL-IP** van de Gateway (bijv. 192.168.178.220); dat gebruik je na de migratie weer voor DNS en port-forward. Secrets (zoals het Cloudflare-token) maak je in het nieuwe cluster opnieuw aan; ze staan niet in Git.
+Noteer het **EXTERNAL-IP** van de Gateway (bijv. 192.0.2.220); dat gebruik je na de migratie weer voor DNS en port-forward. Secrets (zoals het Cloudflare-token) maak je in het nieuwe cluster opnieuw aan; ze staan niet in Git.
 
 ---
 
@@ -181,7 +181,7 @@ Containerd wordt hergebruikt; die hoef je niet opnieuw te installeren. Zorg dat 
 
 ```bash
 sudo kubeadm init \
-  --control-plane-endpoint 192.168.178.201:6443 \
+  --control-plane-endpoint 192.0.2.201:6443 \
   --pod-network-cidr 10.200.0.0/16 \
   --service-cidr 10.32.0.0/24
 ```
@@ -193,7 +193,7 @@ sudo kubeadm init \
 Na succes staat er een regel zoals:
 
 ```text
-kubeadm join 192.168.178.201:6443 --token ... --discovery-token-ca-cert-hash sha256:...
+kubeadm join 192.0.2.201:6443 --token ... --discovery-token-ca-cert-hash sha256:...
 ```
 
 **Bewaar die regel** (of de volledige output) voor de workers. Plak ook de regels voor **control plane join** als je later cp-02/cp-03 zou toevoegen; voor nu alleen de **worker**-regel gebruiken voor node-01 en node-02.
@@ -215,7 +215,7 @@ Op cp-01 kun je nu al `kubectl get nodes` doen (alleen cp-01, status NotReady to
 Op **node-01** en **node-02** (elk apart):
 
 ```bash
-sudo kubeadm join 192.168.178.201:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
+sudo kubeadm join 192.0.2.201:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
 ```
 
 Vervang `<TOKEN>` en `<HASH>` door de waarden uit de `kubeadm init`-output. Als de token verlopen is, genereer op cp-01 een nieuwe:
@@ -224,7 +224,7 @@ Vervang `<TOKEN>` en `<HASH>` door de waarden uit de `kubeadm init`-output. Als 
 kubeadm token create --print-join-command
 ```
 
-Daarna op cp-01 (of vanaf jumpbox zodra kubeconfig daar staat):
+Daarna op cp-01 (of vanaf `<beheer-vm>` zodra kubeconfig daar staat):
 
 ```bash
 kubectl get nodes
@@ -238,7 +238,7 @@ Alle drie de nodes moeten verschijnen; ze blijven **NotReady** tot Cilium (CNI) 
 
 Cilium is de CNI en zorgt voor pod-networking en (met onze values) voor de Gateway API. We gebruiken de **bestaande** values uit de repo; die matchen de gekozen pod CIDR (10.200.0.0/16).
 
-**Vanaf de jumpbox** (of cp-01), in de **homelab repo root**:
+**Vanaf de `<beheer-vm>`** (of cp-01), in de **homelab repo root**:
 
 ```bash
 helm repo add cilium https://helm.cilium.io/
@@ -366,7 +366,7 @@ kubectl apply -f kubernetes/infrastructure/gateway/gateway.yaml
 
 # LoadBalancer-IP noteren
 kubectl get svc -n gateway-system
-# Noteer EXTERNAL-IP (bijv. 192.168.178.220)
+# Noteer EXTERNAL-IP (bijv. 192.0.2.220)
 
 # Test-app + HTTPRoute
 kubectl apply -f kubernetes/infrastructure/gateway/gateway-test-app.yaml
@@ -375,25 +375,25 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 
 **DNS:** Zorg dat **test.westerweel.work** naar het EXTERNAL-IP van de Gateway wijst (A-record in Cloudflare of lokaal /etc/hosts). Het IP is vaak hetzelfde als vóór de migratie (zelfde MetalLB-pool).
 
-**Port-forward (optioneel):** Op je router 443 → EXTERNAL-IP (bijv. 192.168.178.220) als je vanaf internet wilt bereiken.
+**Port-forward (optioneel):** Op je router 443 → EXTERNAL-IP (bijv. 192.0.2.220) als je vanaf internet wilt bereiken.
 
 ---
 
-## 14. Fase K – Kubeconfig op jumpbox
+## 14. Fase K – Kubeconfig op `<beheer-vm>`
 
-Zodat je vanaf de **jumpbox** met het nieuwe cluster werkt (zelfde hosts,zelfde endpoint):
+Zodat je vanaf de **`<beheer-vm>`** met het nieuwe cluster werkt (zelfde hosts,zelfde endpoint):
 
-**Op cp-01:** Admin-kubeconfig staat in `/etc/kubernetes/admin.conf`. Kopieer die naar de jumpbox:
+**Op cp-01:** Admin-kubeconfig staat in `/etc/kubernetes/admin.conf`. Kopieer die naar de `<beheer-vm>`:
 
 ```bash
-# Vanaf jumpbox (SSH naar cp-01 en kopieer, of scp vanaf cp-01)
+# Vanaf `<beheer-vm>` (SSH naar cp-01 en kopieer, of scp vanaf cp-01)
 scp cp-01:/etc/kubernetes/admin.conf ~/.kube/config
 # Of: ssh cp-01 "cat /etc/kubernetes/admin.conf" > ~/.kube/config
 ```
 
-Pas eventueel het **server-adres** in `~/.kube/config` aan als er een andere hostnaam in staat (bijv. `https://192.168.178.201:6443`), zodat je vanaf de jumpbox hetzelfde IP gebruikt als voorheen.
+Pas eventueel het **server-adres** in `~/.kube/config` aan als er een andere hostnaam in staat (bijv. `https://192.0.2.201:6443`), zodat je vanaf de `<beheer-vm>` hetzelfde IP gebruikt als voorheen.
 
-Daarna vanaf de jumpbox:
+Daarna vanaf de `<beheer-vm>`:
 
 ```bash
 kubectl get nodes
@@ -407,7 +407,7 @@ kubectl get pods -A
 - **Nodes:** `kubectl get nodes` → alle drie Ready.
 - **Pods:** Cilium, CoreDNS (kube-dns), MetalLB, cert-manager, gateway-system (Cilium Gateway pods, echo-test) Running.
 - **Gateway:** `kubectl get gateway -n gateway-system` → listener klaar.
-- **HTTPS-test (vanaf Alma of machine met DNS):**
+- **HTTPS-test (vanaf het `<werkstation>` of machine met DNS):**
 
   ```bash
   curl -v https://test.westerweel.work
@@ -415,7 +415,7 @@ kubectl get pods -A
 
   Je moet geldig TLS (Let's Encrypt) en de JSON-response van de echo-server zien.
 
-Als dit lukt, is de migratie geslaagd: **zelfde hosts, zelfde jumpbox, nieuw kubeadm-cluster**; geen tweede cluster ernaast, geen wijziging van hostnamen of IP’s.
+Als dit lukt, is de migratie geslaagd: **zelfde hosts, zelfde `<beheer-vm>`, nieuw kubeadm-cluster**; geen tweede cluster ernaast, geen wijziging van hostnamen of IP’s.
 
 ---
 
@@ -424,11 +424,11 @@ Als dit lukt, is de migratie geslaagd: **zelfde hosts, zelfde jumpbox, nieuw kub
 | Item | Situatie |
 |------|----------|
 | Hosts | Zelfde: cp-01, node-01, node-02 |
-| IP’s | Zelfde: 192.168.178.201/202/203 |
-| Jumpbox | Zelfde; kubeconfig wijst weer naar 192.168.178.201:6443 |
+| IP’s | Zelfde: 192.0.2.201/202/203 |
+| `<beheer-vm>` | Zelfde; kubeconfig wijst weer naar 192.0.2.201:6443 |
 | Pod CIDR | Zelfde: 10.200.0.0/16 (door kubeadm init) |
 | Service CIDR | Zelfde: 10.32.0.0/24 |
-| DNS (A-record, port-forward) | Zelfde EXTERNAL-IP gebruiken (bijv. 192.168.178.220) |
+| DNS (A-record, port-forward) | Zelfde EXTERNAL-IP gebruiken (bijv. 192.0.2.220) |
 | Secrets (Cloudflare, etc.) | Opnieuw aanmaken (niet in Git) |
 | Config in repo | Zelfde manifests/Helm values; opnieuw toepassen |
 

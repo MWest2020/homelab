@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # cert-manager – Stap 4
@@ -25,7 +25,7 @@ Automatische TLS-certificaten via Let's Encrypt. Met **DNS-01** heb je geen poor
 
 Alle cert-manager-config staat in de repo (`kubernetes/infrastructure/cert-manager/`), zodat dit later via Argo CD kan. De Helm-chart zelf komt van Jetstack; onze **values** en **ClusterIssuer** liggen in de repo.
 
-**Vanaf de jumpbox**, in de homelab repo root:
+**Vanaf de `<beheer-vm>`**, in de homelab repo root:
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io
@@ -80,7 +80,7 @@ Voorbeeld-solver (naast of in plaats van Cloudflare in je ClusterIssuer):
 solvers:
   - dns01:
       rfc2136:
-        nameserver: 192.168.178.1   # je BIND server
+        nameserver: 192.0.2.1   # je BIND server
         tsigSecretSecretRef:
           name: rfc2136-tsig
           key: tsig-key

@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Post-installatie Hardening
@@ -49,9 +49,9 @@ sudo apt install -y \
 ssh-keygen -t ed25519 -C "homelab"
 
 # Kopieer naar alle nodes
-ssh-copy-id admin@192.168.178.201
-ssh-copy-id admin@192.168.178.202
-ssh-copy-id admin@192.168.178.203
+ssh-copy-id admin@192.0.2.201
+ssh-copy-id admin@192.0.2.202
+ssh-copy-id admin@192.0.2.203
 ```
 
 ### 5. SSH Hardening
@@ -130,9 +130,9 @@ sudo sysctl --system
 
 ```bash
 sudo tee -a /etc/hosts <<EOF
-192.168.178.201 cp-01
-192.168.178.202 node-01
-192.168.178.203 node-02
+192.0.2.201 cp-01
+192.0.2.202 node-01
+192.0.2.203 node-02
 EOF
 ```
 

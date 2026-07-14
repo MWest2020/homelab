@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Gateway + TLS – Stap 5
@@ -25,7 +25,7 @@ Je hebt nog **geen** namespace `gateway-system` – die maak je in stap 2 aan. J
 
 ## 2. Alle stappen in volgorde (met toelichting)
 
-Alles vanaf **repo root** op de jumpbox (`~/homelab`). Map: `kubernetes/infrastructure/gateway/`.
+Alles vanaf **repo root** op de `<beheer-vm>` (`~/homelab`). Map: `kubernetes/infrastructure/gateway/`.
 
 ---
 
@@ -71,13 +71,13 @@ kubectl apply -f kubernetes/infrastructure/gateway/gateway.yaml
 
 **Stap 4 – LoadBalancer-IP noteren**
 
-**Wat:** Cilium heeft een Service voor de Gateway aangemaakt. MetalLB geeft daar een **EXTERNAL-IP** aan (uit de pool 192.168.178.220–230).  
+**Wat:** Cilium heeft een Service voor de Gateway aangemaakt. MetalLB geeft daar een **EXTERNAL-IP** aan (uit de pool 192.0.2.220–230).  
 **Waarom:** Dat IP is het adres waarop je Gateway bereikbaar is. Pas als je dit IP weet, kun je DNS (of /etc/hosts) invullen; zonder IP heeft een A-record geen waarde.
 
 ```bash
 kubectl get svc -n gateway-system
 # Zoek de Service (naam hangt van Cilium af, bijv. main-gateway).
-# EXTERNAL-IP moet een IP zijn (bijv. 192.168.178.220), niet <pending>.
+# EXTERNAL-IP moet een IP zijn (bijv. 192.0.2.220), niet <pending>.
 ```
 
 Noteer dit **EXTERNAL-IP**.
@@ -101,8 +101,8 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 **Wat:** Zorg dat **test.westerweel.work** naar het EXTERNAL-IP uit stap 4 wijst.  
 **Waarom:** De browser of `curl` moet dat hostname kunnen resolven naar het IP van je Gateway; anders komt het verkeer niet bij je cluster.
 
-- In **Cloudflare** (of je DNS): A-record **test.westerweel.work** → het EXTERNAL-IP (bijv. 192.168.178.220).
-- Of lokaal: in **/etc/hosts** op je laptop: `192.168.178.220 test.westerweel.work`.
+- In **Cloudflare** (of je DNS): A-record **test.westerweel.work** → het EXTERNAL-IP (bijv. 192.0.2.220).
+- Of lokaal: in **/etc/hosts** op je laptop: `192.0.2.220 test.westerweel.work`.
 
 ---
 

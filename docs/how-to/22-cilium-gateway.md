@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Cilium Gateway API
@@ -13,7 +13,7 @@ Cilium als Gateway API controller: Gateway- en HTTPRoute-resources worden afgeha
 
 ## 1. Check vóór je begint
 
-Draai op de jumpbox (vanaf repo root). Alles moet kloppen voordat je de Helm upgrade doet.
+Draai op de `<beheer-vm>` (vanaf repo root). Alles moet kloppen voordat je de Helm upgrade doet.
 
 ```bash
 # Nodes
@@ -53,7 +53,7 @@ Geen wijziging nodig tenzij je Gateway expliciet uit wilt zetten.
 
 ## 3. Cilium upgraden (Gateway controller aanzetten)
 
-**Vanaf de jumpbox**, in de homelab repo root:
+**Vanaf de `<beheer-vm>`**, in de homelab repo root:
 
 ```bash
 # Repo updaten (als je wijzigingen hebt gepullt)

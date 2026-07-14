@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Ubuntu Server Installatie
@@ -30,15 +30,15 @@ Kies voor handmatige configuratie:
 
 **Control Plane (cp-01):**
 ```
-Subnet: 192.168.178.0/24
-Address: 192.168.178.201
-Gateway: 192.168.178.1
+Subnet: 192.0.2.0/24
+Address: 192.0.2.201
+Gateway: 192.0.2.1
 Name servers: 1.1.1.1,8.8.8.8
 Search domains: (leeg laten)
 ```
 
-**Worker 1 (node-01):** Zelfde, maar Address: `192.168.178.202`
-**Worker 2 (node-02):** Zelfde, maar Address: `192.168.178.203`
+**Worker 1 (node-01):** Zelfde, maar Address: `192.0.2.202`
+**Worker 2 (node-02):** Zelfde, maar Address: `192.0.2.203`
 
 ### 5. Storage
 - **Use an entire disk** ✓
@@ -65,7 +65,7 @@ Password: [sterk wachtwoord - bewaar veilig!]
 ### 9. Installatie Voltooien
 - Reboot
 - Verwijder USB stick
-- Verify SSH access: `ssh admin@192.168.178.201`
+- Verify SSH access: `ssh admin@192.0.2.201`
 
 ## Post-installatie
 
