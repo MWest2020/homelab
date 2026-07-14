@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Netwerk Configuratie
@@ -9,17 +9,17 @@ last_reviewed: 2026-07-12
 
 | Device | Hostname | IP Adres | Rol |
 |--------|----------|----------|-----|
-| Router | - | 192.168.178.1 | Gateway |
-| Control Plane | cp-01 | 192.168.178.201 | K8s Control Plane (etcd, apiserver, scheduler, controller-manager) |
-| Worker 1 | node-01 | 192.168.178.202 | K8s Worker (kubelet, containerd) |
-| Worker 2 | node-02 | 192.168.178.203 | K8s Worker (kubelet, containerd) |
-| Jumpbox | jump | DHCP | Management (kubectl, ansible, ssh) |
+| Router | - | 192.0.2.1 | Gateway |
+| Control Plane | cp-01 | 192.0.2.201 | K8s Control Plane (etcd, apiserver, scheduler, controller-manager) |
+| Worker 1 | node-01 | 192.0.2.202 | K8s Worker (kubelet, containerd) |
+| Worker 2 | node-02 | 192.0.2.203 | K8s Worker (kubelet, containerd) |
+| Beheer-VM | `<beheer-vm>` | DHCP | Management (kubectl, ansible, ssh) |
 
 ## Netwerk Settings
 
 ```
-Subnet:      192.168.178.0/24
-Gateway:     192.168.178.1
+Subnet:      192.0.2.0/24
+Gateway:     192.0.2.1
 DNS:         1.1.1.1, 8.8.8.8
 ```
 
@@ -49,16 +49,16 @@ Cluster DNS:  10.32.0.10
                          Internet
                              │
                         [Router]
-                     192.168.178.1
+                     192.0.2.1
                              │
     ┌────────────────────────┼────────────────────────┐
     │                        │                        │
- [jump]                      │                        │
+ [<beheer-vm>]                │                        │
  (DHCP)                      │                        │
     │              ┌─────────┴─────────┐              │
     │              │                   │              │
     └──────► [cp-01]              [node-01]      [node-02]
-   kubectl   .178.201              .178.202       .178.203
+   kubectl   .2.201                .2.202         .2.203
    ansible   Control Plane          Worker         Worker
              etcd, apiserver       kubelet        kubelet
              scheduler, cm         containerd     containerd
@@ -68,7 +68,7 @@ Cluster DNS:  10.32.0.10
 
 | Doel | Range |
 |------|-------|
-| LoadBalancer Services (Gateway, etc.) | 192.168.178.220–192.168.178.230 |
+| LoadBalancer Services (Gateway, etc.) | 192.0.2.220–192.0.2.230 |
 
 **Belangrijk:** Zorg dat .220–.230 **buiten** de DHCP-range vallen van het apparaat dat bij jou DHCP doet (switch, router of anders). Anders kan MetalLB een IP uitdelen dat ook aan een client wordt gegeven → conflict.
 

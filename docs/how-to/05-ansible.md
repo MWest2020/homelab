@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Ansible Setup & Gebruik
@@ -30,12 +30,12 @@ Voordat Ansible werkt, moet je SSH key-based auth hebben:
 ssh-keygen -t ed25519 -C "homelab"
 
 # Kopieer naar alle nodes
-ssh-copy-id admin@192.168.178.201
-ssh-copy-id admin@192.168.178.202
-ssh-copy-id admin@192.168.178.203
+ssh-copy-id admin@192.0.2.201
+ssh-copy-id admin@192.0.2.202
+ssh-copy-id admin@192.0.2.203
 
 # Test verbinding
-ssh admin@192.168.178.201 "hostname"
+ssh admin@192.0.2.201 "hostname"
 ```
 
 ## Inventory
@@ -55,13 +55,13 @@ all:
         control_plane:
           hosts:
             cp-01:
-              ansible_host: 192.168.178.201
+              ansible_host: 192.0.2.201
         workers:
           hosts:
             node-01:
-              ansible_host: 192.168.178.202
+              ansible_host: 192.0.2.202
             node-02:
-              ansible_host: 192.168.178.203
+              ansible_host: 192.0.2.203
 ```
 
 ## Playbooks
@@ -99,7 +99,7 @@ ansible-playbook playbooks/prepare-nodes.yml --limit cp-01
 
 ### configure-passwordless-sudo.yml (eenmalig, daarna geen wachtwoord meer)
 
-Zet **passwordless sudo** voor de Ansible-user (bijv. gongoeloe) op alle nodes. Daarna hoeft geen enkel playbook meer `--ask-become-pass`.
+Zet **passwordless sudo** voor de Ansible-user (bijv. `<user>`) op alle nodes. Daarna hoeft geen enkel playbook meer `--ask-become-pass`.
 
 ```bash
 cd ~/homelab/ansible
@@ -108,17 +108,17 @@ ansible-playbook playbooks/configure-passwordless-sudo.yml --ask-become-pass
 
 Daarna alle andere playbooks zonder wachtwoord: `ansible-playbook playbooks/...yml`
 
-### deploy-ssh-keys.yml (jumpbox toegang geven)
+### deploy-ssh-keys.yml (`<beheer-vm>` toegang geven)
 
-Als je Ansible **vanaf de jumpbox** wilt draaien maar de jumpbox nog geen SSH-toegang tot de nodes heeft: draai dit playbook **eén keer vanaf Alma** (waar je wél al SSH hebt). Het voegt de publieke sleutel toe op cp-01, node-01 en node-02 voor de user uit inventory (bijv. gongoeloe).
+Als je Ansible **vanaf de `<beheer-vm>`** wilt draaien maar de `<beheer-vm>` nog geen SSH-toegang tot de nodes heeft: draai dit playbook **eén keer vanaf het `<werkstation>`** (waar je wél al SSH hebt). Het voegt de publieke sleutel toe op cp-01, node-01 en node-02 voor de user uit inventory (bijv. `<user>`).
 
 ```bash
-# Op Alma (in homelab/ansible; inventory moet voor Alma kloppen: IP's, ansible_user, ansible_ssh_private_key_file):
+# Op <werkstation> (in homelab/ansible; inventory moet voor <werkstation> kloppen: IP's, ansible_user, ansible_ssh_private_key_file):
 ansible-playbook playbooks/deploy-ssh-keys.yml -e "ssh_public_key_file=~/.ssh/id_ed25519_homelab.pub" --ask-become-pass
 # Of met key als string: -e "ssh_public_key_content='ssh-ed25519 AAAA... comment'"
 ```
 
-Als gongoeloe op de nodes sudo zonder wachtwoord heeft, kun je `--ask-become-pass` weglaten. Daarna kan de jumpbox (met dezelfde key, bijv. `~/.ssh/id_ed25519_homelab`) SSH-en naar de nodes en kun je de kubeadm-playbooks vanaf de jumpbox draaien.
+Als `<user>` op de nodes sudo zonder wachtwoord heeft, kun je `--ask-become-pass` weglaten. Daarna kan de `<beheer-vm>` (met dezelfde key, bijv. `~/.ssh/id_ed25519_homelab`) SSH-en naar de nodes en kun je de kubeadm-playbooks vanaf de `<beheer-vm>` draaien.
 
 ### kubeadm-install-packages.yml en kubeadm-bootstrap.yml (migratie)
 
@@ -128,7 +128,7 @@ Voor de **migratie Hard Way → kubeadm** (zelfde hosts): installatie van kubead
 |----------|------|
 | `playbooks/kubeadm-install-packages.yml` | Installeert kubeadm, kubelet, kubectl (apt; Debian/Ubuntu) |
 | `playbooks/kubeadm-bootstrap.yml` | kubeadm init op cp-01, join op workers (idempotent) |
-| `playbooks/kubeadm-post-bootstrap.yml` | Fase F–K: kubeconfig ophalen, Cilium, Gateway CRDs, MetalLB, cert-manager, Gateway-stack (draait op localhost/jumpbox; vereist kubectl + helm op jumpbox) |
+| `playbooks/kubeadm-post-bootstrap.yml` | Fase F–K: kubeconfig ophalen, Cilium, Gateway CRDs, MetalLB, cert-manager, Gateway-stack (draait op localhost/`<beheer-vm>`; vereist kubectl + helm op `<beheer-vm>`) |
 
 Variabelen in `group_vars/k8s_cluster.yml` (versie, endpoint, pod/service CIDR). Optioneel voor post-bootstrap: `-e "cert_manager_cloudflare_token=..."` (anders secret handmatig aanmaken).
 

@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # MetalLB – Stap 3
@@ -25,13 +25,13 @@ kubectl get pods -n kube-system -l k8s-app=cilium -o wide
 
 → Nodes Ready, GatewayClass `cilium` aanwezig, Cilium op alle nodes.
 
-**Netwerk:** De pool 192.168.178.220–230 moet **buiten** de DHCP-range vallen van wat bij jou DHCP doet (switch, router, etc.). Zie [02-network.md](../reference/02-network.md). Zo niet: pas de DHCP-range daar aan, of wijzig het bereik in `kubernetes/infrastructure/metallb/ip-pool.yaml`.
+**Netwerk:** De pool 192.0.2.220–230 moet **buiten** de DHCP-range vallen van wat bij jou DHCP doet (switch, router, etc.). Zie [02-network.md](../reference/02-network.md). Zo niet: pas de DHCP-range daar aan, of wijzig het bereik in `kubernetes/infrastructure/metallb/ip-pool.yaml`.
 
 ---
 
 ## 2. MetalLB installeren
 
-**Vanaf de jumpbox**, in de homelab repo root.
+**Vanaf de `<beheer-vm>`**, in de homelab repo root.
 
 **Stap 2a – MetalLB controller + speaker (eenmalig):**
 
@@ -52,7 +52,7 @@ kubectl get pods -n metallb-system -w
 kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 ```
 
-De pool `homelab-lan` gebruikt 192.168.178.220–192.168.178.230. L2 mode: MetalLB antwoordt met ARP op dat bereik vanaf een van de nodes.
+De pool `homelab-lan` gebruikt 192.0.2.220–192.0.2.230. L2 mode: MetalLB antwoordt met ARP op dat bereik vanaf een van de nodes.
 
 > **NOTE – Lees verder:** [L2 configuration (interfaces, node selectors)](https://metallb.io/configuration/_advanced_l2_configuration/) in de officiële MetalLB-docs.
 
@@ -80,7 +80,7 @@ Als er nog geen LoadBalancer-service is: maak een testservice, controleer EXTERN
 kubectl create deployment nginx-lb --image=nginx
 kubectl expose deployment nginx-lb --type=LoadBalancer --port=80
 kubectl get svc nginx-lb
-# EXTERNAL-IP moet 192.168.178.220 of volgende in de pool zijn
+# EXTERNAL-IP moet 192.0.2.220 of volgende in de pool zijn
 kubectl delete deployment nginx-lb
 kubectl delete svc nginx-lb
 ```

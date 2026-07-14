@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Kubernetes the Hard Way
@@ -19,7 +19,7 @@ We installeren Kubernetes volledig handmatig volgens de [Kelsey Hightower tutori
 |----------|------------|
 | GCP VMs | HP EliteDesk Mini-PC's |
 | 3 controllers + 3 workers | 1 control plane + 2 workers |
-| GCP networking | Flat LAN (192.168.178.0/24) |
+| GCP networking | Flat LAN (192.0.2.0/24) |
 
 ## Componenten Overview
 
@@ -52,7 +52,7 @@ We installeren Kubernetes volledig handmatig volgens de [Kelsey Hightower tutori
 ## Netwerk Configuratie
 
 ```
-Node Network:    192.168.178.0/24
+Node Network:    192.0.2.0/24
 Pod CIDR:        10.200.0.0/16
   - node01:      10.200.0.0/24
   - node02:      10.200.1.0/24

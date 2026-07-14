@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-14
 ---
 
 # Hardware Specificaties
@@ -14,7 +14,7 @@ last_reviewed: 2026-07-12
 | CPU | Intel Core i?-???? |
 | RAM | 32GB DDR4 |
 | Storage | ?GB NVMe/SSD |
-| IP | 192.168.178.201 |
+| IP | 192.0.2.201 |
 | Rol | Kubernetes Control Plane |
 
 ### Worker 1 - `node-01`
@@ -24,7 +24,7 @@ last_reviewed: 2026-07-12
 | CPU | Intel Core i?-???? |
 | RAM | 32GB DDR4 |
 | Storage | ?GB NVMe/SSD |
-| IP | 192.168.178.202 |
+| IP | 192.0.2.202 |
 | Rol | Kubernetes Worker |
 
 ### Worker 2 - `node-02`
@@ -34,12 +34,12 @@ last_reviewed: 2026-07-12
 | CPU | Intel Core i?-???? |
 | RAM | 32GB DDR4 |
 | Storage | ?GB NVMe/SSD |
-| IP | 192.168.178.203 |
+| IP | 192.0.2.203 |
 | Rol | Kubernetes Worker |
 
-## Jumpbox / Management
+## `<beheer-vm>` / Management
 
-Je lokale machine (Windows + WSL2) fungeert als jumpbox:
+Je lokale machine (Windows + WSL2) fungeert als `<beheer-vm>`:
 - kubectl geconfigureerd met `~/.kube/config`
 - Ansible runt vanaf hier
 - Toegang tot cluster via SSH en kubectl
