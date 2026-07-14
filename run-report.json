@@ -1,13 +1,13 @@
 {
-  "role": "builder",
+  "role": "reviewer",
   "change": "redact-homelab-docs",
-  "run_id": "builder-redact-homelab-docs-20260714-073555",
+  "run_id": "reviewer-redact-homelab-docs-20260714-074516",
   "repo": "https://github.com/MWest2020/homelab.git",
   "verdict": "ok",
   "subtype": "success",
-  "total_cost_usd": "2.9911025",
-  "num_turns": "40",
+  "total_cost_usd": "1.0724015",
+  "num_turns": "15",
   "claude_exit": "0",
-  "finished_at": "2026-07-14T07:45:11Z",
-  "diff_hash": "84685a7ef028abb2a5c40df0615cbbeb45cba02d5a46c3d81aa705ebfacad5f4"
+  "finished_at": "2026-07-14T07:48:03Z",
+  "diff_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }
