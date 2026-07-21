@@ -9,4 +9,4 @@ jobs:
     uses: MWest2020/handbook/.github/workflows/docs-gates.yml@main
     with:
       code_paths: "ansible/,apps/,cluster-config/,docker/,kubernetes/,terraform/,claude-lxc-iac/"
-      drift_mode: "warn"
+      drift_mode: "fail"
