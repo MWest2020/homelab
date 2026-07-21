@@ -1,0 +1,25 @@
+# Verify-gate: terraform fmt + yaml-syntax (test-gate, hub docs/reference/test-gate.md).
+name: verify
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+      - name: yaml-syntax
+        run: |
+          python3 - <<'PY'
+          import glob, yaml, sys
+          bad = 0
+          for f in glob.glob('**/*.yml', recursive=True) + glob.glob('**/*.yaml', recursive=True):
+              try:
+                  list(yaml.safe_load_all(open(f)))
+              except Exception as e:
+                  print(f'YAML-FOUT {f}: {e}'); bad = 1
+          sys.exit(bad)
+          PY
