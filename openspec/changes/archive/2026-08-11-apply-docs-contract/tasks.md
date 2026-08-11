@@ -19,7 +19,7 @@
       Reeds aanwezig vanuit de seed en conform template; ongewijzigd gelaten.
 - [x] 3.1 Zelfcheck tegen het contract: alleen toegestane submappen dragen
       markdown, elke pagina heeft front matter, één taal (Nederlands).
-- [ ] 4.1 PR openen met titel `docs: apply handbook docs contract`; body vinkt
+- [x] 4.1 PR openen met titel `docs: apply handbook docs contract`; body vinkt
       per contractpunt af wat is toegepast + vermeldt de punten die de
       proposal als "PR-body" markeert. STOP daarna: Mark merget.
       (Lokaal gecommit; `git push`/PR wacht op expliciete bevestiging van Mark
