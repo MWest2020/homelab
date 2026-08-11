@@ -1,13 +1,14 @@
 ---
-# Deploy the CrowdSec engine (detection-only) alongside the Caddy proxy on the
+# Deploy the CrowdSec engine + register the Caddy L7 bouncer (fase A.2) on the
 # proxy VM (.50). Mirrors the docker-compose style of deploy-proxy.yml.
 #
-# Prerequisite: run deploy-proxy.yml first so Caddy writes JSON access logs to
-# the shared /var/log/caddy bind mount.
+# Run order: dit playbook EERST, dan deploy-proxy.yml. Caddy heeft bij start de
+# LAPI (crowdsec:8080) + de bouncer-API-key nodig; dit playbook zet beide klaar
+# en schrijft de key naar /opt/proxy/.env (door compose ingelezen).
 #
 # Usage:
 #   ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-crowdsec-proxy.yml
-- name: Deploy CrowdSec engine (detection-only) on the Caddy proxy VM
+- name: Deploy CrowdSec engine + Caddy bouncer registration on the proxy VM
   hosts: proxy
   become: true
   tasks:
@@ -25,6 +26,14 @@
         state: directory
         owner: ubuntu
         group: ubuntu
+
+    # Gedeeld netwerk waarop de Caddy-bouncer de LAPI (crowdsec:8080) bereikt.
+    # Moet bestaan vóór 'compose up' — de compose verwijst ernaar als external.
+    - name: Ensure shared crowdsec-lapi network exists
+      shell: docker network inspect crowdsec-lapi >/dev/null 2>&1 || docker network create crowdsec-lapi
+      register: net_create
+      changed_when: net_create.stdout | length > 0
+      become: false
 
     - name: Copy docker-compose.yml
       copy:
@@ -65,6 +74,35 @@
       retries: 12
       delay: 5
       changed_when: false
+      become: false
+
+    # --- Caddy L7 bouncer (fase A.2) ---------------------------------------
+    # De proxy-stack leest /opt/proxy/.env. We genereren de bouncer-key één keer
+    # en bewaren 'm daar als single source of truth (buiten git).
+    - name: Ensure proxy directory exists (voor de bouncer-env)
+      file:
+        path: /opt/proxy
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Generate and persist the bouncer API key on the host (idempotent)
+      shell: |
+        if [ ! -f /opt/proxy/.env ]; then
+          echo "CROWDSEC_API_KEY=$(openssl rand -hex 32)" > /opt/proxy/.env
+          chmod 600 /opt/proxy/.env
+        fi
+        grep '^CROWDSEC_API_KEY=' /opt/proxy/.env | cut -d= -f2-
+      register: bouncer_key
+      changed_when: false
+      become: false
+
+    - name: Register caddy-bouncer on the LAPI with that key (idempotent)
+      shell: >
+        docker exec crowdsec cscli bouncers list -o json | grep -q caddy-bouncer
+        || docker exec crowdsec cscli bouncers add caddy-bouncer -k "{{ bouncer_key.stdout | trim }}"
+      register: bouncer_reg
+      changed_when: "'caddy-bouncer' in bouncer_reg.stdout"
       become: false
 
     - name: Show CrowdSec acquisition/parser metrics

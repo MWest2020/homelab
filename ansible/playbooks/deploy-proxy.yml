@@ -1,4 +1,9 @@
 ---
+# Deploy de Caddy reverse proxy (custom image met CrowdSec L7-bouncer, fase A.2).
+#
+# Prerequisite: draai EERST deploy-crowdsec-proxy.yml. Die zet de LAPI + het
+# crowdsec-lapi-netwerk klaar en schrijft de bouncer-key naar /opt/proxy/.env,
+# die deze stack via compose inleest.
 - name: Deploy Caddy reverse proxy
   hosts: proxy
   become: true
@@ -10,6 +15,20 @@
         owner: ubuntu
         group: ubuntu
 
+    - name: Fail early if the bouncer env is missing
+      stat:
+        path: /opt/proxy/.env
+      register: bouncer_env
+      failed_when: not bouncer_env.stat.exists
+      # /opt/proxy/.env wordt aangemaakt door deploy-crowdsec-proxy.yml.
+
+    # Idempotent — normaal al door deploy-crowdsec-proxy.yml aangemaakt.
+    - name: Ensure shared crowdsec-lapi network exists
+      shell: docker network inspect crowdsec-lapi >/dev/null 2>&1 || docker network create crowdsec-lapi
+      register: net_create
+      changed_when: net_create.stdout | length > 0
+      become: false
+
     - name: Copy docker-compose.yml
       copy:
         src: ../../docker/proxy/docker-compose.yml
@@ -17,6 +36,14 @@
         owner: ubuntu
         group: ubuntu
       register: compose_file
+
+    - name: Copy Caddy Dockerfile (custom build met bouncer)
+      copy:
+        src: ../../docker/proxy/Dockerfile
+        dest: /opt/proxy/Dockerfile
+        owner: ubuntu
+        group: ubuntu
+      register: dockerfile
 
     - name: Generate Caddyfile from inventory
       template:
@@ -26,16 +53,22 @@
         group: ubuntu
       register: caddyfile
 
-    - name: Pull latest images
-      shell: docker compose pull
+    - name: Build custom Caddy image
+      shell: docker compose build caddy
+      args:
+        chdir: /opt/proxy
+      become: false
+
+    - name: Pull upstream images (niet de lokaal-gebouwde Caddy)
+      shell: docker compose pull --ignore-buildable
       args:
         chdir: /opt/proxy
       become: false
 
     - name: Start proxy stack
       shell: >
-        docker compose up -d
-        {{ '--force-recreate' if (compose_file.changed or caddyfile.changed) else '' }}
+        docker compose up -d --build
+        {{ '--force-recreate' if (compose_file.changed or caddyfile.changed or dockerfile.changed) else '' }}
       args:
         chdir: /opt/proxy
       become: false

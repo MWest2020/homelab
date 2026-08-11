@@ -1,16 +1,28 @@
 services:
   caddy:
-    image: caddy:2-alpine
+    # Custom build: stock caddy:2-alpine mist de CrowdSec-bouncer-module. Zie Dockerfile.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: homelab/caddy-crowdsec:2.11.4
     restart: always
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # API-key van de 'caddy-bouncer' op de CrowdSec-LAPI. Gegenereerd en
+      # weggeschreven naar /opt/proxy/.env door deploy-crowdsec-proxy.yml.
+      - CROWDSEC_API_KEY=${CROWDSEC_API_KEY:?run deploy-crowdsec-proxy.yml eerst (zet /opt/proxy/.env)}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
       # Shared with the crowdsec stack (read-only there) — access logs.
       - /var/log/caddy:/var/log/caddy
+    networks:
+      # default: praat met de woo-* upstreams. crowdsec-lapi: bereikt de LAPI.
+      - default
+      - crowdsec-lapi
 
   woo-klant-a:
     image: ghcr.io/conductionnl/woo-website-v2
@@ -32,6 +44,12 @@ services:
     environment:
       - UPSTREAM_BASE=http://192.168.178.53/apps/opencatalogi/api
       - UPSTREAM_HOST=klant-c.westerweel.work
+
+networks:
+  # Gedeeld met de crowdsec-stack zodat Caddy de LAPI op http://crowdsec:8080 vindt.
+  # Buiten compose aangemaakt (deploy-playbooks), daarom external.
+  crowdsec-lapi:
+    external: true
 
 volumes:
   caddy_data:

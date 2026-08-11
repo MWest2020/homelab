@@ -38,15 +38,29 @@ niet op storage-niveau.
 
 ## CrowdSec detection-only first, gedeeld logbestand i.p.v. docker.sock
 
-CrowdSec op de proxy start bewust **detection-only**: de engine parst Caddy's access-log
-en genereert alerts, maar er is geen bouncer — niets wordt geblokkeerd. Zo zie je eerst
-wat een bouncer zou tegenhouden, vóórdat je het risico op false-positive-blocks op de
-publieke surface neemt. De bouncer-keuze (firewall-bouncer vs. Caddy-L7-plugin) en
-deelname aan de community-blocklist zijn bewust uitgesteld naar een volgende fase.
+CrowdSec op de proxy is bewust **detection-only** begonnen (fase A.1): de engine parste
+Caddy's access-log en genereerde alleen alerts, zonder bouncer. Zo zag je eerst wat een
+bouncer zou tegenhouden, vóórdat je het risico op false-positive-blocks op de publieke
+surface nam.
 
 De engine leest het access-log via een **gedeelde, read-only host-bind-mount**, niet via
 `docker.sock`: een logbestand is auditbaarder en veel minder geprivilegieerd dan
 socket-toegang tot de Docker-daemon.
+
+## CrowdSec-bouncer: Caddy-L7-plugin i.p.v. firewall-bouncer
+
+Sinds fase A.2 (live op .50) wordt er **wél geblokkeerd**. Gekozen is de
+**Caddy-L7-plugin** (`hslatman/caddy-crowdsec-bouncer`), niet `cs-firewall-bouncer`. De
+plugin handelt het blokkeren af in Caddy zelf — een nette 403 per vhost, in dezelfde
+request-flow als de TLS-terminatie en logging — zonder iptables-regels op de host te
+manipuleren. Dat past op de Caddy-native architectuur en is auditbaarder dan een
+firewall-laag die los van de proxy leeft. De bouncer faalt bovendien **open**: valt de
+LAPI weg, dan blijft Caddy verkeer doorlaten i.p.v. de publieke proxy mee te slepen.
+
+Nog bewust uitgesteld: deelname aan de **community-blocklist** (CAPI), en de
+**client-IP-herkenning** (`trusted_proxies`/XFF) — zonder die laatste ziet CrowdSec achter
+de Docker-`userland-proxy` alleen de RFC1918-bridge-gateway. Beide worden opgepakt vóór de
+proxy echt scherp publiek gaat.
 
 ## Docs extern gehost, niet in-cluster
 

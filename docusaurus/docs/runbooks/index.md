@@ -104,33 +104,62 @@ ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
 ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-portainer.yml
 ```
 
-## CrowdSec uitrollen (edge-detectie op de proxy)
+## CrowdSec uitrollen (edge-detectie + blocking op de proxy)
 
-CrowdSec draait **detection-only** naast Caddy op de proxy-VM (`192.168.178.50`): de
-engine parst Caddy's JSON-access-log en genereert alerts/decisions, maar er is (nog) geen
-bouncer — er wordt niets geblokkeerd. Achtergrond: zie [Beslissingen](../beslissingen/).
+CrowdSec draait naast Caddy op de proxy-VM (`192.168.178.50`): de engine parst Caddy's
+JSON-access-log en genereert alerts/decisions, en sinds fase A.2 dwingt een **Caddy-L7-
+bouncer** die decisions af — een gebande IP krijgt een 403. Achtergrond: zie
+[Beslissingen](../beslissingen/).
 
-Prerequisite: Caddy moet zijn access-log schrijven naar de gedeelde host-bind-mount
-`/var/log/caddy/access.log` (de `(accesslog)`-snippet in de Caddyfile). Draai daarom eerst
-`deploy-proxy.yml`:
+Prerequisite: Caddy schrijft zijn access-log naar de gedeelde host-bind-mount
+`/var/log/caddy/access.log` (de `(secured)`-snippet in de Caddyfile). De volgorde is
+**crowdsec eerst, dan de proxy** — `deploy-crowdsec-proxy.yml` zet de LAPI, het
+`crowdsec-lapi`-netwerk en de bouncer-key (`/opt/proxy/.env`) klaar die de proxy-stack
+nodig heeft bij start:
 
 ```bash
-# 1. Caddy mét access-logging (prerequisite — schrijft /var/log/caddy/access.log)
-ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
-
-# 2. CrowdSec-engine ernaast
+# 1. Engine + crowdsec-lapi-net + bouncer registreren (schrijft /opt/proxy/.env)
 ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-crowdsec-proxy.yml
+
+# 2. Custom Caddy-image (mét bouncer) bouwen + proxy omwisselen
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
 ```
 
-De deploy is **zelf-verifiërend**: hij faalt hard als `cscli lapi status` niet binnen
-~1 min gezond opkomt (collections + LAPI-startup duren even) en print daarna `cscli metrics`.
+De crowdsec-deploy is **zelf-verifiërend**: hij faalt hard als `cscli lapi status` niet
+binnen ~1 min gezond opkomt (collections + LAPI-startup duren even) en print daarna
+`cscli metrics`.
 
-Inspecteren (detection-only — alerts, geen blocks):
+Inspecteren:
 
 ```bash
+ssh 192.168.178.50 'docker exec crowdsec cscli bouncers list'   # caddy-bouncer → Valid
 ssh 192.168.178.50 'docker exec crowdsec cscli metrics'
 ssh 192.168.178.50 'docker exec crowdsec cscli alerts list'
+ssh 192.168.178.50 'docker exec crowdsec cscli decisions list'  # actieve bans
 ```
+
+### IP bannen / unbannen (handmatig)
+
+De bouncer pullt nieuwe decisions elke 15s (`ticker_interval`), dus een ban/unban wordt na
+~15s actief op de proxy.
+
+```bash
+# Bannen (tijdelijk — altijd een duur meegeven)
+ssh 192.168.178.50 'docker exec crowdsec cscli decisions add --ip 203.0.113.7 --duration 4h --reason "handmatig"'
+
+# Unbannen
+ssh 192.168.178.50 'docker exec crowdsec cscli decisions delete --ip 203.0.113.7'
+```
+
+Enforcement testen zonder echte aanvaller: ban een IP, doe een request en verwacht **403**;
+verwijder de decision en verwacht weer een normale respons (302).
+
+:::warning Client-IP vóór go-live
+Achter de Docker-`userland-proxy` ziet Caddy nu de bridge-gateway (`172.20.0.1`, RFC1918)
+i.p.v. de echte client. CrowdSec whitelist RFC1918 standaard → bij écht publiek verkeer
+worden aanvallen weggewhitelist. Fix vóór de proxy scherp publiek gaat: `trusted_proxies`
++ XFF in de Caddyfile, of `userland-proxy: false` op de daemon.
+:::
 
 ## Homelab gracefully afsluiten (stroomonderbreking)
 

@@ -1,7 +1,19 @@
-# Reusable JSON access log → tailed by the CrowdSec engine (detection-only).
-# Writes to /var/log/caddy/access.log, host-bind-mounted and shared read-only
-# with the crowdsec stack (docker/crowdsec/). See deploy-crowdsec-proxy.yml.
-(accesslog) {
+# Global options: registreer de CrowdSec-bouncer-app (fase A.2). De bouncer
+# vraagt de lokale CrowdSec-LAPI en blokkeert verzoeken van gebande IP's (403).
+# 'order crowdsec first' is nodig omdat 'crowdsec' geen standaard-directive is.
+{
+	order crowdsec first
+	crowdsec {
+		api_url http://crowdsec:8080
+		api_key {env.CROWDSEC_API_KEY}
+		ticker_interval 15s
+	}
+}
+
+# Per-site beveiliging: JSON-access-log (getailed door de CrowdSec-engine,
+# detection) + de crowdsec-handler (enforcement). Beide in één snippet zodat
+# elke vhost identiek beschermd is.
+(secured) {
 	log {
 		output file /var/log/caddy/access.log {
 			roll_size 20MiB
@@ -9,12 +21,13 @@
 		}
 		format json
 	}
+	crowdsec
 }
 
 # React frontends (public)
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] | replace('westerweel.work', 'woo.westerweel.work') }} {
-	import accesslog
+	import secured
 	tls internal
 	reverse_proxy woo-{{ hostvars[host]['inventory_hostname'] }}:8080
 }
@@ -23,7 +36,7 @@
 # Nextcloud backends (API public, admin via LAN firewall)
 {% for host in groups['nextcloud'] %}
 {{ hostvars[host]['tenant_domain'] }} {
-	import accesslog
+	import secured
 	tls internal
 	reverse_proxy {{ hostvars[host]['ansible_host'] }}:80
 }

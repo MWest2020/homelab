@@ -1,7 +1,7 @@
-# CrowdSec engine (detection-only) for the Caddy proxy VM (.50).
-# Reads Caddy's JSON access log and generates alerts/decisions. There is NO
-# bouncer yet, so nothing is actually blocked — inspect with `cscli`.
-# Deployed by ansible/playbooks/deploy-crowdsec-proxy.yml.
+# CrowdSec engine for the Caddy proxy VM (.50). Reads Caddy's JSON access log
+# and generates alerts/decisions. The Caddy L7 bouncer (fase A.2) enforces those
+# decisions; this stack exposes the LAPI to Caddy over the shared crowdsec-lapi
+# network. Deployed by ansible/playbooks/deploy-crowdsec-proxy.yml.
 services:
   crowdsec:
     image: crowdsecurity/crowdsec:v1.7.8
@@ -11,7 +11,7 @@ services:
       # Collections installed on startup (idempotent). Caddy parser + Nextcloud
       # scenarios + generic HTTP scenarios (scanning, path traversal, ...).
       - COLLECTIONS=crowdsecurity/caddy crowdsecurity/nextcloud crowdsecurity/base-http-scenarios
-      # Group for the local API socket (used by a bouncer in fase A.2).
+      # Group for the local API socket (used by the Caddy bouncer in fase A.2).
       - GID=1000
     volumes:
       # Caddy access log, shared read-only via host bind mount.
@@ -22,6 +22,16 @@ services:
       # an empty config volume on first run.
       - crowdsec_config:/etc/crowdsec
       - crowdsec_data:/var/lib/crowdsec/data
+    networks:
+      # default: outbound naar de CrowdSec Central API (collections/blocklists).
+      # crowdsec-lapi: laat de Caddy-bouncer de LAPI op crowdsec:8080 bereiken.
+      - default
+      - crowdsec-lapi
+
+networks:
+  # Gedeeld met de proxy-stack. Buiten compose aangemaakt (deploy-playbooks).
+  crowdsec-lapi:
+    external: true
 
 volumes:
   crowdsec_config:

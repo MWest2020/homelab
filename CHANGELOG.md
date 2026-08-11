@@ -146,13 +146,71 @@ helm upgrade --install crowdsec crowdsec/crowdsec -n crowdsec --create-namespace
   --version 0.24.0 -f kubernetes/infrastructure/crowdsec/values.yaml
 ```
 
+## 2026-06-22 — CrowdSec Fase A.2: Caddy L7-bouncer (enforcement) op de proxy
+
+### Context
+- Vervolg op A.1 (detection-only). De engine genereert al alerts/decisions;
+  **A.2 voegt de bouncer toe die die decisions afdwingt** op de proxy-VM (.50).
+  Een gebande IP krijgt nu **403** in plaats van te worden doorgelaten.
+- **Bouncer-keuze: de Caddy-L7-plugin**, niet `cs-firewall-bouncer`. De plugin
+  blokkeert in Caddy zelf (nette 403 per vhost, in de request-flow waar ook de
+  TLS-terminatie en logging zitten) zonder iptables-manipulatie op de host — dat
+  past op de Caddy-native architectuur en is auditbaarder dan een firewall-laag
+  die los van de proxy leeft.
+
+### Added
+- **`docker/proxy/Dockerfile`** — custom Caddy-image `homelab/caddy-crowdsec:2.11.4`
+  via `xcaddy`, met `github.com/hslatman/caddy-crowdsec-bouncer/http@v0.13.1`.
+  Vervangt stock `caddy:2-alpine` (die mist de bouncer-module). **Alles gepind**
+  (Caddy 2.11.4 = de draaiende versie; bouncer v0.13.1) — geen floating tags.
+- **`crowdsec-lapi` Docker-netwerk** (extern, buiten compose aangemaakt door de
+  playbooks) — gedeeld door de crowdsec- en proxy-stack zodat de Caddy-bouncer de
+  LAPI op `http://crowdsec:8080` bereikt.
+- **Bouncer-registratie** in `deploy-crowdsec-proxy.yml`: genereert eenmalig een
+  API-key, bewaart 'm in `/opt/proxy/.env` (single source of truth, buiten git)
+  en registreert `caddy-bouncer` op de LAPI (`cscli bouncers add`). Idempotent.
+
+### Changed
+- **`ansible/templates/Caddyfile.j2`** — global `order crowdsec first` +
+  `crowdsec`-block (api_url/api_key/ticker 15s); het `(secured)`-snippet krijgt de
+  `crowdsec`-handler naast de access-log, zodat elke vhost identiek beschermd is.
+- **`docker/proxy/docker-compose.yml`** — Caddy bouwt nu de custom image, leest
+  `CROWDSEC_API_KEY` uit `/opt/proxy/.env` en hangt aan het `crowdsec-lapi`-net.
+- **`docker/crowdsec/docker-compose.yml`** — engine ook aan `crowdsec-lapi`,
+  `GID=1000` voor de LAPI-socket. `deploy-crowdsec-proxy.yml` recreatet de engine
+  (kort detectiegat van seconden) en wacht op `cscli lapi status` healthy.
+
+### Why / supply chain
+- Bouncer v0.13.1 + Caddy 2.11.4 upstream-geverifieerd, ruim buiten de cooldown.
+- LAPI-uitval legt Caddy **niet** plat (geen hard-fail op de bouncer) — een
+  storing in CrowdSec mag de publieke proxy niet meeslepen.
+
+### Verificatie (end-to-end bewezen, live)
+- `cscli decisions add --ip <bron-IP> --duration 2m` → request geeft **403**;
+  decision verwijderd → weer **302**. Bouncer pullt elke 15s.
+- ⚠️ De bron-IP die Caddy ziet is nu de bridge-gateway `172.20.0.1` (RFC1918).
+  **Vóór go-live nog te doen:** `trusted_proxies` + XFF (of `userland-proxy:false`)
+  zodat CrowdSec de échte client-IP ziet i.p.v. alles weg te whitelisten. Ook nog
+  open: community-blocklist (CAPI) inschakelen. Fase B (K8s ext_authz) volgt later.
+
+### Deploy
+```
+# 1. Engine recreate + crowdsec-lapi-net + bouncer registreren (zet /opt/proxy/.env)
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-crowdsec-proxy.yml
+# 2. Custom Caddy-image bouwen + proxy omwisselen (~1-2s blip)
+ansible-playbook -i inventory/proxmox-hosts.yml playbooks/deploy-proxy.yml
+# 3. Verifieer enforcement
+ssh 192.168.178.50 'docker exec crowdsec cscli bouncers list'   # caddy-bouncer Valid
+```
+
 ## 2026-06-13 — CrowdSec Fase A.1: detection-only engine op de Caddy-proxy
 
 ### Context
 - CrowdSec (collaboratieve fail2ban-opvolger) op de twee publieke surfaces,
   gefaseerd. Fase A = VM-proxy (.50, Caddy). Dit is **A.1: detection-only** —
   de engine parst Caddy-access-logs, er is **géén bouncer**, dus niets wordt
-  geblokkeerd. Volledig plan: `~/Homelab/learning/crowdsec.md`.
+  geblokkeerd. (Bouncer/enforcement volgde in A.2 — zie de entry bovenaan + de
+  runbooks/beslissingen-docs.)
 - ext_authz voor fase B (K8s) is los geverifieerd: Cilium **v1.19.4** +
   `CiliumEnvoyConfig`-CRD aanwezig, `cilium-envoy` als losse DaemonSet →
   haalbaar. Fase B volgt later.
