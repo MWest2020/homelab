@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 ---
 
 # Migratie: Kubernetes the Hard Way → kubeadm
@@ -26,7 +26,7 @@ Dit document beschrijft de **exacte stappen** om het bestaande cluster (Kubernet
 - **Documentatie van de huidige staat** (optioneel maar handig): welke Secrets bestaan (cert-manager Cloudflare-token, etc.), welk EXTERNAL-IP de Gateway had, welke DNS-records je gebruikt.
 - Een **korte onderhoudsruimte** waarin niemand van het cluster afhankelijk is.
 
-**Kubeconfig en certs op de `<beheer-vm>`:** De huidige kubeconfig op de `<beheer-vm>` bevat clientcertificaten van het Hard Way-cluster. Na `kubeadm init` heeft de API-server **nieuwe** certs; de oude clientcertificaten worden niet geaccepteerd. Je moet dus de **nieuwe** admin.conf van cp-01 gebruiken (het post-bootstrap playbook haalt die op). De Let's Encrypt / Gateway-certificaten (`*.westerweel.work`) stonden als Secrets **in** het oude cluster; na het uitzetten zijn die weg. In het nieuwe cluster vraagt cert-manager ze opnieuw aan (DNS-01). Wil je het oude Gateway-cert hergebruiken, exporteer dan vóór Fase B het Secret `westerweel-work-tls` uit `gateway-system` en importeer het na de migratie in het nieuwe cluster (optioneel; meestal is opnieuw aanvragen eenvoudiger).
+**Kubeconfig en certs op de `<beheer-vm>`:** De huidige kubeconfig op de `<beheer-vm>` bevat clientcertificaten van het Hard Way-cluster. Na `kubeadm init` heeft de API-server **nieuwe** certs; de oude clientcertificaten worden niet geaccepteerd. Je moet dus de **nieuwe** admin.conf van cp-01 gebruiken (het post-bootstrap playbook haalt die op). De Let's Encrypt / Gateway-certificaten (`*.example.com`) stonden als Secrets **in** het oude cluster; na het uitzetten zijn die weg. In het nieuwe cluster vraagt cert-manager ze opnieuw aan (DNS-01). Wil je het oude Gateway-cert hergebruiken, exporteer dan vóór Fase B het Secret `example-com-tls` uit `gateway-system` en importeer het na de migratie in het nieuwe cluster (optioneel; meestal is opnieuw aanvragen eenvoudiger).
 
 ---
 
@@ -45,7 +45,7 @@ Dit document beschrijft de **exacte stappen** om het bestaande cluster (Kubernet
 | I | cert-manager (Helm) + ClusterIssuer + Secret (Cloudflare-token) |
 | J | Gateway-stack: namespace, Certificate, Gateway, test-app, HTTPRoute |
 | K | Kubeconfig op `<beheer-vm>`; DNS/port-forward controleren |
-| L | Verificatie (o.a. `curl https://test.westerweel.work`) |
+| L | Verificatie (o.a. `curl https://test.example.com`) |
 
 ---
 
@@ -69,7 +69,7 @@ Een deel van de stappen kun je met Ansible doen; de rest (Cilium, MetalLB, cert-
 3. `ansible-playbook playbooks/kubeadm-install-packages.yml` → packages op alle nodes (Fase C).
 4. `ansible-playbook playbooks/kubeadm-bootstrap.yml` → kubeadm init op cp-01 + join op workers (Fase D + E).
 5. `ansible-playbook playbooks/kubeadm-post-bootstrap.yml` → Fase F t/m K: kubeconfig ophalen, Cilium, Gateway CRDs, MetalLB, cert-manager, Gateway-stack. Optioneel Cloudflare-token meegeven: `-e "cert_manager_cloudflare_token=JOUW_TOKEN"`.
-6. **Fase L** (verificatie): Certificate wachten tot Ready, DNS A-record zetten, `curl -v https://test.westerweel.work`.
+6. **Fase L** (verificatie): Certificate wachten tot Ready, DNS A-record zetten, `curl -v https://test.example.com`.
 
 Dus: **Hard Way uit → install-packages → bootstrap → post-bootstrap**; alleen Fase B en (optioneel) het Cloudflare-secret zijn handmatig.
 
@@ -373,7 +373,7 @@ kubectl apply -f kubernetes/infrastructure/gateway/gateway-test-app.yaml
 kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 ```
 
-**DNS:** Zorg dat **test.westerweel.work** naar het EXTERNAL-IP van de Gateway wijst (A-record in Cloudflare of lokaal /etc/hosts). Het IP is vaak hetzelfde als vóór de migratie (zelfde MetalLB-pool).
+**DNS:** Zorg dat **test.example.com** naar het EXTERNAL-IP van de Gateway wijst (A-record in Cloudflare of lokaal /etc/hosts). Het IP is vaak hetzelfde als vóór de migratie (zelfde MetalLB-pool).
 
 **Port-forward (optioneel):** Op je router 443 → EXTERNAL-IP (bijv. 192.0.2.220) als je vanaf internet wilt bereiken.
 
@@ -410,7 +410,7 @@ kubectl get pods -A
 - **HTTPS-test (vanaf het `<werkstation>` of machine met DNS):**
 
   ```bash
-  curl -v https://test.westerweel.work
+  curl -v https://test.example.com
   ```
 
   Je moet geldig TLS (Let's Encrypt) en de JSON-response van de echo-server zien.

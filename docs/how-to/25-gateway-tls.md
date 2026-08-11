@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 ---
 
 # Gateway + TLS – Stap 5
@@ -42,7 +42,7 @@ kubectl apply -f kubernetes/infrastructure/gateway/namespace.yaml
 
 **Stap 2 – Certificate aanmaken**
 
-**Wat:** Een cert-manager **Certificate** voor `*.westerweel.work` en `westerweel.work`. Cert-manager gebruikt de bestaande ClusterIssuer `letsencrypt-prod` en doet een **DNS-01** challenge (zet tijdelijk een TXT-record bij Cloudflare, Let's Encrypt checkt dat, daarna krijgt je cluster het cert). Het resultaat komt in een **Secret** `westerweel-work-tls` in dezelfde namespace.  
+**Wat:** Een cert-manager **Certificate** voor `*.example.com` en `example.com`. Cert-manager gebruikt de bestaande ClusterIssuer `letsencrypt-prod` en doet een **DNS-01** challenge (zet tijdelijk een TXT-record bij Cloudflare, Let's Encrypt checkt dat, daarna krijgt je cluster het cert). Het resultaat komt in een **Secret** `example-com-tls` in dezelfde namespace.  
 **Waarom:** De Gateway heeft bij TLS een verwijzing naar een Secret (cert + key) nodig. Die Secret bestaat pas nadat dit Certificate **Ready** is. Daarom eerst Certificate, daarna pas de Gateway.
 
 ```bash
@@ -53,14 +53,14 @@ Wacht tot het certificaat Ready is (kan 1–2 minuten duren):
 
 ```bash
 kubectl get certificate -n gateway-system -w
-# westerweel-work-tls: Ready=True → Ctrl+C
+# example-com-tls: Ready=True → Ctrl+C
 ```
 
 ---
 
 **Stap 3 – Gateway aanmaken**
 
-**Wat:** Een **Gateway**-resource (Gateway API) met één HTTPS-listener op poort 443, die de TLS-Secret `westerweel-work-tls` gebruikt. Cilium (GatewayClass `cilium`) pakt dit op en maakt o.a. een **LoadBalancer Service** voor deze Gateway.  
+**Wat:** Een **Gateway**-resource (Gateway API) met één HTTPS-listener op poort 443, die de TLS-Secret `example-com-tls` gebruikt. Cilium (GatewayClass `cilium`) pakt dit op en maakt o.a. een **LoadBalancer Service** voor deze Gateway.  
 **Waarom:** Dit is de “voordeur”: alle HTTPS-verkeer naar dat IP komt bij deze Gateway binnen; Cilium beëindigt TLS en kijkt in HTTPRoutes naar welke backend de request moet.
 
 ```bash
@@ -86,8 +86,8 @@ Noteer dit **EXTERNAL-IP**.
 
 **Stap 5 – Test-app + HTTPRoute**
 
-**Wat:** Een kleine **Deployment** (echo-server) met **Service** `echo-test`, en een **HTTPRoute** die zegt: voor host `test.westerweel.work` stuur al het verkeer naar die Service.  
-**Waarom:** De Gateway alleen doet nog niks met verkeer; er moet een Route zijn die aan een backend koppelt. Met deze route kun je straks `https://test.westerweel.work` testen.
+**Wat:** Een kleine **Deployment** (echo-server) met **Service** `echo-test`, en een **HTTPRoute** die zegt: voor host `test.example.com` stuur al het verkeer naar die Service.  
+**Waarom:** De Gateway alleen doet nog niks met verkeer; er moet een Route zijn die aan een backend koppelt. Met deze route kun je straks `https://test.example.com` testen.
 
 ```bash
 kubectl apply -f kubernetes/infrastructure/gateway/gateway-test-app.yaml
@@ -98,11 +98,11 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 
 **Stap 6 – DNS (nu heb je het IP)**
 
-**Wat:** Zorg dat **test.westerweel.work** naar het EXTERNAL-IP uit stap 4 wijst.  
+**Wat:** Zorg dat **test.example.com** naar het EXTERNAL-IP uit stap 4 wijst.  
 **Waarom:** De browser of `curl` moet dat hostname kunnen resolven naar het IP van je Gateway; anders komt het verkeer niet bij je cluster.
 
-- In **Cloudflare** (of je DNS): A-record **test.westerweel.work** → het EXTERNAL-IP (bijv. 192.0.2.220).
-- Of lokaal: in **/etc/hosts** op je laptop: `192.0.2.220 test.westerweel.work`.
+- In **Cloudflare** (of je DNS): A-record **test.example.com** → het EXTERNAL-IP (bijv. 192.0.2.220).
+- Of lokaal: in **/etc/hosts** op je laptop: `192.0.2.220 test.example.com`.
 
 ---
 
@@ -113,7 +113,7 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 
 ```bash
 kubectl get gateway -n gateway-system
-curl -v https://test.westerweel.work
+curl -v https://test.example.com
 # Moet geldig TLS-cert (Let's Encrypt) en antwoord van de echo-server tonen.
 ```
 
@@ -126,18 +126,18 @@ Optioneel: op je router poort **443** forwarden naar het EXTERNAL-IP als je vana
 | Bestand | Doel |
 |---------|------|
 | `namespace.yaml` | Namespace `gateway-system` |
-| `certificate.yaml` | cert-manager Certificate voor `*.westerweel.work` + `westerweel.work` |
+| `certificate.yaml` | cert-manager Certificate voor `*.example.com` + `example.com` |
 | `gateway.yaml` | Gateway (HTTPS, poort 443, TLS via Secret) |
 | `gateway-test-app.yaml` | Deployment + Service echo-test |
-| `httproute-test.yaml` | HTTPRoute: test.westerweel.work → echo-test |
+| `httproute-test.yaml` | HTTPRoute: test.example.com → echo-test |
 
-Later voeg je voor andere hostnames (bijv. argocd.westerweel.work) nieuwe HTTPRoutes toe en eventueel extra listeners of hetzelfde wildcard-cert gebruiken.
+Later voeg je voor andere hostnames (bijv. argocd.example.com) nieuwe HTTPRoutes toe en eventueel extra listeners of hetzelfde wildcard-cert gebruiken.
 
 ---
 
 ## 4. Volgende stap
 
-**Stap 6 – Argo CD** ([20-stappenplan-gitops.md](20-stappenplan-gitops.md)): Argo CD installeren en bereikbaar maken via de Gateway (bijv. argocd.westerweel.work).
+**Stap 6 – Argo CD** ([20-stappenplan-gitops.md](20-stappenplan-gitops.md)): Argo CD installeren en bereikbaar maken via de Gateway (bijv. argocd.example.com).
 
 ---
 

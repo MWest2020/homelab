@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 ---
 
 # Stappenplan: Van Kubernetes naar GitOps
@@ -18,8 +18,8 @@ Dit document beschrijft het pad van een werkend Kubernetes cluster naar een voll
 | Gateway API CRDs | ✅ Geïnstalleerd (Stap 1) |
 | Cilium Gateway controller | ✅ Actief (GatewayClass aanwezig) |
 | MetalLB | ✅ L2 mode, pool 192.0.2.220–230 |
-| cert-manager | ✅ DNS-01 wildcard *.westerweel.work |
-| Argo CD | ✅ argocd.westerweel.work |
+| cert-manager | ✅ DNS-01 wildcard *.example.com |
+| Argo CD | ✅ argocd.example.com |
 
 ## Doel
 
@@ -36,7 +36,7 @@ Internet
                     ┌──────────────────────────┼──────────────────────────┐
                     │                          │                          │
                     ▼                          ▼                          ▼
-           argocd.westerweel.work    app.westerweel.work    hubble.westerweel.work
+           argocd.example.com    app.example.com    hubble.example.com
                     │
                     ▼
               [Argo CD]
@@ -141,7 +141,7 @@ kubectl get svc -A -o wide | grep LoadBalancer
 **Waarom:**
 - HTTPS is vereist (browsers, security)
 - DNS-01 challenge: geen poort 80 nodig, wildcard mogelijk
-- `*.westerweel.work` dekt alle subdomeinen
+- `*.example.com` dekt alle subdomeinen
 - Automatische renewal
 
 **Risico's:**
@@ -178,7 +178,7 @@ kubectl get certificate -A
 
 **Verificatie:**
 ```bash
-curl -v https://test.westerweel.work
+curl -v https://test.example.com
 # Moet valid TLS cert tonen
 ```
 
@@ -197,7 +197,7 @@ curl -v https://test.westerweel.work
 
 **Verificatie:**
 ```bash
-# Browser: https://argocd.westerweel.work
+# Browser: https://argocd.example.com
 # Moet login page tonen
 ```
 

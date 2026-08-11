@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 ---
 
 # Argo CD – Stap 6
@@ -45,7 +45,7 @@ kubectl apply -f kubernetes/infrastructure/argocd/httproute.yaml
 
 Geen publiek DNS-record nodig. Toegang via LAN of Tailscale subnet router:
 
-- **LAN / Tailscale:** `/etc/hosts` → `192.0.2.220  argocd.westerweel.work`
+- **LAN / Tailscale:** `/etc/hosts` → `192.0.2.220  argocd.example.com`
 - **`<beheer-vm>`** heeft al dit entry en Tailscale subnet routing (`192.0.2.0/24`)
 
 ---
@@ -100,7 +100,7 @@ kubectl get httproute argocd -n argocd
 kubectl get gateway main-gateway -n gateway-system
 # PROGRAMMED: True
 
-curl -sk https://argocd.westerweel.work | grep -o "<title>.*</title>"
+curl -sk https://argocd.example.com | grep -o "<title>.*</title>"
 # <title>Argo CD</title>
 ```
 

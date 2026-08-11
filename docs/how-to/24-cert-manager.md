@@ -1,11 +1,11 @@
 ---
 status: draft
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 ---
 
 # cert-manager – Stap 4
 
-Automatische TLS-certificaten via Let's Encrypt. Met **DNS-01** heb je geen poort 80 nodig en kun je **wildcards** aanvragen (bijv. `*.westerweel.work`).
+Automatische TLS-certificaten via Let's Encrypt. Met **DNS-01** heb je geen poort 80 nodig en kun je **wildcards** aanvragen (bijv. `*.example.com`).
 
 **Stappenplan:** [20-stappenplan-gitops.md](20-stappenplan-gitops.md)
 

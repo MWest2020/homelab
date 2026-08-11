@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 ---
 
 # Build log – Migratie Hard Way → kubeadm
@@ -224,7 +224,7 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 **Datum:** …
 
 **Nodes:** `kubectl get nodes` → …  
-**HTTPS-test:** `curl -v https://test.westerweel.work` → …
+**HTTPS-test:** `curl -v https://test.example.com` → …
 
 **Migratie geslaagd:** ja / nee  
 

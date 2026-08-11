@@ -1,6 +1,6 @@
 ---
 status: draft
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 ---
 
 # Build Log - Homelab GitOps Journey
@@ -20,7 +20,7 @@ Dit logboek documenteert elke stap in het opzetten van GitOps voor onze Kubernet
 | Workers | node-01, node-02 |
 | Pod CIDR | 10.200.0.0/16 |
 | Service CIDR | 10.32.0.0/24 |
-| Domein | westerweel.work (wildcard) |
+| Domein | example.com (wildcard) |
 
 ---
 
@@ -126,7 +126,7 @@ kubectl apply -f kubernetes/infrastructure/metallb/ip-pool.yaml
 
 **Actie:** Gateway + TLS (Stap 5) uitgewerkt voor morgen samen doornemen.
 - **Doc** [25-gateway-tls.md](../how-to/25-gateway-tls.md): check, volgorde (namespace → Certificate → Gateway → DNS → test-app + HTTPRoute), verificatie.
-- **Manifests** `kubernetes/infrastructure/gateway/`: namespace, Certificate (*.westerweel.work), Gateway (HTTPS, Secret-ref), echo-test app + HTTPRoute voor test.westerweel.work.
+- **Manifests** `kubernetes/infrastructure/gateway/`: namespace, Certificate (*.example.com), Gateway (HTTPS, Secret-ref), echo-test app + HTTPRoute voor test.example.com.
 - **Migratie-cutoff** in stappenplan: logisch moment is na Stap 7 (volledige stack in Git); alternatief na 5 of 6.
 
 ---
@@ -150,13 +150,13 @@ kubectl apply -f kubernetes/infrastructure/gateway/gateway-test-app.yaml
 kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 ```
 
-**Resultaat:** test.westerweel.work bereikbaar via HTTPS, cert valid (Let's Encrypt prod).
+**Resultaat:** test.example.com bereikbaar via HTTPS, cert valid (Let's Encrypt prod).
 
 ---
 
 ### 2026-03-07 - Stap 6: Argo CD + bekende issues opgelost
 
-**Actie:** Argo CD geïnstalleerd, bereikbaar via `argocd.westerweel.work`.
+**Actie:** Argo CD geïnstalleerd, bereikbaar via `argocd.example.com`.
 
 **Manifests toegevoegd:**
 - `kubernetes/infrastructure/argocd/values.yaml` — insecure mode, geen built-in ingress
@@ -177,5 +177,5 @@ kubectl apply -f kubernetes/infrastructure/gateway/httproute-test.yaml
 
 3. **Tailscale `<beheer-vm>`** — `<beheer-vm>` had geen Tailscale; SSH naar nodes van buiten LAN werkte niet. Fix: Tailscale installeren op `<beheer-vm>` met subnet routing (`--advertise-routes=192.0.2.0/24`).
 
-**Resultaat:** `argocd.westerweel.work` bereikbaar via LAN/Tailscale, login werkt.
+**Resultaat:** `argocd.example.com` bereikbaar via LAN/Tailscale, login werkt.
 
