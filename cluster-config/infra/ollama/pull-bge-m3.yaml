@@ -26,6 +26,7 @@ spec:
             - |
               until ollama list >/dev/null 2>&1; do echo "waiting for ollama..."; sleep 5; done
               ollama pull bge-m3
+              ollama pull llama3.2:3b
               ollama list
           resources:
             requests: { cpu: "100m", memory: "128Mi" }

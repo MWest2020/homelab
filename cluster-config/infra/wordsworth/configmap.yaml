@@ -10,7 +10,7 @@ data:
   WORDSWORTH_OLLAMA_URL: "http://ollama.ollama.svc.cluster.local:11434"
   WORDSWORTH_EMBEDDING_MODEL: "bge-m3"
   WORDSWORTH_EMBEDDING_DIM: "1024"
-  WORDSWORTH_LLM_MODEL: "llama3.1"
+  WORDSWORTH_LLM_MODEL: "llama3.2:3b"
   WORDSWORTH_OPENANONYMISER_URL: "http://openanonymiser.openanonymiser.svc.cluster.local:8080"
   WORDSWORTH_OPENANONYMISER_TIMEOUT: "180"
   WORDSWORTH_S3_ENDPOINT_URL: "http://minio.minio.svc.cluster.local:9000"
