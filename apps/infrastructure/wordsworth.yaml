@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wordsworth
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"   # after cnpg-database (4), minio (2), opensearch/ollama/openanonymiser (3)
+  finalizers:
+    - resources-finalizer.argocd.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MWest2020/homelab.git
+    targetRevision: main
+    path: cluster-config/infra/wordsworth
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: wordsworth
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

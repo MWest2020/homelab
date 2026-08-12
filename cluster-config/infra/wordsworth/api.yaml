@@ -1,0 +1,63 @@
+# Wordsworth read API (state/metrics/search/hybrid/ask). Light: no in-process ML.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordsworth-api
+  labels: { app: wordsworth, component: api }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: wordsworth, component: api }
+  template:
+    metadata:
+      labels: { app: wordsworth, component: api }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: api
+          image: ghcr.io/mwest2020/wordsworth:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: wordsworth-config }
+            - secretRef:    { name: wordsworth-db }
+            - secretRef:    { name: wordsworth-s3 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 30
+            failureThreshold: 4
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordsworth-api
+spec:
+  selector: { app: wordsworth, component: api }
+  ports:
+    - { port: 8000, targetPort: 8000 }
+  type: ClusterIP

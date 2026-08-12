@@ -49,6 +49,9 @@ buckets:
   - name: nextcloud
     policy: none
     purge: false
+  - name: wordsworth
+    policy: none
+    purge: false
 
 # Metrics
 metrics:

@@ -1,0 +1,12 @@
+# Corpus volume. Filled out-of-band (loader pod + kubectl cp), then mounted
+# read-only by the ingest Job (both operational, applied imperatively).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordsworth-corpus
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

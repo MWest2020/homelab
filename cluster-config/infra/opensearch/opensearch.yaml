@@ -1,0 +1,73 @@
+# OpenSearch — single-node, security plugin OFF (in-cluster, sovereign; no auth).
+# Test-scale heap (512m) + disk watermark disabled (small local-path volume).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opensearch-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch
+  labels: { app: opensearch }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # RWO volume
+  selector:
+    matchLabels: { app: opensearch }
+  template:
+    metadata:
+      labels: { app: opensearch }
+    spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        # OpenSearch requires vm.max_map_count >= 262144 or it refuses to start.
+        - name: sysctl
+          image: busybox:1.37
+          command: ["sh", "-c", "sysctl -w vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:2.19.1
+          env:
+            - { name: discovery.type, value: single-node }
+            - { name: DISABLE_SECURITY_PLUGIN, value: "true" }
+            - { name: DISABLE_INSTALL_DEMO_CONFIG, value: "true" }
+            - { name: OPENSEARCH_JAVA_OPTS, value: "-Xms512m -Xmx512m" }
+            - { name: bootstrap.memory_lock, value: "false" }
+            - { name: cluster.routing.allocation.disk.threshold_enabled, value: "false" }
+          ports:
+            - containerPort: 9200
+          readinessProbe:
+            httpGet: { path: /_cluster/health, port: 9200 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 30   # cold JVM + index bootstrap on 1 CPU is slow
+          resources:
+            requests: { cpu: "250m", memory: "1500Mi" }
+            limits:   { cpu: "1",    memory: "2560Mi" }
+          volumeMounts:
+            - { name: data, mountPath: /usr/share/opensearch/data }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: opensearch-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch
+spec:
+  selector: { app: opensearch }
+  ports:
+    - { port: 9200, targetPort: 9200 }
+  type: ClusterIP

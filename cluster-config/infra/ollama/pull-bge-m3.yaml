@@ -1,0 +1,32 @@
+# Pull bge-m3 into Ollama after it syncs. ArgoCD PostSync hook; self-deletes on
+# success. Retries until the server answers (CPU cold-start can be slow).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-pull-bge-m3
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 20
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: { app: ollama, job: pull }
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: pull
+          image: ollama/ollama:0.6.8
+          env:
+            - { name: OLLAMA_HOST, value: "http://ollama.ollama.svc.cluster.local:11434" }
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until ollama list >/dev/null 2>&1; do echo "waiting for ollama..."; sleep 5; done
+              ollama pull bge-m3
+              ollama list
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }

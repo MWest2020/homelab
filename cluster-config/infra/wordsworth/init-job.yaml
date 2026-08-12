@@ -1,0 +1,37 @@
+# Schema bootstrap. ArgoCD PreSync hook: runs (idempotently) before the API on
+# every sync, so the tables + append-only audit trigger exist first.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wordsworth-init
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: { app: wordsworth, job: init }
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: init
+          image: ghcr.io/mwest2020/wordsworth:latest
+          imagePullPolicy: IfNotPresent
+          command: ["wordsworth-init"]
+          envFrom:
+            - configMapRef: { name: wordsworth-config }
+            - secretRef:    { name: wordsworth-db }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "50m",  memory: "128Mi" }
+            limits:   { cpu: "250m", memory: "256Mi" }
