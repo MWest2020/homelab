@@ -20,7 +20,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: ghcr.io/mwest2020/wordsworth:sha-4026e27
+          image: ghcr.io/mwest2020/wordsworth:sha-01b75cb
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -41,10 +41,12 @@ spec:
           readinessProbe:
             httpGet: { path: /health, port: 8000 }
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /health, port: 8000 }
             periodSeconds: 30
-            failureThreshold: 4
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "500m", memory: "512Mi" }
