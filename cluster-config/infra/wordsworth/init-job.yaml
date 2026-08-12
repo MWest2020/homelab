@@ -25,8 +25,9 @@ spec:
           image: ghcr.io/mwest2020/wordsworth:latest
           imagePullPolicy: IfNotPresent
           command: ["wordsworth-init"]
+          # PreSync hook runs before the ConfigMap is synced; init_schema only
+          # needs the DB URL, so depend on the secret alone.
           envFrom:
-            - configMapRef: { name: wordsworth-config }
             - secretRef:    { name: wordsworth-db }
           securityContext:
             allowPrivilegeEscalation: false
