@@ -1,0 +1,17 @@
+# Tailnet-internal exposure of the Wordsworth API (NOT public). The Tailscale
+# operator provisions a tailnet device for this LoadBalancer and gives it the
+# MagicDNS name `wordsworth` → reachable from any tailnet machine at
+# http://wordsworth.<tailnet>.ts.net:8000. The ClusterIP Service (api.yaml)
+# stays as the in-cluster address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordsworth-api-ts
+  annotations:
+    tailscale.com/hostname: "wordsworth"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector: { app: wordsworth, component: api }
+  ports:
+    - { port: 8000, targetPort: 8000 }
