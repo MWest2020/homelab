@@ -27,3 +27,6 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # CNPG's clusters/poolers CRDs exceed the 262144-byte last-applied
+      # annotation → client-side apply fails. Server-side apply avoids it.
+      - ServerSideApply=true
