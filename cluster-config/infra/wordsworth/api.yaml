@@ -48,8 +48,10 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
           resources:
-            requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "500m", memory: "512Mi" }
+            # /ingest buffers PDF uploads + pypdf/boto3 in memory; 512Mi OOM'd on
+            # a batch. Nodes have 16Gi, so give it real headroom.
+            requests: { cpu: "100m", memory: "512Mi" }
+            limits:   { cpu: "1",    memory: "2Gi" }
       volumes:
         - name: tmp
           emptyDir: {}
