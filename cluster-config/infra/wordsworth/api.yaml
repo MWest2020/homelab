@@ -24,6 +24,10 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
+          env:
+            # gunicorn 26 writes a control socket under $HOME/.gunicorn; the root
+            # fs is read-only, so point HOME at the writable /tmp emptyDir.
+            - { name: HOME, value: /tmp }
           envFrom:
             - configMapRef: { name: wordsworth-config }
             - secretRef:    { name: wordsworth-db }
