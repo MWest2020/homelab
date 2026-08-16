@@ -22,7 +22,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: init
-          image: ghcr.io/mwest2020/wordsworth:sha-d108bf8
+          image: ghcr.io/mwest2020/wordsworth:sha-11e6156
           imagePullPolicy: IfNotPresent
           command: ["wordsworth-init"]
           # PreSync hook runs before the ConfigMap is synced; init_schema only

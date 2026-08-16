@@ -20,7 +20,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: ghcr.io/mwest2020/wordsworth:sha-d108bf8
+          image: ghcr.io/mwest2020/wordsworth:sha-11e6156
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -48,10 +48,12 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
           resources:
-            # /ingest buffers PDF uploads + pypdf/boto3 in memory; 512Mi OOM'd on
-            # a batch. Nodes have 16Gi, so give it real headroom.
+            # /ingest buffers PDF uploads (a ~45MB outlier seen) + pypdf/boto3.
+            # gunicorn --max-requests recycles the worker so memory can't grow
+            # unbounded over a long run; 4Gi absorbs a single big-doc spike.
+            # Nodes have 16Gi.
             requests: { cpu: "100m", memory: "512Mi" }
-            limits:   { cpu: "1",    memory: "2Gi" }
+            limits:   { cpu: "1",    memory: "4Gi" }
       volumes:
         - name: tmp
           emptyDir: {}
