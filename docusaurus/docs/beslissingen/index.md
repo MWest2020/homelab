@@ -62,6 +62,44 @@ Nog bewust uitgesteld: deelname aan de **community-blocklist** (CAPI), en de
 de Docker-`userland-proxy` alleen de RFC1918-bridge-gateway. Beide worden opgepakt vóór de
 proxy echt scherp publiek gaat.
 
+## App-of-apps + sync-waves i.p.v. losse `kubectl apply`
+
+Alle cluster-apps hangen onder één Argo CD root-Application (`apps/root-app.yaml`).
+Volgorde-afhankelijkheden (operator vóór CR, storage vóór consumer) worden expliciet
+gemaakt met **sync-waves** in plaats van impliciet met apply-volgorde: de CNPG-operator
+(wave 2) moet healthy zijn vóór het `homelab-pg`-Cluster-CR (wave 4), en Wordsworth
+(wave 6) komt pas als DB, S3 en de model-services er staan. Operators met CRDs groter
+dan de 256KB `last-applied`-annotation (CNPG, Tailscale) syncen met `ServerSideApply`.
+
+## RAG volledig in-cluster ("sovereign") i.p.v. externe AI-API's
+
+De Wordsworth-straat gebruikt bewust géén externe LLM- of embedding-API: Ollama draait de
+modellen lokaal (CPU-only, dus traag maar soeverein), OpenSearch is de index en
+OpenAnonymiser redigeert PII — alles ClusterIP, niets verlaat het lab. De trade-off is
+snelheid: een klein model (`llama3.2:3b`) en minuten-lange cold-starts zijn de prijs voor
+documenten die nooit naar een derde partij gaan.
+
+## Tailnet-intern exposen i.p.v. publiek via de Gateway
+
+De Wordsworth-API is bereikbaar via de Tailscale-operator (`loadBalancerClass:
+tailscale`), niet via de publieke Gateway. Een RAG-API over eigen documenten heeft geen
+publieke surface nodig; tailnet-membership ís de authenticatie. De OAuth-credentials van
+de operator leven in een out-of-band Secret — nooit in Git.
+
+## PostgreSQL via CNPG-operator i.p.v. handmatige StatefulSet
+
+CloudNativePG beheert `homelab-pg`: 3 instances met anti-affinity over de workers
+(`preferred`, niet `required` — bij node-uitval liever herstarten op een andere node dan
+eeuwig Pending), digest-gepinde PG17-image, en app-credentials die de **operator zelf
+genereert** — geen handmatig secret, geen plaintext in Git. Failover en switchover zijn
+operator-logica in plaats van runbook-stappen.
+
+## Images pinnen op commit-SHA, deploys als Git-commits
+
+Wordsworth-images worden gepind op een commit-SHA-tag (`ghcr.io/...:sha-<commit>`), nooit
+`latest`. Elke deploy is daarmee een zichtbare Git-commit (`deploy(wordsworth): pin
+sha-...`) — reproduceerbaar, bisect-baar en terug te rollen met een revert.
+
 ## Docs extern gehost, niet in-cluster
 
 Deze kennisbank (Docusaurus, statische build) wordt **buiten** het cluster gehost, zodat

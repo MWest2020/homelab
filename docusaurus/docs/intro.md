@@ -7,8 +7,9 @@ sidebar_position: 1
 # Homelab
 
 Een 3-node **Proxmox-cluster** met **hoog-beschikbare Kubernetes** op VM's, volledig als
-code beheerd (Terraform + Ansible + GitOps). Deze kennisbank legt vast **waarom** het zo
-gebouwd is en **hoe** je het draait.
+code beheerd (Terraform + Ansible + GitOps). Op het cluster draait o.a. een volledig
+lokale RAG-stack (de *Wordsworth-straat*: PostgreSQL, MinIO, OpenSearch, Ollama). Deze
+kennisbank legt vast **waarom** het zo gebouwd is en **hoe** je het draait.
 
 ## Wegwijzer
 

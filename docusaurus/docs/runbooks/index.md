@@ -93,6 +93,54 @@ helm upgrade cilium cilium/cilium -n kube-system \
 
 Kerninstellingen: `kubeProxyReplacement=true`, Hubble aan, Gateway API aan.
 
+## GitOps: apps beheren (Argo CD app-of-apps)
+
+Eén root-Application beheert alle child-apps onder `apps/infrastructure/`. De root wordt
+éénmalig gebootstrapt; daarna gaat **alles via Git** — geen `kubectl apply` naar productie.
+
+```bash
+# Eenmalige bootstrap (daarna beheert Argo CD zichzelf)
+kubectl apply -f apps/root-app.yaml
+
+# Nieuwe app toevoegen = YAML in apps/infrastructure/ committen; de root pikt 'm op
+kubectl get applications -n argocd          # sync-status van alle apps
+```
+
+Sync-waves bepalen de volgorde (operator-CRDs vóór de CRs die ze nodig hebben). Operators
+met te grote CRDs (CNPG, Tailscale) syncen met `ServerSideApply=true` — client-side apply
+loopt daar stuk op de 256KB-annotation-limiet.
+
+## Wordsworth-straat: deployen & verifiëren
+
+De RAG-stack (zie [Architectuur](../architectuur/)) is volledig GitOps. Een nieuwe
+API-versie uitrollen = de commit-SHA-tag pinnen in
+`cluster-config/infra/wordsworth/api.yaml` **én** `init-job.yaml`, committen — Argo CD
+synct de rest (PreSync init-Job draait eerst, idempotent, voor het DB-schema).
+
+Prerequisite-secrets (out-of-band, nooit in Git): `wordsworth-db` en `wordsworth-s3`
+(namespace `wordsworth`), `minio-credentials` (namespace `minio`), `operator-oauth`
+(namespace `tailscale`).
+
+```bash
+# Status van de hele straat
+kubectl get applications -n argocd | grep -E 'wordsworth|ollama|opensearch|openanonymiser|cnpg|minio'
+kubectl -n wordsworth get pods
+kubectl -n cnpg-database get cluster homelab-pg   # 3 instances, Cluster in healthy state
+
+# API-health (in-cluster of via de tailnet-hostname)
+kubectl -n wordsworth port-forward svc/wordsworth-api 8000:8000 &
+curl -s localhost:8000/health
+```
+
+Extra Ollama-model nodig? Toevoegen aan de PostSync-pull-Job
+(`cluster-config/infra/ollama/pull-bge-m3.yaml`) en committen — de hook draait bij de
+volgende sync opnieuw. Let op: CPU-only, een pull + cold-start duurt minuten.
+
+:::note Geheugen-tuning ingest
+`/ingest` buffert PDF-uploads in het API-proces. De limit staat op 4Gi en gunicorn
+recyclet workers via `--max-requests`; grote corpora gaan batch-gewijs, niet in één call.
+:::
+
 ## Applicaties deployen (Proxmox-VM's)
 
 De Nextcloud-tenants, proxy en Portainer draaien als Docker-compose-stacks op de

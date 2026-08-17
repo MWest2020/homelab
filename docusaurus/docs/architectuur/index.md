@@ -31,6 +31,38 @@ Een **3-node Proxmox-cluster** met een **HA-Kubernetes** erop, volledig op VM's.
 - **Cilium** (eBPF CNI, kubeProxyReplacement, Gateway API).
 - **MetalLB** (L2, pool `192.168.178.220-230`).
 - **cert-manager** (Let's Encrypt DNS-01, wildcard `*.westerweel.work`).
-- **Argo CD** (GitOps).
+- **Argo CD** (GitOps, app-of-apps: één root-Application beheert alle child-apps
+  onder `apps/infrastructure/`).
+- **local-path-provisioner** (default StorageClass, lokale disks per worker).
+- **CloudNativePG** (PostgreSQL-operator) + **MinIO** (S3-compatibele object storage).
+- **Tailscale-operator** (tailnet-interne exposure van Services, zonder publieke route).
+
+## Data & AI-laag: de Wordsworth-straat
+
+Een RAG-stack (retrieval-augmented generation) die **volledig in-cluster** draait —
+documenten, embeddings en LLM-antwoorden verlaten het lab niet. Alle onderdelen zijn
+Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afnemers komen:
+
+| Wave | Component | Rol |
+|------|-----------|-----|
+| 2 | CNPG-operator, Tailscale-operator, MinIO | operators + object storage |
+| 3 | OpenSearch, Ollama, OpenAnonymiser | zoekindex, lokale modellen, PII-redactie |
+| 4 | `homelab-pg` (CNPG Cluster) | PostgreSQL 17, 3 instances |
+| 6 | Wordsworth API | RAG-API (ingest / search / hybrid / ask) |
+
+- **Ollama** (CPU-only, geen GPU): `bge-m3`-embeddings (1024-dim) + `llama3.2:3b` als
+  RAG-LLM; modellen worden door een PostSync-hook-Job gepulld.
+- **OpenSearch** (2.x, single-node): hybride zoekindex; security-plugin uit — alleen
+  in-cluster bereikbaar (ClusterIP).
+- **OpenAnonymiser**: PII-redactie over HTTP (spaCy `nl_core_news_lg`); het model zit in
+  de image gebakken, geen runtime-download.
+- **Wordsworth API**: gehardende pod (non-root, read-only rootfs, alle capabilities
+  gedropt), image per commit-SHA gepind; het DB-schema wordt idempotent aangemaakt door
+  een Argo CD PreSync init-Job.
+- **PostgreSQL**: CNPG-cluster `homelab-pg` — PG17 (digest-gepind), 3 instances met
+  anti-affinity over de workers; app-credentials genereert de operator zelf.
+- **Toegang**: de API is **niet publiek** — tailnet-intern via de Tailscale-operator
+  (`loadBalancerClass: tailscale`), naast de gewone ClusterIP-Service voor in-cluster
+  verkeer.
 
 *(Per onderwerp volgen detail-pagina's; de freshness-agent houdt dit synchroon met de repo.)*
