@@ -47,8 +47,12 @@ spec:
             periodSeconds: 30
             failureThreshold: 4
           resources:
-            requests: { cpu: "250m", memory: "3Gi" }
-            limits:   { cpu: "2",    memory: "6Gi" }
+            # GLiNER does a single forward pass over the whole doc text (up to
+            # ~34k chars seen); O(n^2) attention spikes memory → OOMKilled at 6Gi
+            # (75 restarts). Raise headroom; nodes have 16Gi. Driver-side chunking
+            # is the structural follow-up if this still isn't enough.
+            requests: { cpu: "250m", memory: "4Gi" }
+            limits:   { cpu: "2",    memory: "12Gi" }
       volumes:
         - name: tmp
           emptyDir: {}
