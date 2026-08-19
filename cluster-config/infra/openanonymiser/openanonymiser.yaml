@@ -39,13 +39,22 @@ spec:
             httpGet: { path: /api/v1/health, port: 8080 }
             periodSeconds: 10
             failureThreshold: 40
+          # A single CPU worker blocks /health while it runs a GLiNER forward
+          # pass (seconds). The k8s default probe timeout is 1s, so a busy pod
+          # failed readiness, got pulled from the Service endpoints, and the
+          # next anonymize chunk hit "No route to host" (EHOSTUNREACH). Give the
+          # probes a generous timeout + failureThreshold so an inferring-but-
+          # alive pod is never yanked; liveness only restarts a truly hung one.
           readinessProbe:
             httpGet: { path: /api/v1/health, port: 8080 }
-            periodSeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             httpGet: { path: /api/v1/health, port: 8080 }
             periodSeconds: 30
-            failureThreshold: 4
+            timeoutSeconds: 10
+            failureThreshold: 12
           resources:
             # GLiNER does a single forward pass over the whole doc text (up to
             # ~34k chars seen); O(n^2) attention spikes memory → OOMKilled at 6Gi
