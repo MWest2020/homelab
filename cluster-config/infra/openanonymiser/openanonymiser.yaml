@@ -7,13 +7,22 @@ metadata:
   name: openanonymiser
   labels: { app: openanonymiser }
 spec:
-  replicas: 1
+  # One replica per worker node (nodes are 1 CPU each). A document's independent
+  # anonymize chunks fan out one-per-replica, so the pipeline uses the cluster's
+  # aggregate CPU instead of a single core. Chunking bounds each call's memory.
+  replicas: 3
   selector:
     matchLabels: { app: openanonymiser }
   template:
     metadata:
       labels: { app: openanonymiser }
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels: { app: openanonymiser }
+              topologyKey: kubernetes.io/hostname
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -56,12 +65,13 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 12
           resources:
-            # GLiNER does a single forward pass over the whole doc text (up to
-            # ~34k chars seen); O(n^2) attention spikes memory → OOMKilled at 6Gi
-            # (75 restarts). Raise headroom; nodes have 16Gi. Driver-side chunking
-            # is the structural follow-up if this still isn't enough.
-            requests: { cpu: "250m", memory: "4Gi" }
-            limits:   { cpu: "2",    memory: "12Gi" }
+            # Driver-side chunking (≤4k chars/call) bounds GLiNER's O(n^2)
+            # attention spike, so the whole-document OOM (75 restarts at 6Gi) is
+            # gone and the huge memory headroom is no longer needed. Modest
+            # limits let three replicas co-exist with OpenSearch/Ollama/Postgres
+            # on the 16Gi worker nodes. CPU limit is 1 (that is all a node has).
+            requests: { cpu: "250m", memory: "1Gi" }
+            limits:   { cpu: "1",    memory: "4Gi" }
       volumes:
         - name: tmp
           emptyDir: {}
