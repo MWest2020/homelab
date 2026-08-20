@@ -1,0 +1,22 @@
+# Headless service for the raft peer identity, and a ClusterIP clients use.
+# Wordsworth reaches OpenBao at http://openbao.openbao.svc.cluster.local:8200.
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao-internal
+spec:
+  clusterIP: None
+  selector: { app: openbao }
+  ports:
+    - { name: api, port: 8200, targetPort: 8200 }
+    - { name: cluster, port: 8201, targetPort: 8201 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+spec:
+  selector: { app: openbao }
+  ports:
+    - { name: api, port: 8200, targetPort: 8200 }
+  type: ClusterIP

@@ -1,0 +1,22 @@
+# OpenBao server config (single-node raft, lab). Sovereign key store: it holds
+# the Transit KEK that wraps Wordsworth's per-type data keys (ADR-0002).
+# TLS is disabled at the listener because access is tailnet-internal and
+# in-cluster only; disable_mlock avoids needing the IPC_LOCK capability.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-config
+data:
+  config.hcl: |
+    ui = true
+    disable_mlock = true
+
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "openbao-0"
+    }
+
+    listener "tcp" {
+      address     = "0.0.0.0:8200"
+      tls_disable = "true"
+    }

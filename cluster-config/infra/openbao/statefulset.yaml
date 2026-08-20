@@ -1,0 +1,65 @@
+# OpenBao single-node (raft) StatefulSet. Starts SEALED + UNINITIALISED: the
+# operator runs `bao operator init` + `unseal` out-of-band (crown-jewel material
+# never lives in git or the cluster). tcpSocket probes so the pod is Ready while
+# sealed, allowing the operator to exec in and initialise it.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+  labels: { app: openbao }
+spec:
+  serviceName: openbao-internal
+  replicas: 1
+  selector:
+    matchLabels: { app: openbao }
+  template:
+    metadata:
+      labels: { app: openbao }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: openbao
+          image: openbao/openbao:2.2.0
+          imagePullPolicy: IfNotPresent
+          command: ["bao", "server", "-config=/openbao/config/config.hcl"]
+          env:
+            - name: POD_IP
+              valueFrom: { fieldRef: { fieldPath: status.podIP } }
+            - name: BAO_API_ADDR
+              value: "http://$(POD_IP):8200"
+            - name: BAO_CLUSTER_ADDR
+              value: "http://$(POD_IP):8201"
+          ports:
+            - { name: api, containerPort: 8200 }
+            - { name: cluster, containerPort: 8201 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config, mountPath: /openbao/config, readOnly: true }
+            - { name: data, mountPath: /openbao/data }
+          readinessProbe:
+            tcpSocket: { port: 8200 }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8200 }
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: config
+          configMap: { name: openbao-config }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 2Gi
