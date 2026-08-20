@@ -11,6 +11,12 @@ spec:
   # anonymize chunks fan out one-per-replica, so the pipeline uses the cluster's
   # aggregate CPU instead of a single core. Chunking bounds each call's memory.
   replicas: 3
+  # One pod per node (anti-affinity) with exactly 3 nodes means a rolling update
+  # must never surge a 4th pod — it would be unschedulable and deadlock the
+  # rollout. Recreate one node's pod at a time: free it first, then reschedule.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
   selector:
     matchLabels: { app: openanonymiser }
   template:
