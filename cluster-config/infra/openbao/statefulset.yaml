@@ -18,7 +18,9 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        fsGroup: 1000
+        runAsUser: 1000       # the image defaults to root; run as an arbitrary
+        runAsGroup: 1000      # non-root uid, with the data PVC group-writable
+        fsGroup: 1000         # (fsGroup) — OpenBao needs no specific uid.
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: openbao
