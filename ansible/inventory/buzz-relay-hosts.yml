@@ -1,0 +1,19 @@
+---
+# Ansible inventory voor de buzz-relay (boomhuis-communicatielaag).
+# Eén VM die de zelf-gehoste block/buzz-relay draait: relay + Postgres +
+# Redis + MinIO via docker compose. Alleen bereikbaar via LAN + tailnet
+# (/32-route), geen publieke exposure. Spec: MWest2020/boomhuis (add-relay).
+
+all:
+  children:
+    buzz_relay:
+      hosts:
+        buzz-relay:
+          ansible_host: 192.168.178.60
+
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_homelab
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_become: true
+    ansible_become_method: sudo

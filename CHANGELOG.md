@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-08-22 — feat: buzz-relay VM (boomhuis-communicatielaag, vm 109/.60)
+
+### Wat & waarom
+- Nieuwe stack `buzz-relay`: zelf-gehoste block/buzz-relay (Nostr) als
+  communicatielaag voor het agent-ecosysteem — spec en fasering leven in
+  `MWest2020/boomhuis` (OpenSpec change `add-relay`). Tailnet-only: geen
+  publieke DNS/TLS, transport-encryptie via Tailscale; closed relay mode.
+- Nieuwe template **9002** `ubuntu-24.04-large` (4c/8GB/50.5GB) via de
+  Proxmox-API met de terraform-token (root-SSH op de laptop-hypervisor is
+  vanaf jumpy/agent-lxc niet toegestaan; API-route heeft dezelfde perms).
+  9001 was al bezet door `k8s-cp-template`.
+- Image gepind: `ghcr.io/block/buzz:sha-4baccd5`
+  (= digest `sha256:ba442140f37d…`, main van 2026-08-22).
+
+### Bestanden
+- `terraform/buzz-relay/{main.tf,variables.tf,versions.tf}` — nginx-lab-stijl,
+  clone van 9002, vm 109, .60; auth via provider-native `PROXMOX_VE_API_TOKEN`
+  uit `.env` (geen `TF_VAR_`, die staat niet in jumpy's `.env`).
+- `docker/buzz-relay/docker-compose.yml` — vendored verbatim van upstream
+  `deploy/compose/compose.yml` @ 4baccd53 (relay+postgres17+redis7+minio).
+- `docker/buzz-relay/env.example` — gepind image, ws:// zonder publiek domein,
+  CHANGE_ME-placeholders; echte `.env` alleen op de host (0600).
+- `ansible/playbooks/deploy-buzz-relay.yml` — kopie openwoo-acc-patroon zonder
+  certbot/nginx; weigert start zolang `.env` CHANGE_ME bevat.
+- `ansible/inventory/buzz-relay-hosts.yml`; `group_vars/hypervisors.yml` +
+  `.60/32`-route.
+
+### Uitrol
+- Terraform apply vanaf jumpy (state daar), ansible-deploy, `.env` gevuld
+  on-host. Route-advertise (`configure-tailscale-routes.yml`) moet vanaf een
+  host met root-toegang op de hypervisor (alma) + eenmalige console-approval.
+
 ## 2026-07-06 — feat: CPU-type "host" voor K8s-VM's (AVX2)
 
 ### Wat & waarom
