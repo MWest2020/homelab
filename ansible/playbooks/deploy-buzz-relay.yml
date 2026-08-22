@@ -1,0 +1,141 @@
+---
+# Provisioning voor de buzz-relay VM (boomhuis-communicatielaag, vm 109, .60).
+#
+# Stack (docker/buzz-relay/docker-compose.yml, vendored van block/buzz):
+#   - relay (ghcr.io/block/buzz, gepind in .env)
+#   - postgres 17 + redis 7 + minio (+ minio-init, run-once)
+#
+# Geen Caddy/certbot: de relay is alleen via LAN + tailnet bereikbaar (ws://),
+# transport-encryptie komt van Tailscale. Spec: MWest2020/boomhuis (add-relay).
+#
+# Run:
+#   ansible-playbook -i inventory/buzz-relay-hosts.yml playbooks/deploy-buzz-relay.yml -vv
+
+- name: Deploy buzz-relay stack
+  hosts: buzz_relay
+  become: true
+  tasks:
+    - name: Wait for SSH + cloud-init readiness
+      wait_for_connection:
+        delay: 5
+        timeout: 180
+
+    - name: Recover any interrupted dpkg state
+      command: dpkg --configure -a
+      changed_when: false
+
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+
+    - name: Ensure /etc/apt/keyrings exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker engine + compose plugin
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: true
+
+    - name: Ensure /opt/buzz-relay exists
+      file:
+        path: /opt/buzz-relay
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../../docker/buzz-relay/docker-compose.yml
+        dest: /opt/buzz-relay/docker-compose.yml
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
+      register: compose_file
+
+    - name: Check whether .env already exists on VM
+      stat:
+        path: /opt/buzz-relay/.env
+      register: env_stat
+
+    - name: Seed .env from example if missing
+      copy:
+        src: ../../docker/buzz-relay/env.example
+        dest: /opt/buzz-relay/.env
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+      when: not env_stat.stat.exists
+
+    - name: Show .env-init warning if just seeded
+      debug:
+        msg: |
+          /opt/buzz-relay/.env is just seeded from env.example.
+          Vervang elke CHANGE_ME (openssl rand -hex 32) en zet RELAY_OWNER_PUBKEY
+          (Marks pubkey uit boomhuis identities.yml) VOOR 'docker compose up -d'.
+          Draai daarna dit playbook opnieuw.
+      when: not env_stat.stat.exists
+
+    - name: Refuse to start while .env still contains CHANGE_ME
+      shell: "! grep -q CHANGE_ME /opt/buzz-relay/.env"
+      changed_when: false
+      register: env_ready
+      failed_when: false
+      when: env_stat.stat.exists
+
+    - name: Pull container images
+      shell: docker compose pull
+      args:
+        chdir: /opt/buzz-relay
+      when: env_stat.stat.exists and env_ready.rc == 0
+
+    - name: Start docker stack
+      shell: >
+        docker compose up -d
+        {{ '--force-recreate' if compose_file.changed else '' }}
+      args:
+        chdir: /opt/buzz-relay
+      when: env_stat.stat.exists and env_ready.rc == 0
+
+    - name: Announce next-step
+      debug:
+        msg:
+          - "Buzz-relay stack deployed op buzz-relay (192.168.178.60)."
+          - "Health: curl http://192.168.178.60:3000/ — relay-poort 3000, tailnet-only."
+          - "Route .60/32 adverteren: playbooks/configure-tailscale-routes.yml + console-approval."
+      when: env_stat.stat.exists and env_ready.rc == 0
