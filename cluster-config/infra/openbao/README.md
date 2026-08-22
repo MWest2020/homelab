@@ -51,10 +51,30 @@ Then Claude flips reversible mode on (config + secretRef already prepared): sets
 `WORDSWORTH_REVERSIBLE=true` and `WORDSWORTH_OPENBAO_URL`, references the
 `wordsworth-openbao` secret, redeploys, and smoke-tests ingest → reveal.
 
+## Auto-unseal (lab)
+
+Once step 1 has run, the unseal key lives in the `openbao-keys` Secret. The
+StatefulSet mounts that Secret (read-only, `unseal_key` item only) and a
+`postStart` hook **unseals automatically after every pod restart** — so the lab
+straat self-heals; no manual unseal is normally needed. The hook always exits 0
+(a failed unseal never kills the container; liveness is `tcpSocket`, so a
+sealed-but-alive pod survives), and the Secret mount is `optional` so the pod
+boots even before bootstrap.
+
+Trade-off: the unseal key sits in etcd (the Secret) and is mounted into the pod
+— a lab convenience that departs from ADR-0002's offline-escrow ideal. Production
+(alma) MUST instead use real auto-unseal (Transit from a second instance, or an
+HSM/KMS) and never mount a static unseal key.
+
+Manual unseal (fallback, e.g. if the Secret is absent):
+```sh
+kubectl -n openbao exec openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 \
+  bao operator unseal "$(kubectl -n openbao get secret openbao-keys \
+  -o jsonpath='{.data.unseal_key}' | base64 -d)"
+```
+
 ## Notes
 
-- **Restart re-seals.** After an OpenBao pod restart, repeat step 1's `unseal`.
-  Auto-unseal (Transit from a second instance, or an HSM) is the production
-  hardening noted in ADR-0002; it can be added on request.
 - The scoped token has a 768h TTL/period — renew or reissue before expiry.
-- Nothing here writes unseal/root material to git or the cluster.
+- Nothing here writes unseal/root material to git; it lives only in the
+  out-of-band `openbao-keys`/`wordsworth-openbao` Secrets (etcd), not in the repo.
