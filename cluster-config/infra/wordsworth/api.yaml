@@ -20,7 +20,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: ghcr.io/mwest2020/wordsworth:sha-00f19fe
+          image: ghcr.io/mwest2020/wordsworth:sha-58e84c3
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -32,6 +32,7 @@ spec:
             - configMapRef: { name: wordsworth-config }
             - secretRef:    { name: wordsworth-db }
             - secretRef:    { name: wordsworth-s3 }
+            - secretRef:    { name: wordsworth-openbao }   # WORDSWORTH_OPENBAO_TOKEN (Fase B)
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

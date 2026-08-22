@@ -17,3 +17,7 @@ data:
   WORDSWORTH_S3_BUCKET: "wordsworth"
   WORDSWORTH_S3_REGION: "us-east-1"
   WORDSWORTH_OCR_LANGUAGE: "nld"
+  # Fase B: reversible pseudonymisation on. Data keys are OpenBao-Transit-wrapped;
+  # the scoped token comes from the out-of-band Secret wordsworth-openbao.
+  WORDSWORTH_REVERSIBLE: "true"
+  WORDSWORTH_OPENBAO_URL: "http://openbao.openbao.svc.cluster.local:8200"
