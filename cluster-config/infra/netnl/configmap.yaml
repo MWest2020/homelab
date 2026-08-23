@@ -1,0 +1,30 @@
+# Non-secret runtime config for the netnl facade. The upstream credential
+# (NETNL_UPSTREAM_USERNAME / NETNL_UPSTREAM_PASSWORD) lives ONLY in the
+# out-of-band Secret `netnl-upstream` — never in Git. See README.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: netnl-config
+data:
+  # Provenance name, stamped on every reply (X-Netnl-Instance). Public-facing.
+  NETNL_INSTANCE: "netnl"
+
+  # The upstream batch instance on the VPS, reached over the tailnet — the VPS
+  # does NOT publish its batch API publicly. Replace with the instance's
+  # tailnet address (MagicDNS name or 100.x address). See
+  # docs/how-to/deploy-instance-vps.md in the internetnl-cli repo.
+  NETNL_UPSTREAM_ENDPOINT: "http://batch-instance.TAILNET.ts.net/api/batch/v2"
+  # The tailnet hop is already WireGuard-encrypted; if the instance serves its
+  # batch API over plain http on the tailnet, this opt-in is required (the
+  # facade otherwise refuses a non-https upstream). Set to "1" only for the
+  # tailnet-internal hop, never for a public endpoint.
+  NETNL_ALLOW_HTTP: "1"
+
+  NETNL_DB: "/data/netnl.sqlite3"
+  NETNL_HOST: "0.0.0.0"
+  NETNL_PORT: "8000"
+
+  # Limits and retention use the app defaults unless set here (all tunable):
+  # NETNL_RATE_LIMIT (10/h), NETNL_MAX_DOMAINS (500), NETNL_MAX_CONCURRENT (2),
+  # NETNL_RESULT_RETENTION_DAYS (7), NETNL_AUDIT_RETENTION_DAYS (90),
+  # NETNL_RESERVING_GRACE_SECONDS (300). Adjust once beta capacity is known.
