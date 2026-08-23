@@ -54,22 +54,23 @@ spec:
             httpGet: { path: /api/v1/health, port: 8080 }
             periodSeconds: 10
             failureThreshold: 40
-          # A single CPU worker blocks /health while it runs a GLiNER forward
-          # pass (seconds). The k8s default probe timeout is 1s, so a busy pod
-          # failed readiness, got pulled from the Service endpoints, and the
-          # next anonymize chunk hit "No route to host" (EHOSTUNREACH). Give the
-          # probes a generous timeout + failureThreshold so an inferring-but-
-          # alive pod is never yanked; liveness only restarts a truly hung one.
+          # A single CPU worker blocks /api/v1/health for the whole GLiNER
+          # forward pass; even a 10s HTTP-probe timeout still flapped under load,
+          # so busy replicas were pulled from the Service endpoints and callers
+          # hit "No route to host" (EHOSTUNREACH) → retry churn that dragged the
+          # corpus backfill to a crawl. Once the model is loaded the process is
+          # "ready" whenever it accepts connections, so use a TCP probe: a busy
+          # pod stays in the endpoints and callers just wait for the worker.
+          # startupProbe (httpGet above) still gates on the model actually
+          # loading; liveness is TCP too so an inferring-but-alive pod is never
+          # killed (a truly hung process stops accepting connections).
           readinessProbe:
-            httpGet: { path: /api/v1/health, port: 8080 }
+            tcpSocket: { port: 8080 }
             periodSeconds: 20
-            timeoutSeconds: 10
-            failureThreshold: 6
           livenessProbe:
-            httpGet: { path: /api/v1/health, port: 8080 }
+            tcpSocket: { port: 8080 }
             periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 12
+            failureThreshold: 6
           resources:
             # Driver-side chunking (≤4k chars/call) bounds GLiNER's O(n^2)
             # attention spike, so the whole-document OOM (75 restarts at 6Gi) is
