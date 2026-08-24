@@ -86,6 +86,34 @@ tailscale`), niet via de publieke Gateway. Een RAG-API over eigen documenten hee
 publieke surface nodig; tailnet-membership ís de authenticatie. De OAuth-credentials van
 de operator leven in een out-of-band Secret — nooit in Git.
 
+## Reversibel pseudonimiseren met eigen key store (OpenBao) i.p.v. onomkeerbaar redigeren
+
+Fase B van de Wordsworth-straat vervangt PII niet langer onomkeerbaar: per ingest worden
+data-keys aangemaakt die **OpenBao-Transit-wrapped** in de database liggen. De KEK zelf
+verlaat OpenBao nooit; Wordsworth krijgt alleen een scoped token dat onder die ene KEK
+mag wrappen/unwrappen — geen root-rechten. Redactie blijft de standaard, maar herleiding
+is mogelijk voor wie daar recht op heeft — zonder externe KMS, passend bij de
+soevereiniteits-keuze hierboven.
+
+De kroonjuwelen (unseal-key + root-token) ontstaan alleen in de terminal van de operator
+— nooit in Git, het cluster of een agent-context. Lab-compromis: de unseal-key staat wél
+als Secret in etcd, zodat een `postStart`-hook na pod-restarts automatisch unsealt en de
+straat zichzelf heelt. Productie moet echte auto-unseal gebruiken (Transit vanaf een
+tweede instance, of een HSM/KMS) en nooit een statische unseal-key mounten.
+
+## OpenAnonymiser: chunking + horizontaal schalen i.p.v. één grote pod
+
+GLiNER's attention groeit kwadratisch met de documentlengte: hele documenten in één call
+joegen de pod door zijn geheugen heen (OOM-loops). De oplossing is tweeledig: de
+**client chunkt** (kleine calls begrenzen het geheugen per call) en de service schaalt
+**horizontaal** — 3 replica's, één per worker, zodat de chunks van één document over de
+cluster-CPU's uitwaaieren. Daardoor konden de memory-limits juist omlaag en past de
+service naast OpenSearch, Ollama en Postgres op de 16Gi-workers.
+
+Bijvangst van 1-CPU-workers: de health-endpoint blokkeert tijdens inference, dus
+readiness/liveness zijn **TCP-probes** — een drukke pod blijft in de endpoints en wordt
+niet gekilld; een écht hangend proces accepteert ook geen connecties meer.
+
 ## PostgreSQL via CNPG-operator i.p.v. handmatige StatefulSet
 
 CloudNativePG beheert `homelab-pg`: 3 instances met anti-affinity over de workers

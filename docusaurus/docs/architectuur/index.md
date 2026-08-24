@@ -46,7 +46,7 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
 | Wave | Component | Rol |
 |------|-----------|-----|
 | 2 | CNPG-operator, Tailscale-operator, MinIO | operators + object storage |
-| 3 | OpenSearch, Ollama, OpenAnonymiser | zoekindex, lokale modellen, PII-redactie |
+| 3 | OpenSearch, Ollama, OpenAnonymiser, OpenBao | zoekindex, lokale modellen, PII-detectie, key store |
 | 4 | `homelab-pg` (CNPG Cluster) | PostgreSQL 17, 3 instances |
 | 6 | Wordsworth API | RAG-API (ingest / search / hybrid / ask) |
 
@@ -54,11 +54,19 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   RAG-LLM; modellen worden door een PostSync-hook-Job gepulld.
 - **OpenSearch** (2.x, single-node): hybride zoekindex; security-plugin uit — alleen
   in-cluster bereikbaar (ClusterIP).
-- **OpenAnonymiser**: PII-redactie over HTTP (spaCy `nl_core_news_lg`); het model zit in
-  de image gebakken, geen runtime-download.
+- **OpenAnonymiser**: PII-detectie over HTTP (GLiNER, CPU-only); het model zit in de
+  image gebakken, geen runtime-download. Draait met **3 replica's, één per worker**
+  (harde anti-affinity): Wordsworth hakt documenten in chunks en waaiert die over de
+  replica's uit, zodat de hele cluster-CPU meewerkt in plaats van één core.
+- **OpenBao** (2.2, single-node raft): soevereine key store. Houdt de Transit-KEK die
+  Wordsworths data-keys wrapt (reversibele pseudonimisering); de KEK verlaat OpenBao
+  nooit. Alleen in-cluster bereikbaar, non-root, en **sealed-by-design** — initialisatie
+  gebeurt out-of-band door de operator (zie [Runbooks](../runbooks/)).
 - **Wordsworth API**: gehardende pod (non-root, read-only rootfs, alle capabilities
   gedropt), image per commit-SHA gepind; het DB-schema wordt idempotent aangemaakt door
-  een Argo CD PreSync init-Job.
+  een Argo CD PreSync init-Job. Sinds **Fase B** staat reversibele pseudonimisering aan:
+  PII wordt vervangen door pseudoniemen waarvan de data-keys OpenBao-Transit-wrapped in
+  de database liggen — herleidbaar voor wie dat mag, betekenisloos voor de rest.
 - **PostgreSQL**: CNPG-cluster `homelab-pg` — PG17 (digest-gepind), 3 instances met
   anti-affinity over de workers; app-credentials genereert de operator zelf.
 - **Toegang**: de API is **niet publiek** — tailnet-intern via de Tailscale-operator

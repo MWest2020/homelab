@@ -117,9 +117,9 @@ API-versie uitrollen = de commit-SHA-tag pinnen in
 `cluster-config/infra/wordsworth/api.yaml` **én** `init-job.yaml`, committen — Argo CD
 synct de rest (PreSync init-Job draait eerst, idempotent, voor het DB-schema).
 
-Prerequisite-secrets (out-of-band, nooit in Git): `wordsworth-db` en `wordsworth-s3`
-(namespace `wordsworth`), `minio-credentials` (namespace `minio`), `operator-oauth`
-(namespace `tailscale`).
+Prerequisite-secrets (out-of-band, nooit in Git): `wordsworth-db`, `wordsworth-s3` en
+`wordsworth-openbao` (namespace `wordsworth`), `minio-credentials` (namespace `minio`),
+`operator-oauth` (namespace `tailscale`), `openbao-keys` (namespace `openbao`).
 
 ```bash
 # Status van de hele straat
@@ -137,9 +137,58 @@ Extra Ollama-model nodig? Toevoegen aan de PostSync-pull-Job
 volgende sync opnieuw. Let op: CPU-only, een pull + cold-start duurt minuten.
 
 :::note Geheugen-tuning ingest
-`/ingest` buffert PDF-uploads in het API-proces. De limit staat op 4Gi en gunicorn
-recyclet workers via `--max-requests`; grote corpora gaan batch-gewijs, niet in één call.
+`/ingest` buffert PDF-uploads in het API-proces. Worker-recycling staat bewust **uit**
+(het liet ingest-batches vallen); de memory-limit staat daarom ruim op 8Gi zodat een
+lange run plus een grote outlier-PDF past. Grote corpora gaan batch-gewijs, niet in
+één call.
 :::
+
+### OpenAnonymiser: schalen & rollouts
+
+OpenAnonymiser draait met 3 replica's, één per worker (harde anti-affinity). Twee
+dingen om te weten bij een rollout of incident:
+
+- **`maxSurge: 0`.** Met precies 3 nodes en één pod per node kan een rolling update
+  nooit een 4e pod surgen — die zou unschedulable zijn en de rollout deadlocken. Er
+  wordt dus per node één pod vervangen (`maxUnavailable: 1`).
+- **TCP-probes, geen HTTP.** Eén CPU-worker blokkeert `/api/v1/health` tijdens een
+  GLiNER-forward-pass; met HTTP-probes werden drukke pods uit de Service-endpoints
+  getrokken en zagen callers "No route to host". Een pod die connecties accepteert is
+  ready — de startupProbe (wél HTTP) bewaakt dat het model echt geladen is voordat de
+  pod meedoet.
+
+## OpenBao: bootstrap & unseal
+
+OpenBao deployt via Argo CD **sealed + uninitialised** — bewust. Initialiseren
+produceert de kroonjuwelen (unseal-key + root-token) en dat doet de operator zelf, zodat
+dat materiaal alleen in de eigen terminal belandt: nooit in Git, het cluster of een
+agent-context. Het volledige stappenplan staat in
+[`cluster-config/infra/openbao/README.md`](https://github.com/MWest2020/homelab/blob/main/cluster-config/infra/openbao/README.md).
+
+```bash
+alias bao='kubectl -n openbao exec -i openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 bao'
+
+bao operator init -key-shares=1 -key-threshold=1   # output OFFLINE bewaren
+bao operator unseal <UNSEAL_KEY>
+bao status                                          # Sealed: false, Initialized: true
+```
+
+Daarna (met het root-token): Transit enablen, de `wordsworth`-KEK aanmaken en een
+**scoped token** uitgeven dat alléén onder die KEK mag wrappen/unwrappen — dat token
+gaat als Secret `wordsworth-openbao` naar de API. Het token heeft een 768h-period:
+tijdig verlengen of opnieuw uitgeven.
+
+**Auto-unseal (lab):** na bootstrap staat de unseal-key in het `openbao-keys`-Secret;
+een `postStart`-hook unsealt automatisch na elke pod-restart, dus de straat heelt
+zichzelf. De hook faalt nooit hard (liveness is TCP, een sealed-maar-levende pod
+overleeft) en het Secret is `optional`, zodat de pod ook vóór bootstrap opkomt.
+Handmatige fallback:
+
+```bash
+kubectl -n openbao exec openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 \
+  bao operator unseal "$(kubectl -n openbao get secret openbao-keys \
+  -o jsonpath='{.data.unseal_key}' | base64 -d)"
+```
 
 ## Applicaties deployen (Proxmox-VM's)
 
