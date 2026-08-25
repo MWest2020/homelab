@@ -10,9 +10,15 @@ resource "proxmox_virtual_environment_vm" "vm" {
     full  = true
   }
 
-  # GEEN cpu/memory/disk/operating_system blocks — alles komt uit template 9002.
+  # GEEN memory/disk/operating_system blocks — alles komt uit template 9002.
   # Zie terraform/nginx-lab/main.tf en docs/how-to/07-vm-provisioning-stack.md:
   # hardware-shape leeft in de template, per-VM config in initialization.
+  #
+  # cpu type "host" is de gesanctioneerde uitzondering (CHANGELOG 2026-07-06):
+  # het qm-default CPU-model mist x86-64-v2 en daar crasht MinIO's glibc op.
+  cpu {
+    type = "host"
+  }
 
   network_device {
     bridge = "vmbr0"
