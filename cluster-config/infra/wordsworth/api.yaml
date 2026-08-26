@@ -33,6 +33,7 @@ spec:
             - secretRef:    { name: wordsworth-db }
             - secretRef:    { name: wordsworth-s3 }
             - secretRef:    { name: wordsworth-openbao }   # WORDSWORTH_OPENBAO_TOKEN (Fase B)
+            - secretRef:    { name: wordsworth-apikeys }   # WORDSWORTH_API_KEYS (opt-in caller-auth)
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
