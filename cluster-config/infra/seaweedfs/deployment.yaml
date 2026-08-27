@@ -1,0 +1,63 @@
+# SeaweedFS all-in-one (master+volume+filer+S3) — S3-store voor wordsworth.
+# MinIO-opvolger: OSS-editie gearchiveerd 2026-04-25, zie openspec-change
+# 2026-08-27-migrate-wordsworth-s3-seaweedfs. Image-versie = de in wordsworth-CI
+# bewezen gateway (chrislusf/seaweedfs:4.39, `weed server -s3`).
+# S3-identities komen uit het out-of-band Secret seaweedfs-s3-config
+# (key s3_config.json) — nooit in Git.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seaweedfs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # RWO-PVC
+  selector:
+    matchLabels:
+      app: seaweedfs
+  template:
+    metadata:
+      labels:
+        app: seaweedfs
+    spec:
+      containers:
+        - name: seaweedfs
+          image: chrislusf/seaweedfs:4.39
+          args:
+            - server
+            - -s3
+            - -s3.config=/etc/seaweedfs/s3_config.json
+            - -dir=/data
+            - -master.volumeSizeLimitMB=1024
+          ports:
+            - name: s3
+              containerPort: 8333
+          readinessProbe:
+            tcpSocket:
+              port: 8333
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8333
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: s3-config
+              mountPath: /etc/seaweedfs
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: seaweedfs-data
+        - name: s3-config
+          secret:
+            secretName: seaweedfs-s3-config
