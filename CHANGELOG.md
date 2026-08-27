@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-27 — buzz-relay: SeaweedFS i.p.v. MinIO
+
+- Gesanctioneerde afwijking van de vendored compose (block/buzz @4baccd53):
+  minio/minio-init → seaweedfs/seaweedfs-init, BUZZ_S3_ENDPOINT → seaweedfs:8333,
+  zelfde BUZZ_S3_*-secrets. Data gemigreerd (21 obj, 0 diff), relay healthy,
+  minio-volume geback-upt en verwijderd. De cpu-type=host-uitzondering
+  (2026-07-06, MinIO glibc) kan bij een volgende VM-herstart terug naar default.
+  Zie openspec/changes/archive/2026-08-27-buzz-relay-minio-seaweedfs.
+
 ## 2026-08-27 — cluster-MinIO verwijderd (SeaweedFS ervoor in de plaats)
 
 - MinIO OSS is gearchiveerd (2026-04-25); wordsworth gemigreerd naar SeaweedFS
