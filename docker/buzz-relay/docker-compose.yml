@@ -1,7 +1,10 @@
-# Vendored verbatim van block/buzz deploy/compose/compose.yml @ commit 4baccd53
-# (2026-08-22, https://github.com/block/buzz). Niet lokaal aanpassen — bij een
-# upgrade: nieuwe upstream-kopie + BUZZ_IMAGE-pin in env.example bijwerken.
-# Image-pin en secrets komen uit /opt/buzz-relay/.env (zie env.example).
+# Vendored van block/buzz deploy/compose/compose.yml @ commit 4baccd53
+# (2026-08-22, https://github.com/block/buzz), met ÉÉN gesanctioneerde afwijking
+# (openspec 2026-08-27-buzz-relay-minio-seaweedfs, besluit Mark): de services
+# minio/minio-init zijn vervangen door seaweedfs/seaweedfs-init en
+# BUZZ_S3_ENDPOINT wijst naar seaweedfs — MinIO OSS is gearchiveerd (2026-04-25).
+# Bij een upstream-upgrade: nieuwe kopie nemen en deze afwijking opnieuw
+# aanbrengen. Image-pin en secrets komen uit /opt/buzz-relay/.env (env.example).
 
 name: buzz-prod
 
@@ -16,8 +19,8 @@ services:
       BUZZ_METRICS_PORT: "9102"
       DATABASE_URL: postgres://${POSTGRES_USER:-buzz}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-buzz}
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@redis:6379
-      BUZZ_S3_ENDPOINT: http://minio:9000
-      # Docker DNS resolves `minio`, not arbitrary `<bucket>.minio` hosts.
+      BUZZ_S3_ENDPOINT: http://seaweedfs:8333
+      # Docker DNS resolves `seaweedfs`, not arbitrary `<bucket>.seaweedfs` hosts.
       BUZZ_S3_ADDRESSING_STYLE: path
       BUZZ_S3_ACCESS_KEY: ${BUZZ_S3_ACCESS_KEY:?set BUZZ_S3_ACCESS_KEY}
       BUZZ_S3_SECRET_KEY: ${BUZZ_S3_SECRET_KEY:?set BUZZ_S3_SECRET_KEY}
@@ -34,9 +37,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
+      seaweedfs:
         condition: service_healthy
-      minio-init:
+      seaweedfs-init:
         condition: service_completed_successfully
     # Probe /_readiness over /dev/tcp because the runtime image has bash but no curl/wget/socat.
     healthcheck:
@@ -89,16 +92,27 @@ services:
     networks:
       - buzz-net
 
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
+  # Afwijking van upstream (zie header): SeaweedFS i.p.v. MinIO.
+  # Identity komt uit dezelfde BUZZ_S3_*-secrets; config wordt at-runtime
+  # geschreven zodat de keys niet in `docker inspect`-args belanden.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.39
     environment:
-      MINIO_ROOT_USER: ${BUZZ_S3_ACCESS_KEY:?set BUZZ_S3_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${BUZZ_S3_SECRET_KEY:?set BUZZ_S3_SECRET_KEY}
+      BUZZ_S3_ACCESS_KEY: ${BUZZ_S3_ACCESS_KEY:?set BUZZ_S3_ACCESS_KEY}
+      BUZZ_S3_SECRET_KEY: ${BUZZ_S3_SECRET_KEY:?set BUZZ_S3_SECRET_KEY}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - >-
+        printf '{"identities":[{"name":"buzz","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]'
+        "$$BUZZ_S3_ACCESS_KEY" "$$BUZZ_S3_SECRET_KEY" > /tmp/s3_config.json &&
+        printf '}' >> /tmp/s3_config.json &&
+        exec weed server -s3 -s3.config=/tmp/s3_config.json -dir=/data -master.volumeSizeLimitMB=1024
     volumes:
-      - buzz-minio-data:/data
+      - buzz-seaweedfs-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      # master-poort 9333 is zonder auth; de S3-poort geeft 403 zonder creds.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9333/cluster/status"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -107,21 +121,19 @@ services:
     networks:
       - buzz-net
 
-  minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+  seaweedfs-init:
+    image: rclone/rclone:1
     depends_on:
-      minio:
+      seaweedfs:
         condition: service_healthy
     environment:
-      BUZZ_S3_ACCESS_KEY: ${BUZZ_S3_ACCESS_KEY:?set BUZZ_S3_ACCESS_KEY}
-      BUZZ_S3_SECRET_KEY: ${BUZZ_S3_SECRET_KEY:?set BUZZ_S3_SECRET_KEY}
-      BUZZ_S3_BUCKET: ${BUZZ_S3_BUCKET:-buzz-media}
-    entrypoint: >
-      /bin/sh -euc '
-        mc alias set local http://minio:9000 "$${BUZZ_S3_ACCESS_KEY}" "$${BUZZ_S3_SECRET_KEY}"
-        mc mb --ignore-existing "local/$${BUZZ_S3_BUCKET}"
-        mc anonymous set none "local/$${BUZZ_S3_BUCKET}"
-      '
+      RCLONE_CONFIG_DST_TYPE: s3
+      RCLONE_CONFIG_DST_PROVIDER: Other
+      RCLONE_CONFIG_DST_ENDPOINT: http://seaweedfs:8333
+      RCLONE_CONFIG_DST_FORCE_PATH_STYLE: "true"
+      RCLONE_CONFIG_DST_ACCESS_KEY_ID: ${BUZZ_S3_ACCESS_KEY:?set BUZZ_S3_ACCESS_KEY}
+      RCLONE_CONFIG_DST_SECRET_ACCESS_KEY: ${BUZZ_S3_SECRET_KEY:?set BUZZ_S3_SECRET_KEY}
+    command: ["mkdir", "dst:${BUZZ_S3_BUCKET:-buzz-media}"]
     restart: "no"
     networks:
       - buzz-net
@@ -133,9 +145,9 @@ volumes:
   buzz-redis-data:
     labels:
       com.buzz.volume: redis
-  buzz-minio-data:
+  buzz-seaweedfs-data:
     labels:
-      com.buzz.volume: minio
+      com.buzz.volume: seaweedfs
   buzz-git-data:
     labels:
       com.buzz.volume: git

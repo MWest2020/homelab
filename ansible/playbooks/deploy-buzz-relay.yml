@@ -3,7 +3,7 @@
 #
 # Stack (docker/buzz-relay/docker-compose.yml, vendored van block/buzz):
 #   - relay (ghcr.io/block/buzz, gepind in .env)
-#   - postgres 17 + redis 7 + minio (+ minio-init, run-once)
+#   - postgres 17 + redis 7 + seaweedfs (+ seaweedfs-init, run-once)
 #
 # Geen Caddy/certbot: de relay is alleen via LAN + tailnet bereikbaar (ws://),
 # transport-encryptie komt van Tailscale. Spec: MWest2020/boomhuis (add-relay).
