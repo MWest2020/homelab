@@ -4,7 +4,7 @@ metadata:
   name: wordsworth
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "6"   # after cnpg-database (4), minio (2), opensearch/ollama/openanonymiser (3)
+    argocd.argoproj.io/sync-wave: "6"   # after cnpg-database (4), seaweedfs (2), opensearch/ollama/openanonymiser (3)
   finalizers:
     - resources-finalizer.argocd.io
 spec:
