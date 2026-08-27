@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-27 — cluster-MinIO verwijderd (SeaweedFS ervoor in de plaats)
+
+- MinIO OSS is gearchiveerd (2026-04-25); wordsworth gemigreerd naar SeaweedFS
+  (414 objecten, checksum-gelijk, e2e-geverifieerd), nextcloud-bucket was leeg
+  (nextcloud-platform nooit ge-applied). Application, namespace en PVC weg;
+  manifests uit Git. buzz-relay's eigen MinIO (VM, compose) is een aparte
+  follow-up. Zie openspec/changes/archive/2026-08-27-remove-cluster-minio.
+
 ## 2026-08-22 — feat: buzz-relay VM (boomhuis-communicatielaag, vm 109/.60)
 
 ### Wat & waarom
