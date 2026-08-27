@@ -1,0 +1,50 @@
+# Retention/prune job: removes expired requests, stale `reserving` rows (frees
+# concurrency slots) and old audit rows. Cadence bounds the retention grace —
+# every 10 min keeps the 300s reserving grace tight. Same image, same volume,
+# so it co-schedules with the facade on the local-path node.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: netnl-prune
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: prune
+              image: ghcr.io/mwest2020/internetnl-cli:sha-347f8cb@sha256:d9a532a55fcd5f64dbaa20129bf0735e4076060d376514757c877027f0197b11
+              imagePullPolicy: IfNotPresent
+              command: ["netnl-admin", "prune"]
+              env:
+                - { name: HOME, value: /tmp }
+              envFrom:
+                - configMapRef: { name: netnl-config }
+                - secretRef:    { name: netnl-upstream }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: data, mountPath: /data }
+                - { name: tmp,  mountPath: /tmp }
+              resources:
+                requests: { cpu: "10m", memory: "64Mi" }
+                limits:   { cpu: "250m", memory: "128Mi" }
+          volumes:
+            - name: data
+              persistentVolumeClaim: { claimName: netnl-data }
+            - name: tmp
+              emptyDir: {}

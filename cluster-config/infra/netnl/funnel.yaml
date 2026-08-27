@@ -1,0 +1,27 @@
+# Public exposure via Tailscale Funnel. The tailscale-operator provisions a
+# public HTTPS endpoint at https://netnl.<tailnet>.ts.net and terminates TLS
+# itself — so there is no Caddy edge and no router port-forward in this path.
+#
+# Prerequisites (tailnet-side, one-time, done by the operator/Mark, not here):
+#   - Funnel enabled for the tailnet, and the `funnel` node attribute granted
+#     to the operator's tag in the ACL policy.
+#   - HTTPS/MagicDNS enabled.
+# Funnel only forwards 443/tcp publicly; the facade requires HTTP Basic on
+# every measurement route, so no anonymous access reaches upstream.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: netnl
+  annotations:
+    tailscale.com/funnel: "true"
+    tailscale.com/hostname: "netnl"
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: netnl
+      port:
+        number: 8000
+  tls:
+    - hosts:
+        - netnl   # operator expands to netnl.<tailnet>.ts.net

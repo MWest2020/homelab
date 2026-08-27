@@ -1,0 +1,75 @@
+# netnl — batch API v2 facade in front of the VPS batch instance.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netnl
+  labels: { app: netnl, component: facade }
+spec:
+  replicas: 1               # one facade pod; do not scale up (single node, RWO)
+  strategy: { type: Recreate }   # no two facade pods on the volume at once. The
+                                 # prune CronJob writes the same SQLite file
+                                 # concurrently; that is safe because the app
+                                 # opens it in WAL mode with a 5s busy_timeout.
+  selector:
+    matchLabels: { app: netnl, component: facade }
+  template:
+    metadata:
+      labels: { app: netnl, component: facade }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000       # numeric: the image's USER is non-numeric, which
+        runAsGroup: 1000      # runAsNonRoot cannot verify on its own
+        fsGroup: 1000         # makes the PVC + emptyDir writable by the process
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: facade
+          image: ghcr.io/mwest2020/internetnl-cli:sha-347f8cb@sha256:d9a532a55fcd5f64dbaa20129bf0735e4076060d376514757c877027f0197b11
+          imagePullPolicy: IfNotPresent
+          # Image CMD is `netnl-serve`; it binds NETNL_HOST:NETNL_PORT.
+          ports:
+            - containerPort: 8000
+          env:
+            # Root fs is read-only; give anything that wants $HOME a writable /tmp.
+            - { name: HOME, value: /tmp }
+          envFrom:
+            - configMapRef: { name: netnl-config }
+            - secretRef:    { name: netnl-upstream }   # out-of-band, see README.md
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp,  mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: "50m",  memory: "128Mi" }
+            limits:   { cpu: "1",    memory: "512Mi" }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: netnl-data }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netnl
+spec:
+  selector: { app: netnl, component: facade }
+  ports:
+    - { port: 8000, targetPort: 8000 }
+  type: ClusterIP

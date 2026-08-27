@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: netnl
+  namespace: argocd
+  annotations:
+    # After the tailscale-operator (Funnel exposure) is up. netnl fronts an
+    # external VPS batch instance, so it has no in-cluster backing service to
+    # wait on.
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MWest2020/homelab.git
+    targetRevision: main
+    path: cluster-config/infra/netnl
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: netnl
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

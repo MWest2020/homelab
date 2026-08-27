@@ -1,0 +1,13 @@
+# SQLite state for the facade: tenant credentials, the facade↔upstream id map
+# and the append-only audit trail. Node-local (local-path), so the facade and
+# the prune CronJob co-schedule on the same node via this volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: netnl-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
