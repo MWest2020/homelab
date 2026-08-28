@@ -21,3 +21,5 @@ data:
   # the scoped token comes from the out-of-band Secret wordsworth-openbao.
   WORDSWORTH_REVERSIBLE: "true"
   WORDSWORTH_OPENBAO_URL: "http://openbao.openbao.svc.cluster.local:8200"
+  # Browser frontend (Wordsworth Console on GitHub Pages) — opt-in CORS.
+  WORDSWORTH_CORS_ALLOW_ORIGINS: "https://mwest2020.github.io"
