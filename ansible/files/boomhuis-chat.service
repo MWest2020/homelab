@@ -1,0 +1,20 @@
+# Boomhuis chat-webinterface (boomhuis-repo chat/) op de buzz-relay-VM (vm 109).
+# Kopie van de live unit op /etc/systemd/system/boomhuis-chat.service.
+# De nsec van identiteit 'mark' komt uit /opt/buzz-build/chat/chat.env
+# (root:600, EnvironmentFile — nooit op de commandline, nooit in git);
+# SOPS-bron: boomhuis-repo secrets/identities.yaml.
+[Unit]
+Description=Boomhuis chat (web-interface, buzz-cli backend)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/buzz-build/chat
+EnvironmentFile=/opt/buzz-build/chat/chat.env
+ExecStart=/usr/bin/python3 /opt/buzz-build/chat/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
