@@ -6,4 +6,5 @@ resources:
   - init-job.yaml
   - api.yaml
   - api-tailscale.yaml
+  - api-tailscale-https.yaml
   - corpus-pvc.yaml

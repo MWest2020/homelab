@@ -1,0 +1,26 @@
+# Tailnet-internal HTTPS exposure of the Wordsworth API for browser frontends.
+# The Wordsworth Console (GitHub Pages, https) needs an https API or the browser
+# blocks the call as mixed content. The Tailscale operator terminates TLS with a
+# MagicDNS cert and names this Ingress `wordsworth-api` →
+# https://wordsworth-api.<tailnet>.ts.net (443).
+#
+# TAILNET-ONLY. There is deliberately NO `tailscale.com/funnel` annotation, so
+# this is never exposed to the public internet — it is sovereign PII infra and
+# stays inside the tailnet. This is additive: the http :8000 LoadBalancer
+# (api-tailscale.yaml) stays as the CLI (wordsworthctl) endpoint.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wordsworth-api-https
+  annotations:
+    tailscale.com/hostname: "wordsworth-api"
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: wordsworth-api
+      port:
+        number: 8000
+  tls:
+    - hosts:
+        - wordsworth-api   # operator expands to wordsworth-api.<tailnet>.ts.net
