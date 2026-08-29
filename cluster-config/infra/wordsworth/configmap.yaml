@@ -21,5 +21,17 @@ data:
   # the scoped token comes from the out-of-band Secret wordsworth-openbao.
   WORDSWORTH_REVERSIBLE: "true"
   WORDSWORTH_OPENBAO_URL: "http://openbao.openbao.svc.cluster.local:8200"
+  # EUDI VC reveal-gate (ADR-0003) — TEST issuer. Public key is non-secret;
+  # a presented X-VC narrows a reveal to grant ∩ vc.authorized_types.
+  # REQUIRED=false keeps reveal grant-only when no VC is presented.
+  WORDSWORTH_VC_ISSUER: "https://issuer.test.wordsworth"
+  WORDSWORTH_VC_VCT: "https://wordsworth/eudi/reveal-authorization"
+  WORDSWORTH_VC_REQUIRED: "false"
+  WORDSWORTH_VC_ISSUER_KEY_PEM: |
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaIStQ3hysyfmmJhpDTX+nx4kX1Sk
+    k+faMvLyZnSeX85KEHpp/bykQ1BOzMjMsP8z54mcJ+zkkk8KDDH8St9B8A==
+    -----END PUBLIC KEY-----
+
   # Browser frontend (Wordsworth Console on GitHub Pages) — opt-in CORS.
   WORDSWORTH_CORS_ALLOW_ORIGINS: "https://mwest2020.github.io"
