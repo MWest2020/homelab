@@ -10,15 +10,14 @@ data:
   NETNL_INSTANCE: "netnl"
 
   # The upstream batch instance on the VPS, reached over the tailnet — the VPS
-  # does NOT publish its batch API publicly. Replace with the instance's
-  # tailnet address (MagicDNS name or 100.x address). See
+  # does NOT publish its batch API publicly (443 staat daar alleen open op de
+  # tailscale-interface). De hostnaam is verplicht: de instance-nginx doet
+  # strikte SNI en serveert het Let's Encrypt-cert voor precies deze naam.
+  # In-cluster wijst een hostAliases-entry op de Deployment deze naam naar het
+  # gepinde ClusterIP van netnl-upstream-egress (upstream-egress.yaml), dat via
+  # de tailscale-operator naar 100.65.70.52 (netnl-instance) proxied. See
   # docs/how-to/deploy-instance-vps.md in the internetnl-cli repo.
-  NETNL_UPSTREAM_ENDPOINT: "http://batch-instance.TAILNET.ts.net/api/batch/v2"
-  # The tailnet hop is already WireGuard-encrypted; if the instance serves its
-  # batch API over plain http on the tailnet, this opt-in is required (the
-  # facade otherwise refuses a non-https upstream). Set to "1" only for the
-  # tailnet-internal hop, never for a public endpoint.
-  NETNL_ALLOW_HTTP: "1"
+  NETNL_UPSTREAM_ENDPOINT: "https://netnl.westerweel.work/api/batch/v2"
 
   NETNL_DB: "/data/netnl.sqlite3"
   NETNL_HOST: "0.0.0.0"

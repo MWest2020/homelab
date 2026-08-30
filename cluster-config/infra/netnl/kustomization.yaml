@@ -4,6 +4,7 @@ namespace: netnl
 resources:
   - configmap.yaml
   - pvc.yaml
+  - upstream-egress.yaml
   - deployment.yaml
   - funnel.yaml
   - prune-cronjob.yaml

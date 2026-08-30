@@ -22,6 +22,13 @@ spec:
         runAsGroup: 1000      # runAsNonRoot cannot verify on its own
         fsGroup: 1000         # makes the PVC + emptyDir writable by the process
         seccompProfile: { type: RuntimeDefault }
+      # De upstream-hostnaam moet in-cluster naar de tailscale-egress wijzen
+      # (gepind ClusterIP van netnl-upstream-egress, zie upstream-egress.yaml);
+      # publiek DNS wijst naar het publieke VPS-IP waar 443 dicht is. De
+      # hostnaam zelf blijft nodig voor SNI + certvalidatie.
+      hostAliases:
+        - ip: "10.32.0.123"
+          hostnames: ["netnl.westerweel.work"]
       containers:
         - name: facade
           image: ghcr.io/mwest2020/internetnl-cli:sha-347f8cb@sha256:d9a532a55fcd5f64dbaa20129bf0735e4076060d376514757c877027f0197b11

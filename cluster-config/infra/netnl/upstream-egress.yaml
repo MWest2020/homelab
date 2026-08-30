@@ -1,0 +1,25 @@
+# Tailscale-operator EGRESS: maakt de batch-instance op de VPS
+# (netnl-instance, tailnet-only op 100.65.70.52:443) bereikbaar voor pods
+# in dit cluster — pods zitten zelf niet op de tailnet, de operator zet
+# hier een proxy-pod voor in.
+#
+# Het ClusterIP is GEPIND (10.32.0.123): de facade-Deployment verwijst er
+# met een hostAliases-entry naar, zodat het pod-verkeer de hostnaam
+# `netnl.westerweel.work` gebruikt. Die naam is vereist: de nginx op de
+# instance doet strikte SNI en serveert het Let's Encrypt-certificaat
+# voor precies die naam — kaal-IP of cluster-DNS-namen weigert hij.
+# (Publiek wijst netnl.westerweel.work naar het publieke VPS-IP, waar 443
+# geblokkeerd is; alleen dit tailnet-pad komt binnen.)
+apiVersion: v1
+kind: Service
+metadata:
+  name: netnl-upstream-egress
+  annotations:
+    tailscale.com/tailnet-ip: "100.65.70.52"
+spec:
+  type: ClusterIP
+  clusterIP: 10.32.0.123
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP
