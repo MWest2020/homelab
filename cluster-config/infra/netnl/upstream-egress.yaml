@@ -3,13 +3,20 @@
 # in dit cluster — pods zitten zelf niet op de tailnet, de operator zet
 # hier een proxy-pod voor in.
 #
-# Het ClusterIP is GEPIND (10.32.0.123): de facade-Deployment verwijst er
-# met een hostAliases-entry naar, zodat het pod-verkeer de hostnaam
-# `netnl.westerweel.work` gebruikt. Die naam is vereist: de nginx op de
-# instance doet strikte SNI en serveert het Let's Encrypt-certificaat
-# voor precies die naam — kaal-IP of cluster-DNS-namen weigert hij.
-# (Publiek wijst netnl.westerweel.work naar het publieke VPS-IP, waar 443
-# geblokkeerd is; alleen dit tailnet-pad komt binnen.)
+# LET OP: de operator MUTEERT deze Service naar type ExternalName
+# (ts-netnl-upstream-egress-<hash>.tailscale.svc.cluster.local). De
+# ArgoCD-Application `netnl` heeft daarom ignoreDifferences op de spec
+# van deze Service + RespectIgnoreDifferences (out-of-band gepatcht,
+# net als de Application zelf) — anders vechten ArgoCD-selfHeal en de
+# operator om de spec.
+#
+# De facade bereikt dit via de hostnaam `netnl.westerweel.work`: een
+# CoreDNS-rewrite (kube-system/coredns) wijst die naam in-cluster naar
+# deze Service. De echte hostnaam is vereist: de nginx op de instance
+# doet strikte SNI en serveert het Let's Encrypt-certificaat voor
+# precies die naam. (Publiek wijst netnl.westerweel.work naar het
+# publieke VPS-IP, waar 443 geblokkeerd is; alleen dit tailnet-pad
+# komt binnen.)
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,8 +24,6 @@ metadata:
   annotations:
     tailscale.com/tailnet-ip: "100.65.70.52"
 spec:
-  type: ClusterIP
-  clusterIP: 10.32.0.123
   ports:
     - name: https
       port: 443
