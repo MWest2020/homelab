@@ -6,5 +6,6 @@ resources:
   - pvc.yaml
   - upstream-egress.yaml
   - deployment.yaml
+  - tunnel.yaml
   - funnel.yaml
   - prune-cronjob.yaml
