@@ -37,6 +37,20 @@ verdween het single-control-plane-model: virtualisatie ontkoppelt hardware van w
 en maakt anti-affinity over 3 fysieke machines mogelijk. De huidige staat staat onder
 [Architectuur](../architectuur/).
 
+## MinIO als S3-store (maart – augustus 2026)
+
+Het cluster draaide **MinIO** als S3-compatibele object storage (Helm-deploy, 50Gi PVC,
+namespace `minio`) — in maart 2026 neergezet voor een geplande Nextcloud-deploy, en
+vanaf augustus 2026 pragmatisch ook het S3-endpoint van de Wordsworth-straat. De
+buzz-relay-VM draaide daarnaast een eigen MinIO in z'n compose-stack.
+
+MinIO's open-source-editie werd echter gearchiveerd (2026-04-25, geen security-updates
+meer). Op **2026-08-27** is alles naar SeaweedFS gemigreerd en is MinIO overal
+verwijderd — wordsworth-data checksum-geverifieerd overgezet (414 objecten), de
+nextcloud-bucket bleek leeg, buzz-relay's media idem gemigreerd (21 objecten). De
+afwegingen staan onder [Beslissingen](../beslissingen/); de uitvoering in de
+gearchiveerde OpenSpec-changes van 2026-08-27 in de repo.
+
 ## Nextcloud-tenants op Docker (laptop-node)
 
 Naast het K8s-cluster draaien Nextcloud-tenants als Docker-compose-stacks op VM's op de

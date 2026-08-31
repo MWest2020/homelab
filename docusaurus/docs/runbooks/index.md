@@ -117,13 +117,14 @@ API-versie uitrollen = de commit-SHA-tag pinnen in
 `cluster-config/infra/wordsworth/api.yaml` **én** `init-job.yaml`, committen — Argo CD
 synct de rest (PreSync init-Job draait eerst, idempotent, voor het DB-schema).
 
-Prerequisite-secrets (out-of-band, nooit in Git): `wordsworth-db`, `wordsworth-s3` en
-`wordsworth-openbao` (namespace `wordsworth`), `minio-credentials` (namespace `minio`),
-`operator-oauth` (namespace `tailscale`), `openbao-keys` (namespace `openbao`).
+Prerequisite-secrets (out-of-band, nooit in Git): `wordsworth-db`, `wordsworth-s3`,
+`wordsworth-openbao` en `wordsworth-apikeys` (namespace `wordsworth`),
+`seaweedfs-s3-config` (namespace `seaweedfs`), `operator-oauth` (namespace `tailscale`),
+`openbao-keys` (namespace `openbao`).
 
 ```bash
 # Status van de hele straat
-kubectl get applications -n argocd | grep -E 'wordsworth|ollama|opensearch|openanonymiser|cnpg|minio'
+kubectl get applications -n argocd | grep -E 'wordsworth|ollama|opensearch|openanonymiser|cnpg|seaweedfs'
 kubectl -n wordsworth get pods
 kubectl -n cnpg-database get cluster homelab-pg   # 3 instances, Cluster in healthy state
 
@@ -189,6 +190,52 @@ kubectl -n openbao exec openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 \
   bao operator unseal "$(kubectl -n openbao get secret openbao-keys \
   -o jsonpath='{.data.unseal_key}' | base64 -d)"
 ```
+
+## netnl-facade: beheren & tenants uitgeven
+
+De publieke batch-API-facade (zie [Architectuur](../architectuur/)) is een Argo CD-app
+(`apps/infrastructure/netnl.yaml`); alle wijzigingen gaan via Git. Details:
+[`cluster-config/infra/netnl/README.md`](https://github.com/MWest2020/homelab/blob/main/cluster-config/infra/netnl/README.md).
+
+Prerequisite-secrets (out-of-band, namespace `netnl`, nooit in Git):
+
+- `netnl-upstream` — HTTP-Basic-credentials van de batch-user op de VPS-instance
+  (aangemaakt met upstream's `user_manage.sh`). Roteren = Secret opnieuw aanmaken +
+  Deployment herstarten.
+- `netnl-tunnel` — het run-token van de Cloudflare Tunnel (`TUNNEL_TOKEN`); de
+  ingress-regels zelf staan remotely-managed bij Cloudflare (Zero Trust → Tunnels).
+
+Daarnaast is er een out-of-band **CoreDNS-rewrite** (kube-system) die
+`netnl.westerweel.work` in-cluster naar de egress-Service wijst — de
+tailscale-operator muteert die Service naar `ExternalName`, dus de Application heeft
+`ignoreDifferences` op de Service-spec.
+
+```bash
+# Tenant-credential uitgeven (wachtwoord wordt éénmalig geprint)
+kubectl -n netnl exec deploy/netnl -- netnl-admin user add <naam>
+
+# Nieuwe image-versie: digest resolven en pinnen in deployment.yaml + prune-cronjob.yaml
+docker buildx imagetools inspect ghcr.io/mwest2020/internetnl-cli:sha-<short>
+```
+
+Acceptatie-check: wijs de `internetnl`-CLI met een tenant-credential naar de publieke
+hostname — die moet ongewijzigd werken (alleen de `INTERNETNL_*`-variabelen anders).
+
+## Buzz-relay deployen (VM 109)
+
+De relay-VM wordt geprovisioned met Terraform (`terraform/buzz-relay/`, clone van
+template 9002 `ubuntu-24.04-large`) en geconfigureerd met Ansible:
+
+```bash
+ansible-playbook -i inventory/buzz-relay-hosts.yml playbooks/deploy-buzz-relay.yml
+```
+
+- De echte `.env` leeft **alleen op de host** (0600); het playbook weigert te starten
+  zolang er `CHANGE_ME`-placeholders in staan. Template: `docker/buzz-relay/env.example`.
+- `docker-compose.yml` is vendored van upstream block/buzz — bij een upstream-upgrade:
+  nieuwe kopie nemen en de gemarkeerde SeaweedFS-afwijking opnieuw aanbrengen (zie
+  [Beslissingen](../beslissingen/)).
+- Geen Caddy/certbot in deze stack: de relay is LAN/tailnet-only.
 
 ## Applicaties deployen (Proxmox-VM's)
 

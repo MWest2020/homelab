@@ -86,6 +86,13 @@ tailscale`), niet via de publieke Gateway. Een RAG-API over eigen documenten hee
 publieke surface nodig; tailnet-membership ís de authenticatie. De OAuth-credentials van
 de operator leven in een out-of-band Secret — nooit in Git.
 
+Voor de browser-based **Wordsworth Console** (GitHub Pages) kwam daar een
+**tailnet-private HTTPS-Ingress** bij (MagicDNS-cert): een https-pagina mag geen
+http-API aanroepen (mixed content). Bewust **zonder** `tailscale.com/funnel`-annotatie
+— dit is soevereine PII-infra en blijft binnen de tailnet; CORS staat alleen open voor
+de Console-origin. Tailnet-membership blijft de buitenste schil; daarbinnen is
+caller-auth (API-keys) opt-in aangezet als tweede laag.
+
 ## Reversibel pseudonimiseren met eigen key store (OpenBao) i.p.v. onomkeerbaar redigeren
 
 Fase B van de Wordsworth-straat vervangt PII niet langer onomkeerbaar: per ingest worden
@@ -121,6 +128,54 @@ CloudNativePG beheert `homelab-pg`: 3 instances met anti-affinity over de worker
 eeuwig Pending), digest-gepinde PG17-image, en app-credentials die de **operator zelf
 genereert** — geen handmatig secret, geen plaintext in Git. Failover en switchover zijn
 operator-logica in plaats van runbook-stappen.
+
+## SeaweedFS i.p.v. MinIO achter de S3-seam
+
+MinIO's open-source-editie is dood: binaries gestopt in oktober 2025, repo gearchiveerd
+op 2026-04-25 — geen security-updates meer. Omdat alle consumers via een **generieke
+S3-seam** praten (endpoint + credentials in env, path-style), was de vervanger een
+endpoint-flip, geen herbouw. Gekozen is **SeaweedFS** (`weed server -s3`): al CI-bewezen
+in de wordsworth-testsuite, en een statische Go-binary zonder de glibc-x86-64-v2-eis
+die MinIO had. De migratie liep in drie gearchiveerde OpenSpec-changes (2026-08-27):
+
+1. **wordsworth** — rclone-sync van de bucket, 414 objecten checksum-gelijk, daarna
+   endpoint-flip in de ConfigMap.
+2. **cluster-MinIO eruit** — de enige andere bucket (`nextcloud`) bleek leeg
+   (nextcloud-platform is nooit ge-applied), dus niets hield MinIO nog in leven.
+3. **buzz-relay** — dezelfde swap in de compose-stack op de VM (21 objecten, 0 diff).
+
+Ceph RGW blijft het lange-termijndoel; de S3-seam maakt die latere swap identiek aan
+deze. De oude situatie staat in het [Archief](../archief/).
+
+## netnl: facade in-cluster, batch-instance op de VPS
+
+De Internet.nl-batch-instance vereist een **vast publiek IPv4+IPv6** — dat kan een
+ge-NAT homelab niet leveren, dus de instance draait op een VPS (tailnet-only
+afgeschermd). De **facade** (tenant-auth, retention, provenance) draait wél in-cluster:
+daar is de GitOps-machinerie, en de VPS houdt maar één taak. Drie afgeleide keuzes:
+
+- **Twee publieke ingangen, dezelfde facade.** De Tailscale Funnel was er eerst
+  (nul extra infra: geen Caddy-edge, geen port-forward); de **Cloudflare Tunnel** kwam
+  erbij voor de merknaam `api.westerweel.work`. Beide outbound-only — de router blijft
+  dicht.
+- **Egress via CoreDNS-rewrite, niet via hostAliases.** De instance-nginx doet strikte
+  SNI, dus de facade móet de echte hostnaam gebruiken. Een gepind ClusterIP +
+  `hostAliases` brak omdat de tailscale-operator de egress-Service naar `ExternalName`
+  muteert; een CoreDNS-rewrite volgt de Service-naam en overleeft dat. De Argo CD-app
+  heeft `ignoreDifferences` op de Service-spec zodat selfHeal en de operator niet om
+  de spec vechten.
+- **Upstream-credential out-of-band** (Secret `netnl-upstream`), zelfde patroon als
+  wordsworth; OpenBao-injectie is de latere hardening-stap.
+
+## Vendored compose verbatim; afwijkingen gesanctioneerd én gemarkeerd
+
+De buzz-relay-compose is **verbatim vendored** van upstream block/buzz, met als regel
+"niet lokaal aanpassen" — zo blijft een upstream-upgrade een simpele nieuwe kopie.
+Afwijken mag alleen **gesanctioneerd** (expliciet besluit, gelogd in OpenSpec/CHANGELOG)
+en **gemarkeerd in de file-header**, zodat de afwijking bij een upgrade bewust opnieuw
+wordt aangebracht i.p.v. stilletjes te verdwijnen. Tot nu toe twee: het cpu-type
+(2026-07-06, MinIO's glibc-eis — kan terug naar default nu MinIO weg is) en de
+SeaweedFS-swap (2026-08-27).
 
 ## Images pinnen op commit-SHA, deploys als Git-commits
 
