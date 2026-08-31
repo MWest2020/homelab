@@ -20,7 +20,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: ghcr.io/mwest2020/wordsworth:sha-208c646
+          image: ghcr.io/mwest2020/wordsworth:sha-55bd145
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

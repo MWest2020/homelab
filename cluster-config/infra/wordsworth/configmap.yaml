@@ -27,6 +27,9 @@ data:
   WORDSWORTH_VC_ISSUER: "https://issuer.test.wordsworth"
   WORDSWORTH_VC_VCT: "https://wordsworth/eudi/reveal-authorization"
   WORDSWORTH_VC_REQUIRED: "false"
+  # F4-mitigatie: alleen deze caller-labels mogen de VOLLEDIGE
+  # de-identified tekst lezen (/anonymized + /export/anonymized.zip).
+  WORDSWORTH_CORPUS_READ_LABELS: "console,cli"
   WORDSWORTH_VC_ISSUER_KEY_PEM: |
     -----BEGIN PUBLIC KEY-----
     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaIStQ3hysyfmmJhpDTX+nx4kX1Sk
