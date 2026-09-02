@@ -19,6 +19,10 @@ data:
   # docs/how-to/deploy-instance-vps.md in the internetnl-cli repo.
   NETNL_UPSTREAM_ENDPOINT: "https://netnl.westerweel.work/api/batch/v2"
 
+  # Serveert /.well-known/security.txt (RFC 9116) — opt-in; zonder deze
+  # var bestaat de route niet (501 zoals elk niet-geproxied pad).
+  NETNL_SECURITY_CONTACT: "mailto:mark@conduction.nl"
+
   NETNL_DB: "/data/netnl.sqlite3"
   NETNL_HOST: "0.0.0.0"
   NETNL_PORT: "8000"

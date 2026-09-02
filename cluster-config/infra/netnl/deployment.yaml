@@ -29,7 +29,7 @@ spec:
       # hostnaam blijft nodig voor strikte SNI + certvalidatie op de instance.
       containers:
         - name: facade
-          image: ghcr.io/mwest2020/internetnl-cli:sha-347f8cb@sha256:d9a532a55fcd5f64dbaa20129bf0735e4076060d376514757c877027f0197b11
+          image: ghcr.io/mwest2020/internetnl-cli:sha-fa76e4d@sha256:c7dfa6b4b25906019703f4cde4bde9db7491ccf856cd78e7715aa6b6d482d230
           imagePullPolicy: IfNotPresent
           # Image CMD is `netnl-serve`; it binds NETNL_HOST:NETNL_PORT.
           ports:
