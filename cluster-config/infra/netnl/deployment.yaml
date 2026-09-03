@@ -40,6 +40,10 @@ spec:
           envFrom:
             - configMapRef: { name: netnl-config }
             - secretRef:    { name: netnl-upstream }   # out-of-band, see README.md
+            # BMC-bridge (add-supporter-issuance): webhook-secret + SMTP.
+            # optional: true zodat de facade ook zonder dit secret start
+            # (bridge is opt-in; route bestaat pas als het secret er is).
+            - secretRef:    { name: netnl-bridge, optional: true }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
