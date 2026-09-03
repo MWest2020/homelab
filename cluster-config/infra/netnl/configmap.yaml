@@ -23,6 +23,13 @@ data:
   # var bestaat de route niet (501 zoals elk niet-geproxied pad).
   NETNL_SECURITY_CONTACT: "mailto:mark@conduction.nl"
 
+  # Live demo-runs op de publieke demo-pagina (openspec add-demo-run):
+  # anoniem, drievoudig begrensd; kill switch = netnl-admin user revoke
+  # netnl-demo, weer aan = user reissue. Zie docs/how-to/demo-run.md.
+  NETNL_DEMO_ENABLED: "1"
+  NETNL_DEMO_ALLOWED_ORIGIN: "https://mwest2020.github.io"
+  NETNL_DEMO_TENANT: "netnl-demo"
+
   NETNL_DB: "/data/netnl.sqlite3"
   NETNL_HOST: "0.0.0.0"
   NETNL_PORT: "8000"
