@@ -61,7 +61,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
           resources:
-            requests: { cpu: "50m",  memory: "128Mi" }
+            requests: { cpu: "25m",  memory: "128Mi" }   # 50m->25m: PV pint ons op node-01 en die zit vol (2026-09-03)
             limits:   { cpu: "1",    memory: "512Mi" }
       volumes:
         - name: data
