@@ -37,7 +37,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: ghcr.io/mwest2020/openanonymiser-light:latest
+          image: ghcr.io/mwest2020/openanonymiser-light:v1.3.0@sha256:be403e88abf16da1da42b9eae7547df22b199174a9ff23b73fee4b34ae421107
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
