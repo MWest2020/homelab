@@ -307,13 +307,50 @@ worden aanvallen weggewhitelist. Fix vóór de proxy scherp publiek gaat: `trust
 
 ## Homelab gracefully afsluiten (stroomonderbreking)
 
-`scripts/graceful-shutdown.sh` draait vanaf **jumpy** (die blijft up) en zet de hele
-homelab netjes uit voor een geplande stroomonderbreking: per Proxmox-host worden alle
-draaiende VM's en containers gracefully afgesloten (ACPI), daarna halt de host. Het script
-pollt tot alles down is en geeft het sein "stroom kan eraf".
+`scripts/graceful-shutdown.sh` sluit de hele homelab **tweefasig en parallel** af. Draai
+het vanaf een host die de onderbreking zelf overleeft: jumpy of alma bij een geplande
+onderbreking, of de UPS-master bij een onbeheerde (zie `HOMELAB_SELF`).
+
+Tweefasig vanwege **quorum**: px-01/02/03 vormen een 3-node Proxmox-cluster. Zodra twee
+leden gehalt zijn is de derde niet meer quorate en blokkeert `qm shutdown` op "cluster
+not ready - no quorum?" — precies wanneer die zijn eigen VM's nog moet opruimen. Daarom
+eerst alle gasten op álle hosts omlaag, en pas daarna de hosts zelf.
+
+| Fase | Wat |
+|---|---|
+| 1 | per host parallel: `qm`/`pct shutdown` van elke running gast, pollen tot de host 0 gasten meldt |
+| 2 | pas ná fase 1: `shutdown -h now` op alle hosts, parallel |
+| 3 | pollen met ping tot alles down is; het script blijft zelf leven |
+
+Parallel in plaats van serieel, omdat serieel worst case ~4,5 minuut per host is — ~18
+minuten voor vier hosts, meer dan een UPS bij vollast volhoudt. Parallel is de totaaltijd
+die van de langzaamste host: in de praktijk één tot vier minuten.
 
 ```bash
-./scripts/graceful-shutdown.sh
+./scripts/graceful-shutdown.sh --dry-run      # print wat het zou doen, muteert niets
+./scripts/graceful-shutdown.sh --phase1-only  # gasten omlaag, hosts blijven up
+./scripts/graceful-shutdown.sh                # volledige afsluiting
+```
+
+Blijft een host in fase 1 met gasten zitten, dan gaat fase 2 **tóch** door: een host
+halten is netter dan wachten tot de accu leeg is. `HOMELAB_STRICT=1` breekt in dat geval
+juist af.
+
+Alle limieten zijn env-tunable: `HOMELAB_HOSTS`, `HOMELAB_SSH_KEY`, `HOMELAB_VM_TIMEOUT`,
+`HOMELAB_POLL_MAX`, `HOMELAB_POLL_INTERVAL`, `HOMELAB_DOWN_POLL_MAX`,
+`HOMELAB_SSH_TIMEOUT`, `HOMELAB_STRICT`, `HOMELAB_LOCK`. Een tweede gelijktijdige run
+stopt op een flock — nodig omdat apcupsd `onbattery` herhaald kan afvuren.
+
+### Draaien óp een van de hosts (UPS-master)
+
+Draait het script op een Proxmox-host die zelf moet blijven leven, zet dan `HOMELAB_SELF`
+op diens adres. Die host doet fase 1 lokaal (geen ssh naar zichzelf) en wordt in fase 2
+en 3 overgeslagen. Vereist root, want `qm`/`pct` lopen dan lokaal.
+
+```bash
+HOMELAB_SELF=100.94.15.50 \
+  HOMELAB_HOSTS="100.120.76.22 100.89.39.27 100.94.64.49 100.94.15.50" \
+  ./scripts/graceful-shutdown.sh
 ```
 
 Power-up daarna (handmatig): hosts weer aanzetten — de K8s-VM's (`onboot=1`) starten

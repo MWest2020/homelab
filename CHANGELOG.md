@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-04 — feat: graceful-shutdown tweefasig en parallel (UPS-voorbereiding)
+
+### Wat & waarom
+- `graceful-shutdown.sh` deed de vier Proxmox-hosts **serieel**: per host tot ~4,5 minuut
+  (120 s `qm shutdown` + 30×5 s pollen), dus worst case ~18 minuten. Dat haalt een UPS bij
+  vollast niet. Nu **parallel**: de totaaltijd is die van de langzaamste host, ~1-4 minuten.
+- Nieuw **tweefasig**, wegens quorum: eerst alle gasten op álle hosts omlaag (cluster nog
+  quorate), pas daarna de hosts halten. In de oude opzet blokkeerde `qm shutdown` op de
+  laatste px-node met "cluster not ready - no quorum?" zodra de andere twee al gehalt waren
+  — precies wanneer die node zijn eigen VM's nog moest opruimen.
+- `HOMELAB_SELF`: draait het script óp een van de hosts (de toekomstige UPS-master), dan
+  doet die host fase 1 lokaal zonder ssh naar zichzelf en blijft hij in fase 2 en 3 buiten
+  schot. Nodig omdat de master de rest moet kunnen afmaken en zelf in de lucht blijft.
+- `--dry-run` en `--phase1-only` om te oefenen en om fase 1 te meten zonder de homelab plat
+  te leggen. Een flock voorkomt dubbel draaien (apcupsd vuurt `onbattery` herhaald af).
+- Alle limieten env-tunable in plaats van hardcoded. Het lockpad valt terug op `$TMPDIR`
+  als `/var/lock` niet schrijfbaar is, zodat een handmatige run als gewone gebruiker werkt.
+
+### Bestanden
+- `scripts/graceful-shutdown.sh` — herschreven (parallel, tweefasig, vlaggen, flock).
+- `docusaurus/docs/runbooks/index.md` — § Homelab gracefully afsluiten bijgewerkt met de
+  fasetabel, de quorum-reden, de vlaggen en de mastermodus.
+
+### Getest
+- shellcheck clean, `shfmt -i 2 -ci` clean.
+- Dry-run tegen alle vier hosts: ~2 s, alle acht gasten gevonden — VM 109 + CT 210 op
+  proxmox-laptop, VM's 110+113 op px-01, 111+114 op px-02, 112+115 op px-03.
+- Mastermodus dry-run met `HOMELAB_SELF`: fase 1 lokaal, host overgeslagen in fase 2 en 3.
+- **Nog niet gedaan:** een echte afsluiting, en het meten van de werkelijke fase-1-duur met
+  `--phase1-only`. Dat getal bepaalt welke UPS-runtime nodig is.
+
+### Context
+Voorbereiding op een UPS met automatische afsluiting. De UPS-master wordt `proxmox-laptop`
+zodra die een werkende accu heeft (`6-87-NJ50S-41D00`, 14,6 V / 2750 mAh / 41 Wh — bevestigd
+via `charge_full_design` en `voltage_min_design` op die host); het huidige pack enumereert
+wel maar valt daarna van de bus af. Een Raspberry Pi is de terugvaloptie. Een px-node kan
+het niet zijn: die verliest quorum terwijl hij zichzelf nog moet opruimen.
 ## 2026-08-27 — buzz-relay: SeaweedFS i.p.v. MinIO
 
 - Gesanctioneerde afwijking van de vendored compose (block/buzz @4baccd53):
