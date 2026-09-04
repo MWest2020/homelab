@@ -30,6 +30,13 @@ data:
   NETNL_DEMO_ALLOWED_ORIGIN: "https://mwest2020.github.io"
   NETNL_DEMO_TENANT: "netnl-demo"
 
+  # Supporter bridge (openspec add-supporter-issuance): a live donation mints
+  # a key only at or above this amount, in the BMC account's currency. Owner
+  # decision 2026-09-04 (was 0 = every donation); the code default follows in
+  # openspec polish-supporter-mail. The webhook/SMTP secrets live ONLY in the
+  # out-of-band Secret `netnl-bridge`.
+  NETNL_SUPPORTER_MIN_AMOUNT: "2"
+
   NETNL_DB: "/data/netnl.sqlite3"
   NETNL_HOST: "0.0.0.0"
   NETNL_PORT: "8000"
