@@ -28,8 +28,21 @@
 - Dry-run tegen alle vier hosts: ~2 s, alle acht gasten gevonden — VM 109 + CT 210 op
   proxmox-laptop, VM's 110+113 op px-01, 111+114 op px-02, 112+115 op px-03.
 - Mastermodus dry-run met `HOMELAB_SELF`: fase 1 lokaal, host overgeslagen in fase 2 en 3.
-- **Nog niet gedaan:** een echte afsluiting, en het meten van de werkelijke fase-1-duur met
-  `--phase1-only`. Dat getal bepaalt welke UPS-runtime nodig is.
+- **Echte afsluiting uitgevoerd op 2026-09-04 13:43Z** (voor het plaatsen van een UPS), en
+  daarmee de fase-1-duur gemeten:
+
+  | Onderdeel | Duur |
+  |---|---|
+  | fase 1 px-03 / px-02 / px-01 | 9 s / 13 s / 19 s |
+  | fase 1 proxmox-laptop (VM 109 + CT 210) | 41 s |
+  | **fase 1 totaal** (= langzaamste host) | **41 s** |
+  | fase 2 + 3 | 15 s |
+  | **totaal** | **56 s** |
+
+  Serieel zou dit ~82 s zijn geweest in het gunstige geval en tot ~18 min in het slechte.
+  56 s betekent dat zelfs bij vollast (~235 W, dus 5-8 min runtime op een 700 VA-klasse
+  Back-UPS) maar een zesde van de marge nodig is. De apcupsd-trigger kan dus ruim staan
+  (`MINUTES 8`) in plaats van bij de eerste dip alles plat te leggen.
 
 ### Context
 Voorbereiding op een UPS met automatische afsluiting. De UPS-master wordt `proxmox-laptop`
