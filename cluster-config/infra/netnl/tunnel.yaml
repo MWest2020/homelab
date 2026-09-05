@@ -23,6 +23,25 @@ spec:
     metadata:
       labels: { app: netnl, component: tunnel }
     spec:
+      # DNS-fix (2026-09-05): cloudflared zoekt bij het opstarten de SRV-record
+      # _v2-origintunneld._tcp.argotunnel.com op. Faalt die lookup, dan stopt
+      # het proces met exit 1 — geen retry. Dat gebeurde ~6x/dag ("server
+      # misbehaving" van CoreDNS), en tijdens zo'n herstart geeft Cloudflare
+      # HTTP 530 op api.westerweel.work; de dagelijkse meting van
+      # internetnl-cli-demo viel er op 2026-09-05 op om.
+      #   - ndots 2: die naam heeft 3 punten, dus met de standaard ndots 5 werd
+      #     hij eerst tegen alle search-domains geprobeerd (vier zinloze
+      #     queries naar CoreDNS vóór de echte). Nu direct absoluut.
+      #   - 1.1.1.1 als extra nameserver ACHTER de cluster-resolver: valt in
+      #     als CoreDNS SERVFAIL geeft. ClusterFirst blijft staan, want de
+      #     tunnel-ingress wijst naar de cluster-Service `netnl` — die moet
+      #     door CoreDNS opgelost blijven worden.
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+        options:
+          - { name: ndots, value: "2" }
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532        # image draait als nonroot
