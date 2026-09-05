@@ -32,7 +32,11 @@ Een **3-node Proxmox-cluster** met een **HA-Kubernetes** erop, volledig op VM's.
 - **MetalLB** (L2, pool `192.168.178.220-230`).
 - **cert-manager** (Let's Encrypt DNS-01, wildcard `*.westerweel.work`).
 - **Argo CD** (GitOps, app-of-apps: één root-Application beheert alle child-apps
-  onder `apps/infrastructure/`).
+  onder `apps/infrastructure/`). Van de bredere Argo-suite staan **Workflows**,
+  **Rollouts** en **Events** wél als manifest in de repo
+  (`kubernetes/infrastructure/argo-*`, met een Application in
+  `apps/infrastructure/`), maar ze zijn **niet uitgerold**: Argo CD kent er geen
+  Application voor en de namespaces bestaan niet op het cluster.
 - **local-path-provisioner** (default StorageClass, lokale disks per worker).
 - **CloudNativePG** (PostgreSQL-operator) + **SeaweedFS** (S3-compatibele object
   storage — verving MinIO toen diens open-source-editie gearchiveerd werd, zie
