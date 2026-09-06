@@ -1,0 +1,162 @@
+# Dagelijkse showcase-meting, verplaatst van GitHub Actions naar dit cluster
+# (2026-09-06). Reden: de Actions-schedule `17 5 * * *` wordt op gedeelde
+# runners vertraagd én overgeslagen — op 2026-09-06 draaide hij helemaal
+# niet, en de twee runs ervoor landden op 09:06 en 09:41 in plaats van 05:17.
+# Een CronJob hier vuurt wél op tijd.
+#
+# Twee containers, met opzet gescheiden:
+#   - initContainer `measure` draait de ONGEWIJZIGDE `internetnl` CLI uit
+#     hetzelfde image als de facade, tegen het publieke endpoint — precies
+#     wat elke tenant doet, geen binnendoorweggetje via de database.
+#   - container `publish` heeft git+ssh en duwt het resultaat naar de
+#     demo-repo. Die splitsing houdt de deploy key uit de meet-container.
+#
+# De gemeten set is vast en eigendom van de operator (westerweel.work en twee
+# subdomeinen) — zie "The rule": meet alleen hosts die je zelf beheert.
+#
+# Secret `netnl-measure` (out-of-band, nooit in git):
+#   INTERNETNL_CREDENTIAL  tenant `showcase` op de facade (user:pass)
+#   ssh-privatekey         deploy key mét schrijfrechten op ÉÉN repo,
+#                          MWest2020/internetnl-cli-demo — bewust geen PAT:
+#                          een PAT geldt voor alle repo's van het account.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: netnl-measure-scripts
+data:
+  measure.sh: |
+    #!/bin/sh
+    # Meet en schrijf twee artefacten naar de gedeelde volume:
+    #   latest.json   het --json-document van de CLI, onbewerkt
+    #   history.line  één samenvattingsregel voor history.jsonl
+    set -eu
+    internetnl submit \
+      westerweel.work api.westerweel.work netnl.westerweel.work \
+      --type web --name "demo-showcase $(date -u +%F)" --json \
+      > /work/latest.json
+    python3 - <<'PY'
+    import json
+    doc = json.load(open("/work/latest.json"))
+    line = {
+        "timestamp": doc.get("timestamp"),
+        "request_id": doc.get("request_id"),
+        "scores": {
+            host: (dom.get("scoring") or {}).get("percentage")
+            for host, dom in (doc.get("domains") or {}).items()
+        },
+    }
+    open("/work/history.line", "w").write(json.dumps(line, sort_keys=True) + "\n")
+    PY
+    echo "measured: $(wc -c < /work/latest.json) bytes"
+
+  publish.sh: |
+    #!/bin/sh
+    # Duwt de artefacten naar de demo-repo. Geen wijziging = geen commit, zodat
+    # een dag zonder scoreverandering geen lege commit oplevert.
+    set -eu
+    install -m 700 -d /tmp/.ssh
+    install -m 600 /secrets/ssh-privatekey /tmp/.ssh/id_ed25519
+    # StrictHostKeyChecking staat AAN met een vastgezette host key: de
+    # publieke sleutel van github.com hoort bij de configuratie, niet bij
+    # wat de eerste verbinding toevallig terugstuurt.
+    cat > /tmp/.ssh/known_hosts <<'EOF'
+    github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+    EOF
+    chmod 600 /tmp/.ssh/known_hosts
+    export GIT_SSH_COMMAND="ssh -i /tmp/.ssh/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=/tmp/.ssh/known_hosts -o StrictHostKeyChecking=yes"
+    git clone --depth 1 git@github.com:MWest2020/internetnl-cli-demo.git /tmp/repo
+    cd /tmp/repo
+    mkdir -p docs/data
+    cp /work/latest.json docs/data/latest.json
+    cat /work/history.line >> docs/data/history.jsonl
+    git config user.name  "netnl measure (homelab)"
+    git config user.email "measure@westerweel.work"
+    git add docs/data/
+    if git diff --cached --quiet; then
+      echo "no changes"
+      exit 0
+    fi
+    git commit -m "data: daily measurement $(date -u +%F)"
+    git push
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: netnl-measure
+spec:
+  # Zelfde tijdstip als de oude Actions-schedule, nu wél betrouwbaar.
+  schedule: "17 5 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      # De meting zelf duurt enkele minuten; 45 min is dezelfde marge als de
+      # oude workflow had.
+      activeDeadlineSeconds: 2700
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          initContainers:
+            - name: measure
+              image: ghcr.io/mwest2020/internetnl-cli:sha-c663333@sha256:65925190e57b36e029581a6f13521c8e6403e9a602ffd3c82690e006d7e1fc78
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "/scripts/measure.sh"]
+              env:
+                - { name: HOME, value: /tmp }
+                # Het publieke endpoint, niet de interne Service: de meting
+                # moet dezelfde weg lopen als die van een echte tenant,
+                # inclusief tunnel en facade.
+                - { name: INTERNETNL_ENDPOINT, value: "https://api.westerweel.work" }
+              envFrom:
+                - secretRef: { name: netnl-measure }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: work,    mountPath: /work }
+                - { name: tmp,     mountPath: /tmp }
+                - { name: scripts, mountPath: /scripts, readOnly: true }
+              resources:
+                requests: { cpu: "50m", memory: "128Mi" }
+                limits:   { cpu: "500m", memory: "256Mi" }
+          containers:
+            - name: publish
+              image: alpine/git:2.54.0@sha256:6f3b5029566da8e90b24945933dcd806be866b64b1e706f51828bf84faccf21b
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "/scripts/publish.sh"]
+              env:
+                - { name: HOME, value: /tmp }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: work,    mountPath: /work, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+                - { name: scripts, mountPath: /scripts, readOnly: true }
+                - { name: secrets, mountPath: /secrets, readOnly: true }
+              resources:
+                requests: { cpu: "10m", memory: "64Mi" }
+                limits:   { cpu: "250m", memory: "128Mi" }
+          volumes:
+            - { name: work, emptyDir: {} }
+            - { name: tmp,  emptyDir: {} }
+            - name: scripts
+              configMap: { name: netnl-measure-scripts, defaultMode: 0555 }
+            - name: secrets
+              secret:
+                secretName: netnl-measure
+                defaultMode: 0400
+                items:
+                  - { key: ssh-privatekey, path: ssh-privatekey }
