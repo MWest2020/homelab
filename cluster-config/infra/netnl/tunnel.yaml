@@ -16,13 +16,36 @@ metadata:
   name: netnl-tunnel
   labels: { app: netnl, component: tunnel }
 spec:
-  replicas: 1
+  # HA-fix (2026-09-06): twee connectors op dezelfde tunnel. Cloudflare
+  # ondersteunt dit expliciet — meerdere cloudflared-instanties registreren
+  # zich op één tunnel-ID en het edge verdeelt het verkeer. Reden: de
+  # DNS-fix hieronder haalde de SRV-lookupfouten weg, maar er bleef een
+  # tweede storing over. Op 2026-09-06 04:32 vielen alle vier de
+  # edge-verbindingen tegelijk weg en stopte cloudflared met
+  # "no more connections active and exiting" — het proces probeert dan niet
+  # opnieuw, het eindigt. Drie herstarts in zestien uur, en tijdens elke
+  # herstart geeft Cloudflare HTTP 530 op api.westerweel.work.
+  # Met twee replica's neemt de andere connector het verkeer over terwijl de
+  # eerste herstart, zodat een herstart geen zichtbare storing meer is.
+  replicas: 2
   selector:
     matchLabels: { app: netnl, component: tunnel }
   template:
     metadata:
       labels: { app: netnl, component: tunnel }
     spec:
+      # Twee replica's op hetzelfde knooppunt geven geen redundantie tegen
+      # een knooppunt dat wegvalt. `preferred` en niet `required`: op een
+      # cluster van drie kleine nodes moet een replica nog steeds ergens
+      # terechtkunnen als er eentje in onderhoud is.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app: netnl, component: tunnel }
       # DNS-fix (2026-09-05): cloudflared zoekt bij het opstarten de SRV-record
       # _v2-origintunneld._tcp.argotunnel.com op. Faalt die lookup, dan stopt
       # het proces met exit 1 — geen retry. Dat gebeurde ~6x/dag ("server
