@@ -49,6 +49,15 @@ data:
     PY
     echo "measured: $(wc -c < /work/latest.json) bytes"
 
+  # `ssh` roept getpwuid() aan en weigert te starten als het uid geen entry
+  # heeft ("No user exists for uid 1000"). Het alpine/git-image kent uid 1000
+  # niet, en met readOnlyRootFilesystem kan de container er zelf geen
+  # aanmaken. Deze file wordt als /etc/passwd gemount (subPath, read-only).
+  passwd: |
+    root:x:0:0:root:/root:/bin/sh
+    measure:x:1000:1000:netnl measure:/tmp:/bin/sh
+    nobody:x:65534:65534:nobody:/:/sbin/nologin
+
   publish.sh: |
     #!/bin/sh
     # Duwt de artefacten naar de demo-repo. Geen wijziging = geen commit, zodat
@@ -146,6 +155,10 @@ spec:
                 - { name: tmp,     mountPath: /tmp }
                 - { name: scripts, mountPath: /scripts, readOnly: true }
                 - { name: secrets, mountPath: /secrets, readOnly: true }
+                - name: scripts
+                  mountPath: /etc/passwd
+                  subPath: passwd
+                  readOnly: true
               resources:
                 requests: { cpu: "10m", memory: "64Mi" }
                 limits:   { cpu: "250m", memory: "128Mi" }
