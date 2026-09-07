@@ -107,14 +107,23 @@ internet ──▶ Cloudflare Tunnel  (api.westerweel.work)     ─┤─▶ Ser
   de echte **batch-instance** draait op een VPS met vast publiek IPv4+IPv6 — een
   ge-NAT homelab kan die niet hosten — en is uitsluitend via de tailnet bereikbaar.
 - **Twee publieke ingangen** naar dezelfde facade: een Tailscale Funnel én een
-  Cloudflare Tunnel voor de merknaam `api.westerweel.work` (cloudflared-pod;
-  run-token in het out-of-band Secret `netnl-tunnel`, ingress-regels remotely-managed
-  bij Cloudflare).
+  Cloudflare Tunnel voor de merknaam `api.westerweel.work` (run-token in het
+  out-of-band Secret `netnl-tunnel`, ingress-regels remotely-managed bij Cloudflare).
+  De cloudflared-pod draait met **2 replica's** (anti-affinity `preferred`): één
+  tunnel-ID mag meerdere connectors hebben, dus vangt de ander het verkeer op terwijl
+  de eerste herstart — anders is elke herstart een HTTP 530 (zie
+  [Beslissingen](../beslissingen/)).
 - **Egress** naar de VPS loopt via een Tailscale-operator-egress-Service; een
   CoreDNS-rewrite wijst `netnl.westerweel.work` in-cluster naar die Service, omdat de
   instance-nginx strikte SNI doet en het certificaat voor precies die naam serveert.
 - Elke meet-route vereist **HTTP Basic per tenant**; een `netnl-prune`-CronJob (elke
   10 min) ruimt verlopen requests en oude audit-rows op.
+- **Dagelijkse showcase-meting** (`netnl-measure`-CronJob, 05:17 UTC): meet drie eigen
+  hostnames via het **publieke** endpoint — dezelfde weg als een echte tenant, inclusief
+  tunnel en facade — en publiceert het resultaat naar de demo-repo
+  `MWest2020/internetnl-cli-demo`. Twee containers, bewust gescheiden: een
+  initContainer meet met de ongewijzigde CLI, een publish-container met git+ssh duwt
+  de artefacten weg. Zo blijft de deploy key uit de meet-container.
 
 ## Buzz-relay-VM (boomhuis-communicatielaag)
 

@@ -204,6 +204,10 @@ Prerequisite-secrets (out-of-band, namespace `netnl`, nooit in Git):
   Deployment herstarten.
 - `netnl-tunnel` — het run-token van de Cloudflare Tunnel (`TUNNEL_TOKEN`); de
   ingress-regels zelf staan remotely-managed bij Cloudflare (Zero Trust → Tunnels).
+- `netnl-measure` — voor de dagelijkse showcase-meting: `INTERNETNL_CREDENTIAL` (de
+  tenant `showcase` op de facade) plus `ssh-privatekey`, een **deploy key met
+  schrijfrechten op precies één repo**. Bewust geen PAT — die zou voor alle repo's van
+  het account gelden.
 
 Daarnaast is er een out-of-band **CoreDNS-rewrite** (kube-system) die
 `netnl.westerweel.work` in-cluster naar de egress-Service wijst — de
@@ -220,6 +224,45 @@ docker buildx imagetools inspect ghcr.io/mwest2020/internetnl-cli:sha-<short>
 
 Acceptatie-check: wijs de `internetnl`-CLI met een tenant-credential naar de publieke
 hostname — die moet ongewijzigd werken (alleen de `INTERNETNL_*`-variabelen anders).
+
+### Dagelijkse meting controleren of handmatig draaien
+
+De `netnl-measure`-CronJob draait om 05:17 UTC, meet via het publieke endpoint en
+commit alleen bij een échte wijziging (geen scoreverandering = geen lege commit).
+
+```bash
+kubectl -n netnl get cronjob netnl-measure          # LAST SCHEDULE
+kubectl -n netnl get jobs -l job-name --sort-by=.metadata.creationTimestamp | tail -5
+
+# Logs van de laatste run: eerst de meting, dan de publicatie
+kubectl -n netnl logs job/<job> -c measure
+kubectl -n netnl logs job/<job> -c publish
+
+# Buiten de schedule om draaien
+kubectl -n netnl create job --from=cronjob/netnl-measure netnl-measure-adhoc
+```
+
+De meting duurt minuten (`activeDeadlineSeconds: 2700`, `concurrencyPolicy: Forbid`).
+Faalt `publish` op ssh, controleer dan of `netnl-measure` de deploy key bevat — de
+container heeft `readOnlyRootFilesystem` en krijgt zijn `/etc/passwd` uit de ConfigMap,
+omdat `ssh` zonder passwd-entry voor uid 1000 weigert te starten.
+
+### HTTP 530 op `api.westerweel.work`
+
+Een 530 komt van het Cloudflare-edge en betekent: geen bereikbare connector. Kijk dus
+eerst naar de cloudflared-pods, niet naar de facade.
+
+```bash
+kubectl -n netnl get pods -l component=tunnel        # 2 replica's verwacht
+kubectl -n netnl logs -l component=tunnel --tail=50  # "connections active", DNS-fouten
+kubectl -n netnl get events --field-selector reason=Killing
+```
+
+Twee bekende oorzaken, beide al gemitigeerd in `tunnel.yaml`: een falende SRV-lookup bij
+het opstarten (opgelost met `ndots: 2` + `1.1.1.1` áchter de cluster-resolver) en
+cloudflared dat afsluit als alle edge-verbindingen tegelijk wegvallen (opgelost met de
+tweede replica). Blijven er herstarts komen, controleer dan of beide replica's echt op
+verschillende nodes staan — de anti-affinity is `preferred`.
 
 ## Buzz-relay deployen (VM 109)
 
@@ -348,10 +391,13 @@ op diens adres. Die host doet fase 1 lokaal (geen ssh naar zichzelf) en wordt in
 en 3 overgeslagen. Vereist root, want `qm`/`pct` lopen dan lokaal.
 
 ```bash
-HOMELAB_SELF=100.94.15.50 \
-  HOMELAB_HOSTS="100.120.76.22 100.89.39.27 100.94.64.49 100.94.15.50" \
+HOMELAB_SELF=<adres van deze host> \
+  HOMELAB_HOSTS="<adressen van alle vier de hosts, spatie-gescheiden>" \
   ./scripts/graceful-shutdown.sh
 ```
+
+De hosts worden op hun tailnet-adres aangesproken (het script kent ze als default);
+vul hier de adressen uit `scripts/graceful-shutdown.sh` in.
 
 Power-up daarna (handmatig): hosts weer aanzetten — de K8s-VM's (`onboot=1`) starten
 vanzelf. Verifieer:

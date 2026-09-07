@@ -167,6 +167,43 @@ daar is de GitOps-machinerie, en de VPS houdt maar één taak. Drie afgeleide ke
 - **Upstream-credential out-of-band** (Secret `netnl-upstream`), zelfde patroon als
   wordsworth; OpenBao-injectie is de latere hardening-stap.
 
+## Twee connectors op één Cloudflare Tunnel
+
+Eén cloudflared-pod is een single point of failure met een zichtbaar gevolg: valt het
+proces weg, dan antwoordt het Cloudflare-edge met **HTTP 530** tot de pod terug is. En
+cloudflared valt weg — het stopt bij een falende SRV-lookup en bij "no more connections
+active", in beide gevallen zónder retry. Drie herstarts in zestien uur waren drie
+storingsvensters op `api.westerweel.work`.
+
+De duurzame fix is niet het proces stabieler maken maar de storing onzichtbaar: Cloudflare
+staat **meerdere connectors op één tunnel-ID** toe, dus neemt de tweede replica het
+verkeer over terwijl de eerste herstart. Anti-affinity is bewust `preferred` en niet
+`required` — op drie kleine nodes moet een replica nog ergens terechtkunnen als er eentje
+in onderhoud is.
+
+## Geplande meting op het cluster i.p.v. GitHub Actions
+
+De dagelijkse showcase-meting stond als GitHub Actions-schedule. Gedeelde runners voeren
+zo'n schedule vertraagd uit en slaan hem soms over — runs die om 05:17 hoorden te vallen
+landden op 09:06 en 09:41, en één dag draaide hij helemaal niet. Voor een meting die de
+showcase-data levert is dat het verschil tussen een dataset en een gatenkaas. Een CronJob
+op eigen cluster vuurt wél op tijd; het cluster draait toch al.
+
+Drie keuzes eromheen:
+
+- **Meten via het publieke endpoint**, niet via de in-cluster Service of de database.
+  De meting loopt daarmee dezelfde weg als een echte tenant — inclusief tunnel, facade
+  en tenant-auth — en is dus ook een dagelijkse end-to-end-check van die keten.
+- **Meten en publiceren in gescheiden containers.** De initContainer draait de
+  ongewijzigde CLI uit hetzelfde image als de facade; alleen de publish-container heeft
+  git+ssh en de schrijfsleutel. Zo komt de deploy key nooit in de meet-container.
+- **Deploy key, geen PAT.** Een deploy key geeft schrijfrechten op precies één repo; een
+  PAT zou voor álle repo's van het account gelden. Dezelfde afweging als overal: de
+  smalste credential die het werk nog doet.
+
+De gemeten set is bewust vast en eigendom van de operator — meet alleen hosts die je
+zelf beheert.
+
 ## Vendored compose verbatim; afwijkingen gesanctioneerd én gemarkeerd
 
 De buzz-relay-compose is **verbatim vendored** van upstream block/buzz, met als regel

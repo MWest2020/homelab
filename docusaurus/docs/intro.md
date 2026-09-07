@@ -7,10 +7,10 @@ sidebar_position: 1
 # Homelab
 
 Een 3-node **Proxmox-cluster** met **hoog-beschikbare Kubernetes** op VM's, volledig als
-code beheerd (Terraform + Ansible + GitOps). Op het cluster draait o.a. een volledig
-lokale RAG-stack (de *Wordsworth-straat*: PostgreSQL, MinIO, OpenSearch, Ollama,
-OpenAnonymiser, OpenBao). Deze
-kennisbank legt vast **waarom** het zo gebouwd is en **hoe** je het draait.
+code beheerd (Terraform + Ansible + GitOps). Op het cluster draait onder meer een
+volledig lokale RAG-stack (de *Wordsworth-straat*: PostgreSQL, SeaweedFS, OpenSearch,
+Ollama, OpenAnonymiser, OpenBao) en een publieke API-facade voor Internet.nl-metingen.
+Deze kennisbank legt vast **waarom** het zo gebouwd is en **hoe** je het draait.
 
 ## Wegwijzer
 
