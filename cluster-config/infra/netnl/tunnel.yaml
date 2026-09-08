@@ -59,12 +59,33 @@ spec:
       #     als CoreDNS SERVFAIL geeft. ClusterFirst blijft staan, want de
       #     tunnel-ingress wijst naar de cluster-Service `netnl` — die moet
       #     door CoreDNS opgelost blijven worden.
+      #
+      # VERVOLG (2026-09-08): de ndots-fix hielp, maar loste het niet op.
+      # Beide overgebleven storingen bleken UDP:
+      #   - de SRV-lookup faalde nu op de fallback zelf:
+      #     "read udp …->1.1.1.1:53: i/o timeout";
+      #   - en de QUIC-verbinding viel om met "accept stream listener
+      #     encountered a failure while serving", waarna cloudflared met
+      #     "no more connections active and exiting" stopt.
+      # QUIC is UDP, DNS is standaard UDP. Eén gemeenschappelijke oorzaak in
+      # het UDP-pad van dit cluster naar buiten is dus waarschijnlijker dan
+      # twee losse toevalligheden. Daarom mijden we UDP op beide fronten:
+      #   - `use-vc` dwingt DNS over TCP (CoreDNS en 1.1.1.1 spreken beide TCP);
+      #   - `--protocol http2` bij de args laat cloudflared over TCP verbinden
+      #     in plaats van QUIC.
+      # Twee resolvers en attempts 3 maken de opstart-lookup daarbovenop
+      # minder gevoelig voor één hapering — cloudflared doet die lookup één
+      # keer en stopt bij falen, er is geen retry in het proces zelf.
       dnsPolicy: ClusterFirst
       dnsConfig:
         nameservers:
           - 1.1.1.1
+          - 1.0.0.1
         options:
           - { name: ndots, value: "2" }
+          - { name: use-vc }
+          - { name: attempts, value: "3" }
+          - { name: timeout, value: "2" }
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532        # image draait als nonroot
@@ -77,6 +98,12 @@ spec:
           args:
             - tunnel
             - --no-autoupdate
+            # TCP in plaats van QUIC — zie de UDP-notitie bij dnsConfig.
+            # Iets meer latency dan QUIC, maar dit pad blijkt UDP niet
+            # betrouwbaar te dragen en een omgevallen QUIC-verbinding laat
+            # cloudflared afsluiten.
+            - --protocol
+            - http2
             - --metrics
             - 0.0.0.0:2000
             - run
