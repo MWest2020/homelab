@@ -20,7 +20,15 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: ghcr.io/mwest2020/wordsworth:sha-d708df6
+          # Gepind op DIGEST, niet op een tag. Ook `sha-<commit>` kan verplaatst
+          # worden — niets houdt tegen dat die tag opnieuw naar andere bytes
+          # gepubliceerd wordt. Bij een systeem dat persoonsgegevens verwerkt is
+          # 'welke code heeft dit document gezien' een auditvraag. Zie ADR-0006
+          # en scripts/pin_check.py in MWest2020/wordsworth.
+          # Dit is exact dezelfde image als sha-d708df6 — een preciezere
+          # verwijzing, GEEN upgrade. api en init-job blijven gelijk, anders
+          # ontbreken de kolom-migraties.
+          image: ghcr.io/mwest2020/wordsworth@sha256:81f57d1bd97a952c80fd860e92eda112ad8940ef702cfcd1a9dd3d01fc410462
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
