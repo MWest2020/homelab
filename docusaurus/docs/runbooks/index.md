@@ -113,9 +113,24 @@ loopt daar stuk op de 256KB-annotation-limiet.
 ## Wordsworth-straat: deployen & verifiëren
 
 De RAG-stack (zie [Architectuur](../architectuur/)) is volledig GitOps. Een nieuwe
-API-versie uitrollen = de commit-SHA-tag pinnen in
-`cluster-config/infra/wordsworth/api.yaml` **én** `init-job.yaml`, committen — Argo CD
-synct de rest (PreSync init-Job draait eerst, idempotent, voor het DB-schema).
+API-versie uitrollen = de **digest** van de gewenste `sha-<commit>`-build resolven en
+die pinnen in `cluster-config/infra/wordsworth/api.yaml` **én** `init-job.yaml`,
+committen — Argo CD synct de rest (PreSync init-Job draait eerst, idempotent, voor het
+DB-schema).
+
+```bash
+# Digest van een build opzoeken; pin daarna image: ghcr.io/mwest2020/wordsworth@sha256:<digest>
+docker buildx imagetools inspect ghcr.io/mwest2020/wordsworth:sha-<short>
+```
+
+- **api en init-job altijd samen** op dezelfde digest — anders ontbreken de
+  kolom-migraties die de nieuwe API verwacht.
+- Noem de `sha-<short>` in de commit-message: de digest zelf zegt niet welke commit
+  het is. Een tag in de manifests laat `scripts/pin_check.py` (in de wordsworth-repo)
+  rood worden in CI.
+- **`WORDSWORTH_GRANT_ISSUER_LABELS` niet leegmaken** zolang caller-auth aanstaat:
+  leeg betekent hier *niemand* (anders dan bij `WORDSWORTH_CORPUS_READ_LABELS`), dus
+  dan kan niemand nog een reveal-grant uitgeven.
 
 Prerequisite-secrets (out-of-band, nooit in Git): `wordsworth-db`, `wordsworth-s3`,
 `wordsworth-openbao` en `wordsworth-apikeys` (namespace `wordsworth`),
@@ -258,11 +273,18 @@ kubectl -n netnl logs -l component=tunnel --tail=50  # "connections active", DNS
 kubectl -n netnl get events --field-selector reason=Killing
 ```
 
-Twee bekende oorzaken, beide al gemitigeerd in `tunnel.yaml`: een falende SRV-lookup bij
-het opstarten (opgelost met `ndots: 2` + `1.1.1.1` áchter de cluster-resolver) en
-cloudflared dat afsluit als alle edge-verbindingen tegelijk wegvallen (opgelost met de
-tweede replica). Blijven er herstarts komen, controleer dan of beide replica's echt op
-verschillende nodes staan — de anti-affinity is `preferred`.
+Bekende oorzaken, alle al gemitigeerd in `tunnel.yaml`:
+
+| Symptoom in de logs | Mitigatie |
+|---|---|
+| SRV-lookup faalt bij opstarten (CoreDNS SERVFAIL) | `ndots: 2` + publieke resolvers (`1.1.1.1`, `1.0.0.1`) áchter de cluster-resolver |
+| `read udp …:53: i/o timeout` op de fallback-resolver | DNS over TCP (`use-vc`), `attempts: 3`, `timeout: 2` |
+| `accept stream listener encountered a failure` (QUIC) → `no more connections active and exiting` | `--protocol http2`: cloudflared over TCP i.p.v. QUIC |
+| Herstart van één pod | tweede replica neemt het verkeer over |
+
+Blijven er herstarts komen, controleer dan of beide replica's echt op verschillende
+nodes staan — de anti-affinity is `preferred` — en of de logs nog `quic` noemen (dan is
+de `--protocol`-arg niet actief).
 
 ## Buzz-relay deployen (VM 109)
 

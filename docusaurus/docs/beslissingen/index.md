@@ -181,6 +181,19 @@ verkeer over terwijl de eerste herstart. Anti-affinity is bewust `preferred` en 
 `required` — op drie kleine nodes moet een replica nog ergens terechtkunnen als er eentje
 in onderhoud is.
 
+## cloudflared over TCP: UDP mijden
+
+De tweede replica verborg de storingen, maar de herstarts gingen door. Beide
+overgebleven foutbeelden bleken **UDP**: de DNS-lookup naar de publieke fallback-resolver
+liep in een timeout, en de QUIC-verbinding naar het edge viel om (waarna cloudflared
+afsluit). Eén gemeenschappelijke oorzaak in het UDP-pad naar buiten is waarschijnlijker
+dan twee losse toevalligheden.
+
+Daarom mijdt de tunnel UDP op beide fronten: `use-vc` dwingt DNS over TCP en
+`--protocol http2` vervangt QUIC. De prijs is iets meer latency; de winst is een pad dat
+dit cluster betrouwbaar draagt. Een tweede resolver en `attempts: 3` komen erbovenop,
+omdat cloudflared de opstart-lookup maar één keer doet en bij falen stopt.
+
 ## Geplande meting op het cluster i.p.v. GitHub Actions
 
 De dagelijkse showcase-meting stond als GitHub Actions-schedule. Gedeelde runners voeren
@@ -214,11 +227,28 @@ wordt aangebracht i.p.v. stilletjes te verdwijnen. Tot nu toe twee: het cpu-type
 (2026-07-06, MinIO's glibc-eis — kan terug naar default nu MinIO weg is) en de
 SeaweedFS-swap (2026-08-27).
 
-## Images pinnen op commit-SHA, deploys als Git-commits
+## Images pinnen op digest, deploys als Git-commits
 
-Wordsworth-images worden gepind op een commit-SHA-tag (`ghcr.io/...:sha-<commit>`), nooit
-`latest`. Elke deploy is daarmee een zichtbare Git-commit (`deploy(wordsworth): pin
-sha-...`) — reproduceerbaar, bisect-baar en terug te rollen met een revert.
+Een tag is geen pin. `latest` verschuift zichtbaar, maar een commit-SHA-tag
+(`sha-<commit>`) kan óók verschuiven: niets houdt tegen dat die tag opnieuw naar andere
+bytes wordt gepubliceerd. Daarom zijn de Wordsworth-images (api én init-job) gepind op
+**digest** (`ghcr.io/mwest2020/wordsworth@sha256:…`); de netnl-images combineren tag en
+digest (`:sha-<commit>@sha256:…`), waarbij de digest bindt.
+
+Bij Wordsworth, dat persoonsgegevens verwerkt, is "welke code heeft dit document gezien"
+een auditvraag en geen nieuwsgierigheid. Het besluit staat als ADR-0006 in de
+wordsworth-repo; een CI-check (`scripts/pin_check.py`) maakt een tag in de manifests rood.
+
+Elke deploy blijft een zichtbare Git-commit die de bijbehorende `sha-<commit>` noemt —
+reproduceerbaar, bisect-baar en terug te rollen met een revert.
+
+## Grant-uitgifte als eigen, smallere kring
+
+Een reveal-grant is de sleutel tot klare PII. "Iedereen met een API-key" is daarvoor een
+te grote kring, dus bepaalt `WORDSWORTH_GRANT_ISSUER_LABELS` welke caller-labels grants
+mogen uitgeven of intrekken (nu `console` en `cli`). Bewust **fail-closed**: leeg
+betekent niemand, anders dan bij de corpus-read-scope. Aanleiding
+was een security-review waarin `POST /grants` geen eigen autorisatie had.
 
 ## Docs extern gehost, niet in-cluster
 

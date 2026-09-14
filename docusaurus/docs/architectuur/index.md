@@ -69,8 +69,8 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   nooit. Alleen in-cluster bereikbaar, non-root, en **sealed-by-design** — initialisatie
   gebeurt out-of-band door de operator (zie [Runbooks](../runbooks/)).
 - **Wordsworth API**: gehardende pod (non-root, read-only rootfs, alle capabilities
-  gedropt), image per commit-SHA gepind; het DB-schema wordt idempotent aangemaakt door
-  een Argo CD PreSync init-Job. Sinds **Fase B** staat reversibele pseudonimisering aan:
+  gedropt), image gepind op **digest** (`@sha256:…`), niet op een tag; het DB-schema
+  wordt idempotent aangemaakt door een Argo CD PreSync init-Job. Sinds **Fase B** staat reversibele pseudonimisering aan:
   PII wordt vervangen door pseudoniemen waarvan de data-keys OpenBao-Transit-wrapped in
   de database liggen — herleidbaar voor wie dat mag, betekenisloos voor de rest.
 - **PostgreSQL**: CNPG-cluster `homelab-pg` — PG17 (digest-gepind), 3 instances met
@@ -81,7 +81,10 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
 - **Caller-auth (opt-in)**: API-keys via het out-of-band Secret `wordsworth-apikeys`.
   Daarnaast een **EUDI-VC reveal-gate** (TEST-issuer, `REQUIRED=false`): een aangeboden
   verifiable credential versmalt een reveal tot grant ∩ VC-geautoriseerde types; zonder
-  VC blijft reveal puur grant-gebaseerd.
+  VC blijft reveal puur grant-gebaseerd. Twee label-scopes versmallen de kring
+  bovendien per caller-label: alleen `console` en `cli` mogen de volledige
+  de-identified tekst lezen (`WORDSWORTH_CORPUS_READ_LABELS`) en reveal-grants
+  uitgeven of intrekken (`WORDSWORTH_GRANT_ISSUER_LABELS`).
 - **Toegang**: de API is **niet publiek** — tailnet-intern via de Tailscale-operator,
   op twee manieren naast de gewone ClusterIP-Service: een http-`:8000`-LoadBalancer
   (`loadBalancerClass: tailscale`) voor de CLI, en een **tailnet-private HTTPS-Ingress**
@@ -111,7 +114,9 @@ internet ──▶ Cloudflare Tunnel  (api.westerweel.work)     ─┤─▶ Ser
   out-of-band Secret `netnl-tunnel`, ingress-regels remotely-managed bij Cloudflare).
   De cloudflared-pod draait met **2 replica's** (anti-affinity `preferred`): één
   tunnel-ID mag meerdere connectors hebben, dus vangt de ander het verkeer op terwijl
-  de eerste herstart — anders is elke herstart een HTTP 530 (zie
+  de eerste herstart — anders is elke herstart een HTTP 530. cloudflared verbindt
+  bewust over **TCP** (`--protocol http2`, DNS via `use-vc`) in plaats van QUIC/UDP,
+  omdat het UDP-pad naar buiten niet betrouwbaar bleek (zie
   [Beslissingen](../beslissingen/)).
 - **Egress** naar de VPS loopt via een Tailscale-operator-egress-Service; een
   CoreDNS-rewrite wijst `netnl.westerweel.work` in-cluster naar die Service, omdat de
