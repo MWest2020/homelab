@@ -1,6 +1,6 @@
 [Unit]
 Description=Netstroom weg — homelab gracefully afsluiten (UPS-master)
-Documentation=https://github.com/MWest2020/homelab docusaurus/docs/runbooks
+Documentation=https://github.com/MWest2020/homelab/tree/main/docusaurus/docs/runbooks
 # Niet starten tijdens het afsluiten zelf: anders vuurt het udev-event dat bij
 # het uitzetten hoort dit script opnieuw af.
 DefaultDependencies=no

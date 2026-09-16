@@ -44,7 +44,9 @@
 
     - name: Units en udev-regel plaatsen
       copy:
-        src: "{{ item.src }}"
+        # ../files/: ansible zoekt `src` relatief aan de playbook-map, niet aan
+        # ansible/. Zonder het pad zoekt hij in playbooks/files/ en vindt niets.
+        src: "../files/{{ item.src }}"
         dest: "{{ item.dest }}"
         mode: "0644"
       loop:

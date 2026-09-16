@@ -473,6 +473,10 @@ allemaal plaatshouders.
 Grenzen zijn env-tunable: `HOMELAB_BAT_MIN_PCT` (40), `HOMELAB_BAT_MIN_HEALTH`
 (70), `HOMELAB_BAT_SETTLE` (45 s).
 
+Let op die laatste bij het handmatig draaien: de controle **wacht** die 45
+seconden om het laden te meten in plaats van `status` te geloven. Een ssh-commando
+met een kortere timeout kapt hem af.
+
 ### Draaien óp een van de hosts (UPS-master)
 
 Draait het script op een Proxmox-host die zelf moet blijven leven, zet dan `HOMELAB_SELF`

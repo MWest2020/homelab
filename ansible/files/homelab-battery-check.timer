@@ -1,6 +1,6 @@
 [Unit]
 Description=Dagelijks de accu van de UPS-master controleren
-Documentation=https://github.com/MWest2020/homelab docusaurus/docs/runbooks
+Documentation=https://github.com/MWest2020/homelab/tree/main/docusaurus/docs/runbooks
 
 [Timer]
 OnCalendar=*-*-* 09:00:00
