@@ -1,0 +1,6 @@
+# Netstroom weg -> homelab-power-lost.service.
+#
+# Event-gestuurd en niet pollend: de kernel weet het meteen, en elke seconde
+# pollen is een seconde accu. De service zelf wacht een respijttijd af en kijkt
+# dan opnieuw, zodat een flikkering de homelab niet platlegt.
+SUBSYSTEM=="power_supply", KERNEL=="AC", ATTR{online}=="0", TAG+="systemd", ENV{SYSTEMD_WANTS}+="homelab-power-lost.service"

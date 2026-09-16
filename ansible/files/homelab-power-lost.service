@@ -1,0 +1,14 @@
+[Unit]
+Description=Netstroom weg — homelab gracefully afsluiten (UPS-master)
+Documentation=https://github.com/MWest2020/homelab docusaurus/docs/runbooks
+# Niet starten tijdens het afsluiten zelf: anders vuurt het udev-event dat bij
+# het uitzetten hoort dit script opnieuw af.
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/power-watch.sh
+# Het script wacht zelf de respijttijd af; die mag het niet afgekapt krijgen.
+TimeoutStartSec=0

@@ -406,6 +406,62 @@ Alle limieten zijn env-tunable: `HOMELAB_HOSTS`, `HOMELAB_SSH_KEY`, `HOMELAB_VM_
 `HOMELAB_SSH_TIMEOUT`, `HOMELAB_STRICT`, `HOMELAB_LOCK`. Een tweede gelijktijdige run
 stopt op een flock — nodig omdat apcupsd `onbattery` herhaald kan afvuren.
 
+### Automatisch bij netstroomverlies
+
+Sinds 2026-09-16 hoeft niemand dit handmatig te starten. De proxmox-laptop is de
+enige host met een accu, en dus de enige die een onderbreking overleeft om de
+rest af te sluiten. Zijn eigen AC-status is het signaal.
+
+**Geen apcupsd.** Dat was het oorspronkelijke ontwerp, maar het vraagt een UPS
+met USB-verbinding en een daemon die op geen enkele host geïnstalleerd stond. De
+accu van de laptop *is* de UPS; `/sys/class/power_supply/AC/online` is één
+bestand en heeft geen daemon nodig.
+
+De keten:
+
+| | |
+|---|---|
+| udev | `90-homelab-power.rules` — `online == 0` start de service. Event-gestuurd, niet pollend: elke seconde pollen is een seconde accu. |
+| service | `homelab-power-lost.service` → `power-watch.sh` |
+| script | wacht `HOMELAB_POWER_GRACE` (90 s), leest de AC-status **opnieuw**, en start dan pas `graceful-shutdown.sh` met `HOMELAB_SELF` |
+
+Die respijttijd is het hart ervan: een flikkering van twee seconden mag de hele
+homelab niet platleggen. Komt de stroom terug, dan gebeurt er niets en zegt het
+logboek dat.
+
+Kan de AC-status niet gelezen worden, dan sluit het script **niet** af maar
+eindigt het niet-nul, zodat de unit op `failed` komt. Een onterechte afsluiting
+van de hele homelab is erger dan een gemiste — maar niet kunnen vaststellen is
+geen "alles in orde", en dat hoort iemand te zien.
+
+Uitrollen: `ansible-playbook playbooks/deploy-ups-master.yml`. Die weigert op een
+host zonder accu, want daar is de hele opzet zinloos.
+
+### De accu van de UPS-master
+
+`check-battery.sh` draait dagelijks (`homelab-battery-check.timer`) en meldt drie
+dingen: te weinig lading, een versleten accu, en — het belangrijkste — **wel
+netstroom maar geen lading erbij**.
+
+Dat laatste is geen theorie. Op 2026-09-16 stond die accu op 28% en meldde
+`status: Charging`, terwijl er in 45 seconden nul µAh bij kwam en de stroom 0 was.
+De cellen waren prima (98% van fabriekscapaciteit); de laadregelaar hing. De
+adapter er even uit en weer in trekken loste het op, en daarna liep hij met 0,48 A
+te laden.
+
+Daarom vertrouwt de controle `status` niet maar **meet** hij het verschil over
+tijd. `status: Charging` is op deze laptop niet meer dan "er is netstroom" — de
+EC-firmware meldt `manufacturer: Notebook`, `model_name: BAT`, `cycle_count: 0`,
+allemaal plaatshouders.
+
+```bash
+/usr/local/sbin/check-battery.sh          # rapport, niet-nul bij een probleem
+/usr/local/sbin/check-battery.sh --json   # voor een monitor
+```
+
+Grenzen zijn env-tunable: `HOMELAB_BAT_MIN_PCT` (40), `HOMELAB_BAT_MIN_HEALTH`
+(70), `HOMELAB_BAT_SETTLE` (45 s).
+
 ### Draaien óp een van de hosts (UPS-master)
 
 Draait het script op een Proxmox-host die zelf moet blijven leven, zet dan `HOMELAB_SELF`

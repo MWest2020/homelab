@@ -8,5 +8,8 @@ jobs:
   gates:
     uses: MWest2020/handbook/.github/workflows/docs-gates.yml@main
     with:
-      code_paths: "ansible/,apps/,cluster-config/,docker/,kubernetes/,terraform/,claude-lxc-iac/"
+      code_paths: "ansible/,apps/,cluster-config/,docker/,kubernetes/,terraform/,claude-lxc-iac/,scripts/"
+      # scripts/ stond hier niet in, terwijl daar het afsluitscript woont dat
+      # bij een stroomstoring de hele homelab omlaag brengt. Juist dat hoort
+      # niet te kunnen wijzigen zonder dat de runbook meebeweegt.
       drift_mode: "fail"

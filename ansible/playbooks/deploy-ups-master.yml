@@ -1,0 +1,81 @@
+---
+# De UPS-master: netstroom weg -> homelab netjes afsluiten, plus een dagelijkse
+# accu-controle.
+#
+# Draait op de host mét accu (de proxmox-laptop). Die is de enige die een
+# stroomonderbreking overleeft en dus de enige die de rest kan afsluiten;
+# scripts/graceful-shutdown.sh doet dat met HOMELAB_SELF.
+#
+# Waarom de laptop-accu en geen apcupsd: de runbook ging uit van een UPS met een
+# `onbattery`-event. Die hardware is er niet en de daemon staat nergens
+# geinstalleerd. De accu van deze laptop is de UPS, en zijn eigen AC-status is
+# het signaal — een bestand in sysfs, geen daemon, geen extra hardware.
+#
+# Run:
+#   ansible-playbook -i inventory/<hosts>.yml playbooks/deploy-ups-master.yml -vv
+#
+# Controleren na afloop:
+#   systemctl status homelab-battery-check.timer
+#   /usr/local/sbin/power-watch.sh --dry-run
+#   /usr/local/sbin/check-battery.sh
+
+- name: UPS-master inrichten (netstroom-trekker + accu-controle)
+  hosts: ups_master
+  become: true
+  tasks:
+    - name: Deze host moet een accu hebben
+      # Zonder accu overleeft hij de onderbreking niet en is de hele opzet zinloos.
+      # Fail-closed: liever hier stoppen dan een trekker installeren die bij de
+      # eerste stroomstoring met de host meegaat.
+      stat:
+        path: /sys/class/power_supply/BAT0
+      register: accu
+      failed_when: not accu.stat.exists
+
+    - name: Scripts plaatsen
+      copy:
+        src: "../../scripts/{{ item }}"
+        dest: "/usr/local/sbin/{{ item }}"
+        mode: "0755"
+      loop:
+        - power-watch.sh
+        - check-battery.sh
+        - graceful-shutdown.sh
+
+    - name: Units en udev-regel plaatsen
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - { src: homelab-power-lost.service, dest: /etc/systemd/system/homelab-power-lost.service }
+        - { src: homelab-battery-check.service, dest: /etc/systemd/system/homelab-battery-check.service }
+        - { src: homelab-battery-check.timer, dest: /etc/systemd/system/homelab-battery-check.timer }
+        - { src: 90-homelab-power.rules, dest: /etc/udev/rules.d/90-homelab-power.rules }
+      notify:
+        - systemd herladen
+        - udev herladen
+
+    - name: Accu-controle inschakelen
+      systemd:
+        name: homelab-battery-check.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Rooktest — de trekker doet niets zolang de netstroom er is
+      command: /usr/local/sbin/power-watch.sh --dry-run
+      register: rook
+      changed_when: false
+
+    - name: Uitkomst van de rooktest tonen
+      debug:
+        var: rook.stdout_lines
+
+  handlers:
+    - name: systemd herladen
+      systemd:
+        daemon_reload: true
+    - name: udev herladen
+      command: udevadm control --reload-rules
+      changed_when: true
