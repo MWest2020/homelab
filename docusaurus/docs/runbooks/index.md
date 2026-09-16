@@ -499,3 +499,45 @@ vanzelf. Verifieer:
 pvecm status        # 3 nodes quorate
 kubectl get nodes   # 6× Ready (vanaf jumpy)
 ```
+
+## De docs-agent: wie houdt deze documentatie bij?
+
+`scripts/docs-freshness-agent.sh` draait wekelijks op agent-lxc (cron, maandag
+03:00). Hij pullt de repo, bepaalt wat er is veranderd sinds de laatste commit
+die `docusaurus/` raakte, laat `claude` headless de documentatie bijwerken en
+commit direct op `main`.
+
+Twee dingen beschermen die automatische commit:
+
+- **De prompt** zegt dat er nooit Tailscale-IP's, tokens of secrets in de docs
+  mogen.
+- **Een harde scrub-gate in de wrapper**, los van de prompt: een `grep` over de
+  diff die commit én push blokkeert bij een Tailscale-IP, een `tskey-`, of iets
+  met de vorm van een UUID. Die gate vertrouwt het model niet, en dat is opzet.
+
+### Elke run meldt zich in `#runs`
+
+Sinds 2026-09-16, en om een goede reden. Daarvóór zakte de uitkomst in
+`~/docs-agent.log` — een bestand dat niemand leest. In dat log stond één
+afgebroken run: de scrub-gate had gevoelige data in de diff gevonden en de
+documentatie dus níét bijgewerkt. Dat was nooit opgemerkt.
+
+Die ene keer dichtte de volgende run het gat vanzelf, want het referentiepunt is
+"laatste commit die `docusaurus/` raakte". Maar bleef die gate afgaan, dan stond
+de documentatie maandenlang stil terwijl cron elke week netjes zijn ding deed —
+een storing zonder waarnemer. Op dezelfde dag bleek een systemd-timer op precies
+die manier 82 keer achter elkaar te zijn omgevallen zonder dat iemand het zag.
+
+Vier uitkomsten, elk één regel in `#runs` als `orchestrator`:
+
+| melding | betekenis |
+|---|---|
+| geen wijzigingen sinds de vorige docs-update | er was niets te doen |
+| gedraaid, maar geen doc-wijzigingen nodig | de agent keek en vond het in orde |
+| docs bijgewerkt en naar main gepusht | het gewone geval |
+| **AFGEBROKEN — scrub-gate** | er staat gevoelige data in de diff; docs níét bijgewerkt, dit moet iemand nakijken |
+
+Een mislukte melding laat de agent **nooit** falen: documentatie bijwerken is het
+werk, melden is het verslag ervan. Staat ratatoskr niet op de host, dan meldt hij
+niets en draait hij gewoon door. Instelbaar met `DOCS_AGENT_PING`,
+`DOCS_AGENT_IDENT` en `DOCS_AGENT_CHAN`.

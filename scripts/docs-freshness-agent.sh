@@ -22,9 +22,32 @@
 set -euo pipefail
 
 readonly REPO_DIR="${REPO_DIR:-${HOME}/homelab}"
+# Waar de uitkomst gemeld wordt. Tot 2026-09-16 zakte die in een logbestand dat
+# niemand leest: één run was afgebroken door de scrub-gate en dat is nooit
+# opgemerkt. Bleef die gate afgaan, dan zou de documentatie maandenlang
+# stilstaan terwijl cron elke week netjes zijn ding deed — een storing zonder
+# waarnemer, precies zoals de credential-timer die op dezelfde dag na 82 stille
+# mislukkingen werd gevonden.
+#
+# Als orchestrator, want dit is automatisering die de orchestrator-host draait;
+# in #runs, de machinale feed. Ontbreekt ratatoskr op deze host, dan meldt hij
+# niets en gaat het werk gewoon door.
+readonly PING="${DOCS_AGENT_PING:-${HOME}/ratatoskr/orchestrator/ping.sh}"
+readonly PING_IDENT="${DOCS_AGENT_IDENT:-orchestrator}"
+readonly PING_CHAN="${DOCS_AGENT_CHAN:-runs}"
 readonly CLAUDE="${CLAUDE_BIN:-${HOME}/.npm-global/bin/claude}"
 readonly PROMPT_FILE="${REPO_DIR}/scripts/docs-freshness-prompt.md"
 readonly BASE_BRANCH="main"
+
+# Eén regel naar het logboek en naar het kanaal. Een mislukte melding mag de
+# agent NOOIT laten falen: de documentatie bijwerken is het werk, melden is het
+# verslag ervan.
+meld() {
+  echo "$1"
+  [[ -x "${PING}" ]] || return 0
+  IDENT="${PING_IDENT}" CHAN="${PING_CHAN}" "${PING}" "docs-agent (homelab): $1" \
+    >/dev/null 2>&1 || echo "(melding naar #${PING_CHAN} mislukt)" >&2
+}
 
 main() {
   cd "${REPO_DIR}"
@@ -42,7 +65,7 @@ main() {
   fi
 
   if [[ -z "${context}" ]]; then
-    echo "geen wijzigingen sinds laatste docs-update; niets te doen."
+    meld "geen wijzigingen sinds de vorige docs-update; niets te doen."
     exit 0
   fi
 
@@ -53,7 +76,7 @@ main() {
     | "${CLAUDE}" -p --permission-mode acceptEdits
 
   if git diff --quiet -- docusaurus/; then
-    echo "agent maakte geen doc-wijzigingen."
+    meld "gedraaid, maar geen doc-wijzigingen nodig."
     exit 0
   fi
 
@@ -63,14 +86,14 @@ main() {
   # een Tailscale-IP, token of secret in de docs-diff staat. Vangnet zonder PR-review.
   if git diff --cached -- docusaurus/ \
       | grep -qE '100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}|tskey-[A-Za-z0-9]|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'; then
-    echo "ABORT: scrub-gate vond gevoelige data (Tailscale-IP/token/secret) in de docs-diff." >&2
+    meld "AFGEBROKEN — de scrub-gate vond gevoelige data (Tailscale-IP, token of secret) in de docs-diff. De docs zijn NIET bijgewerkt; dit moet iemand nakijken." >&2
     git reset -q
     exit 1
   fi
 
   git commit -q -m "docs: auto-update via freshness-agent ($(date +%F))"
   git push -q origin "${BASE_BRANCH}"
-  echo "naar ${BASE_BRANCH} gepusht."
+  meld "docs bijgewerkt en naar ${BASE_BRANCH} gepusht."
 }
 
 main "$@"
