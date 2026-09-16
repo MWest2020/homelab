@@ -6,7 +6,14 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 jobs:
   gates:
-    uses: MWest2020/handbook/.github/workflows/docs-gates.yml@main
+    uses: MWest2020/handbook/.github/workflows/docs-gates.yml@864d1d9e89e36d77be398968f473f588e461bf60  # main
     with:
-      code_paths: "ansible/,apps/,cluster-config/,docker/,kubernetes/,terraform/,claude-lxc-iac/"
+      code_paths: "ansible/,apps/,cluster-config/,docker/,kubernetes/,terraform/,claude-lxc-iac/,scripts/"
+      # scripts/ stond hier niet in, terwijl daar het afsluitscript woont dat
+      # bij een stroomstoring de hele homelab omlaag brengt. Juist dat hoort
+      # niet te kunnen wijzigen zonder dat de runbook meebeweegt.
+      # De runbooks van deze repo staan in docusaurus/docs/. De root-docs/ is de
+      # oude boom en staat sinds augustus stil; daarnaar tellen maakte de gate
+      # onhaalbaar met echte documentatie.
+      docs_paths: "docusaurus/docs/,docs/"
       drift_mode: "fail"
