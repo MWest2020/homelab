@@ -434,8 +434,19 @@ eindigt het niet-nul, zodat de unit op `failed` komt. Een onterechte afsluiting
 van de hele homelab is erger dan een gemiste — maar niet kunnen vaststellen is
 geen "alles in orde", en dat hoort iemand te zien.
 
-Uitrollen: `ansible-playbook playbooks/deploy-ups-master.yml`. Die weigert op een
-host zonder accu, want daar is de hele opzet zinloos.
+Uitrollen:
+
+```bash
+cd ansible
+ansible-playbook -i inventory/hypervisors.yml playbooks/deploy-ups-master.yml
+```
+
+De playbook weigert op een host zonder accu, want daar is de hele opzet zinloos.
+
+Welke host de UPS-master is, staat in de inventarisgroep `ups_master`
+(`inventory/hypervisors.yml`). Dat is vandaag `proxmox-laptop` — dezelfde host
+als in `hypervisors`, maar met een eigen naam omdat het een andere rol is. Komt
+er ooit een echte UPS, dan verhuist die groep en verder niets.
 
 ### De accu van de UPS-master
 

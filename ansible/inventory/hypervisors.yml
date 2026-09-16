@@ -14,6 +14,15 @@ all:
         proxmox-laptop:
           ansible_host: 100.94.15.50
 
+    # De UPS-master: de host die een stroomonderbreking overleeft en de rest
+    # afsluit. Dat is de laptop, want hij is de enige met een accu — dezelfde
+    # host als hierboven, maar met een eigen naam omdat het een andere rol is.
+    # Zou er ooit een echte UPS bij komen, dan verhuist deze groep en niets
+    # anders. Zie playbooks/deploy-ups-master.yml.
+    ups_master:
+      hosts:
+        proxmox-laptop:
+
     # Het 3-node Proxmox-cluster voor de K8s-VM's (Fase 1+).
     # tmpl_base = eigen VMID-reeks per host (VMID's zijn cluster-breed uniek,
     # local-lvm kan niet cross-node clonen): base / +1 = CP / +2 = worker.
