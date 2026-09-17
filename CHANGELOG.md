@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-09-17 (2) — feat: publieke demo-console via Cloudflare Tunnel
+
+### Wat & waarom
+- `https://wordsworth.westerweel.work` → tunnel `wordsworth` (87fa0277…) → Service
+  `wordsworth-api:8000`. Naast de Tailscale-ingress, niet in plaats daarvan.
+- Reden om publiek te gaan (Mark): de Woo-corpora hierin zijn al gepubliceerde
+  informatie en dit is de demo-opstelling; wie met gevoelige data werkt installeert
+  wordsworth zelf. De api-key-auth blijft staan, dus anoniem openen kan niet.
+- Instellingen overgenomen van netnl's tunnel, niet opnieuw bedacht: twee replica's,
+  `--protocol http2`, DNS over TCP, ndots 2. Die kwamen daar uit echte storingen.
+- Tunnel, ingress-regel en CNAME aangemaakt via de Cloudflare-API met het token uit
+  `~/.config/cloudflare/pages.env` (README noemde dat "alleen Pages" — dat klopt niet
+  meer, het token kan ook zones, DNS en tunnels). Run-token alleen in het out-of-band
+  Secret `wordsworth-tunnel`, nooit in git.
+
+### Nagemeten
+- 12 van 12 requests 200 op `/console/login` via het publieke A-record.
+- Browser op `/`, `/console` en een onbekend pad → 303 naar de inlogpagina;
+  api-client op `/console` → 401 JSON.
+- Hele stroom: verkeerde sleutel 401, goede sleutel 303 → console 200 met 200
+  documenten, documentpagina 200 met 485 gemarkeerde tokens, combinatiepagina 200.
+
+### Valkuil die tijd kostte
+Vanaf agent-lxc leek de tunnel flakey: 2 van 20 requests gelukt. Oorzaak lag aan deze
+kant — de lokale resolver gaf voor deze verse naam alleen AAAA terug en de LXC heeft
+geen IPv6-route. Via `1.1.1.1` kwamen de A-records wél. Meet zo'n "flakiness" dus
+eerst met `curl -v`: "Network is unreachable" is een ander verhaal dan een timeout.
+
+### Bestanden
+- `cluster-config/infra/wordsworth/tunnel.yaml` (nieuw), `kustomization.yaml`.
+
 ## 2026-09-17 — deploy: wordsworth naar c3e6b8b (reveal-binding, pseudoniemen per document, console)
 
 ### Wat & waarom
