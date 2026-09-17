@@ -28,7 +28,7 @@ spec:
           # Dit is exact dezelfde image als sha-d708df6 — een preciezere
           # verwijzing, GEEN upgrade. api en init-job blijven gelijk, anders
           # ontbreken de kolom-migraties.
-          image: ghcr.io/mwest2020/wordsworth@sha256:a91db59e4005244d350ee46fdf350fa778135cf46dc622b06eda954646d88d16
+          image: ghcr.io/mwest2020/wordsworth@sha256:2f0585f2e835383b348f97d5c6e82eece8ef2c326323eb2012d32cac21f716e3
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
