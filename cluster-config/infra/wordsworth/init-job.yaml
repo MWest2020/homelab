@@ -30,7 +30,7 @@ spec:
           # Dit is exact dezelfde image als sha-d708df6 — een preciezere
           # verwijzing, GEEN upgrade. api en init-job blijven gelijk, anders
           # ontbreken de kolom-migraties.
-          image: ghcr.io/mwest2020/wordsworth@sha256:aa31d8cfd459608bb34e0a1c25b252ad9a92a48980639c0aa74cbd17a2e4295b
+          image: ghcr.io/mwest2020/wordsworth@sha256:a91db59e4005244d350ee46fdf350fa778135cf46dc622b06eda954646d88d16
           imagePullPolicy: IfNotPresent
           command: ["wordsworth-init"]
           # PreSync hook runs before the ConfigMap is synced; init_schema only
