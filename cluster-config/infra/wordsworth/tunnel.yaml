@@ -1,0 +1,89 @@
+# Cloudflare Tunnel: publieke naam voor de demo-console —
+# https://wordsworth.westerweel.work → tunnel `wordsworth`
+# (87fa0277…) → deze cloudflared-pod → Service wordsworth-api:8000.
+# Bestaat NAAST de Tailscale-ingress (api-tailscale-https.yaml); beide
+# wijzen naar dezelfde Service.
+#
+# Waarom publiek (Mark, 2026-09-17): de Woo-corpora die hier in staan zijn
+# al gepubliceerde informatie en dit is de demo-opstelling. Wie met gevoelige
+# data wil werken, installeert wordsworth zelf. De api-key-auth blijft staan:
+# de console is niet anoniem te openen.
+#
+# De tunnel is remotely-managed: de ingress-regel (hostname → service) staat
+# bij Cloudflare, niet hier. Het run-token leeft ALLEEN in het out-of-band
+# Secret `wordsworth-tunnel` (zelfde patroon als netnl) — nooit in Git. De
+# CNAME wordsworth.westerweel.work → <tunnel-id>.cfargotunnel.com is proxied.
+#
+# De instellingen hieronder zijn niet verzonnen maar overgenomen van netnl,
+# waar ze uit echte storingen zijn gekomen. Zie
+# cluster-config/infra/netnl/tunnel.yaml voor het hele verhaal; kort:
+#   - twee replica's, want een herstartende connector gaf HTTP 530;
+#   - `--protocol http2` en DNS over TCP, want het UDP-pad van dit cluster
+#     naar buiten bleek zowel QUIC als DNS om te laten vallen;
+#   - ndots 2, want de SRV-lookup bij het opstarten faalt zonder retry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordsworth-tunnel
+  labels: { app: wordsworth, component: tunnel }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: wordsworth, component: tunnel }
+  template:
+    metadata:
+      labels: { app: wordsworth, component: tunnel }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app: wordsworth, component: tunnel }
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 1.0.0.1
+        options:
+          - { name: ndots, value: "2" }
+          - { name: use-vc }
+          - { name: attempts, value: "3" }
+          - { name: timeout, value: "2" }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --protocol
+            - http2
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: wordsworth-tunnel, key: TUNNEL_TOKEN }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "10m",  memory: "32Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }

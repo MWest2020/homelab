@@ -8,3 +8,4 @@ resources:
   - api-tailscale.yaml
   - api-tailscale-https.yaml
   - corpus-pvc.yaml
+  - tunnel.yaml
