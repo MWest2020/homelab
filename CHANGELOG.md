@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-09-17 — deploy: wordsworth naar c3e6b8b (reveal-binding, pseudoniemen per document, console)
+
+### Wat & waarom
+- Het draaiende image was van 15 september en miste vier gemergede changes. Uitgerold in
+  **drie stappen**, want de volgorde is hier niet vrij:
+  1. **init-job** apart gebumpt → `document_pseudonyms` en `declared_combinations` aangelegd.
+  2. **Backfill** als eenmalige pod op het nieuwe image: 49.408 pseudoniemen over 751
+     documenten geregistreerd, herkomst `backfilled`.
+  3. **api** gebumpt.
+  Andersom was `reveal` fail-closed geweest op alle 770 bestaande teksten — veilig, maar
+  een storing die niemand had hoeven hebben.
+- De backfill draaide eerst `--dry-run` (zelfde getal) voordat hij echt liep.
+
+### Nagemeten in het cluster
+- `/console` zonder sleutel 401, met foute sleutel 401, loginpagina 200, met sleutel 200
+  en 200 documenten in de lijst.
+- Reveal-binding: alle vier de actieve grants geven **niets** aan caller `cli` en hun
+  volledige typeset aan hun eigen recipient.
+- Pseudoniemen per document: de 135 tokens van document A delen er **nul** met document B.
+
+### Let op
+- De vier actieve grants staan op `pilot-verify`, `smoke` en `online-accept`. Geen daarvan
+  is een callerlabel (`cli`, `console`, `test`), dus geen van die vier kan nog iets
+  onthullen. Het zijn demo-grants van augustus, van vóór de binding. Ze staan er nog en
+  doen niets — intrekken of opnieuw uitgeven is een keuze, geen noodzaak.
+
+### Bestanden
+- `cluster-config/infra/wordsworth/init-job.yaml`, `api.yaml` — sha gebumpt.
+
 ## 2026-09-04 — feat: graceful-shutdown tweefasig en parallel (UPS-voorbereiding)
 
 ### Wat & waarom
