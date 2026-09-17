@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: EUPL-1.2
+# SPDX-License-Identifier: MIT
 # role: tool
 #
 # scripts/check-docs-freshness.sh — waarschuw als infra wijzigt zonder docs-wijziging.
