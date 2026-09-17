@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: EUPL-1.2
+# SPDX-License-Identifier: MIT
 # role: installer
 #
 # scripts/bootstrap-proxmox-token.sh — maak de Terraform API-token + rol op een Proxmox-cluster.
