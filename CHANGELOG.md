@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-17 (3) — feat: console met het ontwerp van de publieke demo
+
+### Wat & waarom
+- De console zag eruit als een testpagina terwijl er al een ontwerp bestond voor precies
+  dat gesprek (`MWest2020/wordsworth-demo`). Palet, families en componenten overgenomen,
+  niet nagemaakt — twee uiterlijken voor één verhaal laat het werkende ding er minder af
+  uitzien dan de illustratie ervan.
+- **Lettertypen zelf gehost** uit `/console/static`: negen latijnse faces, 224 KB, met hun
+  OFL-1.1-licenties ernaast. De demo haalt ze bij Google; dit is het scherm waar mensen in
+  de netwerkinspector kijken, en dan weerlegt Google Fonts het soevereiniteitsverhaal ter
+  plekke.
+- De statische map is auth-vrij als **subtree** — de inlogpagina is dat ook, en een
+  inlogscherm zonder zijn letters is een kapotte deur. `/console/staticky` blijft 401.
+
+### Nagemeten over wordsworth.westerweel.work
+- Loginpagina 200, `fonts.css` 200 **zonder sleutel**, het eerste woff2 waar die CSS naar
+  wijst 200 met magic bytes `wOF2`.
+- Ingelogd: console 200, geen `fonts.googleapis` in de uitvoer, 1282 type-pills op de lijst.
+
+### Bestanden
+- `cluster-config/infra/wordsworth/init-job.yaml`, `api.yaml` — sha naar 9a3050c.
+
 ## 2026-09-17 (2) — feat: publieke demo-console via Cloudflare Tunnel
 
 ### Wat & waarom
