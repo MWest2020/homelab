@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-09-17 (4) — feat: zoeken en onthullen in de console
+
+### Wat & waarom
+- `/console/search` over de bestaande index: score plus een fragment uit de **opgeslagen
+  gepseudonimiseerde tekst**. Een fragment uit een brondocument ziet er hetzelfde uit en
+  bewijst het tegenovergestelde. Een kapotte index meldt de fout in plaats van een lege
+  lijst — "niets gevonden" en "de index ligt eruit" zijn voor een lezer niet te
+  onderscheiden.
+- Onthulpaneel per grant met schakelaars per PII-type, en het auditspoor eronder.
+  Onthullen loopt over het bestaande `POST /documents/{id}/reveal` met het cookie van de
+  bezoeker: dezelfde `authorize()`, dezelfde recipient-binding, hetzelfde auditrecord.
+  Geen regel autorisatiecode in de console.
+- Grants van iemand anders worden juist wél getoond: het scherm biedt ze aan, de deur
+  weigert ze, en dat is de demonstratie dat de sleutels rolgebonden zijn.
+
+### Nagemeten op de echte instantie
+- Zoeken: `beslistermijn` → 7 treffers met scores (35.69 / 31.87 / 26.67) en fragmenten
+  waarin de tokens zichtbaar zijn. Alle acht voorgestelde termen raken doel.
+- Onthullen tegen de **échte OpenBao-sleutels**: grant op `console` voor PERSON+LOCATION,
+  alleen LOCATION aangevinkt → `revealed_types: ['LOCATION']`, nul LOCATION-tokens over,
+  zes andere tokens blijven staan. Het auditspoor toont de onthulling met beller en grant.
+
+### Defect gevonden door te kijken na de uitrol
+Het paneel toonde zeven grants, waarvan zes ingetrokken testgrants uit augustus die de
+enige werkende onder zich begroeven. Nu staan alleen actieve in de lijst en komt het
+aantal ingetrokkene als getal in de kop ("1 actief · 6 ingetrokken") — want "intrekbaar"
+is de helft van de claim en een scherm dat er geen spoor van laat zien, laat die helft
+stil vallen.
+
+### Let op
+Er staat nu één actieve demo-grant (recipient `console`, PERSON+LOCATION, één document),
+uitgegeven om de knop te kunnen indrukken. Intrekken kan met één aanroep.
+
+### Bestanden
+- `cluster-config/infra/wordsworth/init-job.yaml`, `api.yaml` — sha's naar 7a70e60 en 3fa76ff.
+
 ## 2026-09-17 (3) — feat: console met het ontwerp van de publieke demo
 
 ### Wat & waarom
