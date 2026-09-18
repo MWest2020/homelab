@@ -35,6 +35,19 @@ data:
   # betekent hier bewust NIEMAND (anders dan bij corpus-read), dus deze regel moet
   # blijven staan zolang WORDSWORTH_API_KEYS gezet is — zie wordsworth#38.
   WORDSWORTH_GRANT_ISSUER_LABELS: "console,cli"
+  # access-identity: een geverifieerde Cloudflare Access-assertie wordt het
+  # callerlabel, zodat het auditspoor een PERSOON noemt in plaats van een
+  # sleutelbos. Beide waarden zijn nodig; een ervan alleen levert geen verifier
+  # en dus geen identiteit (fail-closed).
+  #
+  # De aud is die van de Access-applicatie "wordsworth console" en hoort bij
+  # DEZE applicatie: een geldig ondertekende assertie voor een andere app van
+  # hetzelfde team is geen toegang tot deze.
+  #
+  # De api-sleutel blijft de weg naar binnen waar geen Access voor staat -- de
+  # tailnet-route, API-clients, ingest. Geen assertie, geen identiteit, sleutel.
+  WORDSWORTH_ACCESS_TEAM_DOMAIN: "raspy-wood-e123.cloudflareaccess.com"
+  WORDSWORTH_ACCESS_AUD: "320841be57b2e469adbef09614573240756da5f3a188df87b6fb761d40e65d65"
   WORDSWORTH_VC_ISSUER_KEY_PEM: |
     -----BEGIN PUBLIC KEY-----
     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaIStQ3hysyfmmJhpDTX+nx4kX1Sk
