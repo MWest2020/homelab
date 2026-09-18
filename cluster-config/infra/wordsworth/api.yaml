@@ -25,9 +25,9 @@ spec:
           # gepubliceerd wordt. Bij een systeem dat persoonsgegevens verwerkt is
           # 'welke code heeft dit document gezien' een auditvraag. Zie ADR-0006
           # en scripts/pin_check.py in MWest2020/wordsworth.
-          # sha-03834c8. api en init-job blijven op dezelfde digest, anders
+          # sha-50f1eaa. api en init-job blijven op dezelfde digest, anders
           # ontbreken de kolom-migraties.
-          image: ghcr.io/mwest2020/wordsworth@sha256:060578274c7c6a421f51965cb4afdd3615138fc502f875861fb0ca346ea686c9
+          image: ghcr.io/mwest2020/wordsworth@sha256:6625fa3ba9d4c44afb4cb98e48b3d24e5c689480dbcc3780396f192a1eabbb16
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
