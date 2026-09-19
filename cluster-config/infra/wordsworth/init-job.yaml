@@ -27,9 +27,9 @@ spec:
           # gepubliceerd wordt. Bij een systeem dat persoonsgegevens verwerkt is
           # 'welke code heeft dit document gezien' een auditvraag. Zie ADR-0006
           # en scripts/pin_check.py in MWest2020/wordsworth.
-          # sha-8338416. api en init-job blijven op dezelfde digest, anders
+          # sha-88313dd. api en init-job blijven op dezelfde digest, anders
           # ontbreken de kolom-migraties.
-          image: ghcr.io/mwest2020/wordsworth@sha256:8b1df263c447b127153db16bbff6ff7cc466bfa37869ec12a9b7ab46c16e0672
+          image: ghcr.io/mwest2020/wordsworth@sha256:719c46ff7cebf1550997c40fc41fdb9856128eb5500f2e107814c37a5a06bd5a
           imagePullPolicy: IfNotPresent
           command: ["wordsworth-init"]
           # PreSync hook runs before the ConfigMap is synced; init_schema only
