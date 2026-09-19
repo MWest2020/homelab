@@ -9,6 +9,8 @@
 #      (POST /scans e.a.) heeft geen authenticatie en mag dus nooit via de
 #      tunnel bereikbaar zijn — anders scant ons cluster willekeurige doelen.
 #   2. De UI zelf staat achter htpasswd (deployment.yaml).
+# Plus een redirect-regel in de zone (fase http_request_dynamic_redirect):
+# `/` → `/ui/`, zodat de kale naam niet op een 404 doodloopt.
 #
 # Het run-token leeft ALLEEN in het out-of-band Secret `wanderer-tunnel`
 # (key TUNNEL_TOKEN) — nooit in Git. De CNAME wanderer.westerweel.work →

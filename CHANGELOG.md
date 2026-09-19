@@ -11,6 +11,11 @@
   API zoals wordsworth). De ingress-regel laat **alleen** `^/ui(/.*)?$` door, de rest krijgt
   404: de REST-API heeft geen authenticatie en mag nooit via de tunnel bereikbaar zijn.
   Tailnet-intern: `wanderer.<tailnet>.ts.net:8080` (volledige server incl. API).
+- Redirect-regel bij Cloudflare (zone-ruleset `http_request_dynamic_redirect`, de eerste
+  in die fase): `wanderer.westerweel.work/` → `/ui/` (302). Anders loopt wie de kale naam
+  intypt dood op een 404.
+- Nagemeten van buitenaf zonder sleutel: `/ui/` 401, `/healthz` `/scans` `POST /scans` 404,
+  `/` 302 → `/ui/`; met wachtwoord `/ui/` 200 (dashboard).
 - GeoIP: DB-IP Lite (CC BY 4.0) via een initContainer bij elke podstart; valt terug op de
   vorige maand. Lokaal nagemeten dat de databases passen: rijksoverheid.nl → apex in NL
   (Prolocation), mail NL (SSC-ICT Haaglanden), DNS BG/GB/NL, Akamai als US-hyperscaler.
