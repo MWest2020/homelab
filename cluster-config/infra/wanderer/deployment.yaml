@@ -1,0 +1,128 @@
+# Wanderer — soevereiniteitsscanner, UI alleen-lezen.
+#
+# Image: het exapp-image bevat de kale `wanderer`-binary; we starten die direct
+# (niet de AppAPI-shim). Gepind op DIGEST — tags zijn verplaatsbaar.
+# core-v0.2.0 = Wanderer v0.2.0 (release 2026-09-19).
+#
+# Toegang: de UI staat achter htpasswd (`--ui-htpasswd`, bcrypt); het
+# scanformulier staat UIT (`--ui-allow-scan` niet gezet). De REST-API heeft
+# géén authenticatie (internal/api/api.go: "trusted-network") — daarom laat de
+# publieke tunnel ALLEEN het pad /ui door (ingress-regel bij Cloudflare, zie
+# tunnel.yaml). In-cluster en via de tailnet is de API wel bereikbaar.
+#
+# GeoIP: DB-IP Lite (CC BY 4.0, https://db-ip.com), mmdb-formaat compatibel met
+# GeoLite2. De initContainer haalt bij elke podstart de database van deze
+# maand op (valt terug op vorige maand zolang de nieuwe er nog niet is). Faalt
+# de download, dan start Wanderer zonder GeoIP en scoren de geo-regels
+# onbekend — de pod faalt er niet op.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wanderer
+  labels: { app: wanderer, component: server }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # RWO-volume + SQLite: nooit twee schrijvers
+  selector:
+    matchLabels: { app: wanderer, component: server }
+  template:
+    metadata:
+      labels: { app: wanderer, component: server }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: geoip
+          image: curlimages/curl:8.16.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -u
+              cur=$(date -u +%Y-%m)
+              y=$(date -u +%Y); m=$(expr "$(date -u +%m)" - 1)
+              if [ "$m" -eq 0 ]; then y=$(expr "$y" - 1); m=12; fi
+              prev=$(printf '%s-%02d' "$y" "$m")
+              for db in asn country; do
+                for m in "$cur" "$prev"; do
+                  if curl -fsSL --max-time 120 "https://download.db-ip.com/free/dbip-$db-lite-$m.mmdb.gz" | gunzip > "/geoip/dbip-$db.mmdb.tmp"; then
+                    mv "/geoip/dbip-$db.mmdb.tmp" "/geoip/dbip-$db.mmdb"; echo "dbip-$db $m ok"; break
+                  fi
+                  rm -f "/geoip/dbip-$db.mmdb.tmp"; echo "dbip-$db $m niet beschikbaar"
+                done
+              done
+              exit 0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: geoip, mountPath: /geoip }
+          resources:
+            requests: { cpu: "10m", memory: "32Mi" }
+            limits:   { cpu: "500m", memory: "128Mi" }
+      containers:
+        - name: wanderer
+          image: ghcr.io/mwest2020/wanderer-exapp@sha256:f1011d9c494817bce8ec0a7dc492aa5a0a76c44f28ff3e50601dc1168e0f0ec8
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/wanderer"]
+          args:
+            - serve
+            - --addr=:8080
+            - --db=/var/lib/wanderer/wanderer.db
+            - --ui
+            - --ui-htpasswd=/etc/wanderer/htpasswd
+            - --geoip=/geoip/dbip-asn.mmdb
+            - --geoip-country=/geoip/dbip-country.mmdb
+          ports:
+            - containerPort: 8080
+          env:
+            - { name: HOME, value: /tmp }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data,     mountPath: /var/lib/wanderer }
+            - { name: geoip,    mountPath: /geoip, readOnly: true }
+            - { name: htpasswd, mountPath: /etc/wanderer, readOnly: true }
+            - { name: tmp,      mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits:   { cpu: "1",   memory: "1Gi" }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: wanderer-data }
+        - name: geoip
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: htpasswd
+          # Out-of-band Secret `wanderer-htpasswd` (key `htpasswd`, bcrypt) —
+          # nooit in git.
+          secret:
+            secretName: wanderer-htpasswd
+            items: [{ key: htpasswd, path: htpasswd }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wanderer
+spec:
+  selector: { app: wanderer, component: server }
+  ports:
+    - { port: 8080, targetPort: 8080 }

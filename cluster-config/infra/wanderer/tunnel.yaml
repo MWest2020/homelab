@@ -1,0 +1,88 @@
+# Cloudflare Tunnel: publieke naam voor de Wanderer-UI —
+# https://wanderer.westerweel.work → tunnel `wanderer` → deze cloudflared-pod
+# → Service wanderer:8080. Bestaat NAAST de Tailscale-Service (tailscale.yaml).
+#
+# Waarom publiek (Mark, 2026-09-19): "tunnel mag", net als netnl en wordsworth.
+# Twee sloten, want een tunnel is een deur, geen slot:
+#   1. De remotely-managed ingress-regel bij Cloudflare laat ALLEEN het pad
+#      `^/ui(/.*)?$` door; al het andere krijgt http_status:404. De REST-API
+#      (POST /scans e.a.) heeft geen authenticatie en mag dus nooit via de
+#      tunnel bereikbaar zijn — anders scant ons cluster willekeurige doelen.
+#   2. De UI zelf staat achter htpasswd (deployment.yaml).
+#
+# Het run-token leeft ALLEEN in het out-of-band Secret `wanderer-tunnel`
+# (key TUNNEL_TOKEN) — nooit in Git. De CNAME wanderer.westerweel.work →
+# <tunnel-id>.cfargotunnel.com is proxied.
+#
+# De instellingen hieronder zijn overgenomen van wordsworth/netnl, waar ze uit
+# echte storingen kwamen (zie cluster-config/infra/netnl/tunnel.yaml):
+#   - twee replica's, want een herstartende connector gaf HTTP 530;
+#   - `--protocol http2` en DNS over TCP, want het UDP-pad naar buiten laat
+#     QUIC en DNS vallen;
+#   - ndots 2, want de SRV-lookup bij het opstarten faalt zonder retry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wanderer-tunnel
+  labels: { app: wanderer, component: tunnel }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: wanderer, component: tunnel }
+  template:
+    metadata:
+      labels: { app: wanderer, component: tunnel }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app: wanderer, component: tunnel }
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 1.0.0.1
+        options:
+          - { name: ndots, value: "2" }
+          - { name: use-vc }
+          - { name: attempts, value: "3" }
+          - { name: timeout, value: "2" }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --protocol
+            - http2
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: wanderer-tunnel, key: TUNNEL_TOKEN }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "10m",  memory: "32Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }

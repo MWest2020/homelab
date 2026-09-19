@@ -1,0 +1,11 @@
+# SQLite-database van Wanderer. Begint leeg (Mark, 2026-09-19).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wanderer-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi

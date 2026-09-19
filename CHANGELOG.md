@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-19 — feat: Wanderer publiek op wanderer.westerweel.work
+
+### Wat & waarom
+- Nieuwe app `wanderer` (`cluster-config/infra/wanderer/`, `apps/infrastructure/wanderer.yaml`):
+  Wanderer v0.2.0 (`wanderer-exapp@sha256:f1011d9c…`, de kale `wanderer serve`), SQLite op
+  een PVC van 1Gi, database begint leeg (Mark). UI alleen-lezen achter htpasswd; het
+  scanformulier staat uit.
+- Publiek via Cloudflare Tunnel `wanderer` (`df0a8031…`, remotely-managed, aangemaakt via de
+  API zoals wordsworth). De ingress-regel laat **alleen** `^/ui(/.*)?$` door, de rest krijgt
+  404: de REST-API heeft geen authenticatie en mag nooit via de tunnel bereikbaar zijn.
+  Tailnet-intern: `wanderer.<tailnet>.ts.net:8080` (volledige server incl. API).
+- GeoIP: DB-IP Lite (CC BY 4.0) via een initContainer bij elke podstart; valt terug op de
+  vorige maand. Lokaal nagemeten dat de databases passen: rijksoverheid.nl → apex in NL
+  (Prolocation), mail NL (SSC-ICT Haaglanden), DNS BG/GB/NL, Akamai als US-hyperscaler.
+- Out-of-band secrets (nooit in git): `wanderer-htpasswd` (key `htpasswd`) en
+  `wanderer-tunnel` (key `TUNNEL_TOKEN`).
+
 ## 2026-09-17 (4) — feat: zoeken en onthullen in de console
 
 ### Wat & waarom

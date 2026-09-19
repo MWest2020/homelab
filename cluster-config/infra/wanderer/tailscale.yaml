@@ -1,0 +1,15 @@
+# Tailnet-intern (NIET publiek): http://wanderer.<tailnet>.ts.net:8080 — de
+# volledige server incl. de REST-API, voor CLI/operator-gebruik vanaf de
+# tailnet. Geen funnel-annotatie.
+apiVersion: v1
+kind: Service
+metadata:
+  name: wanderer-ts
+  annotations:
+    tailscale.com/hostname: "wanderer"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector: { app: wanderer, component: server }
+  ports:
+    - { port: 8080, targetPort: 8080 }
