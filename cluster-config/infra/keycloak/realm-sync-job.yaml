@@ -7,6 +7,12 @@
 # `ifResourceExists=OVERWRITE`: clients uit het bestand worden aangemaakt of
 # bijgewerkt, precies zoals het bestand ze beschrijft.
 #
+# GEEN groepen in het bestand: de partial import van Keycloak 26.4 loopt op
+# groepen stuk met een NullPointerException in GroupsPartialImport (de
+# serverlog toont dat letterlijk), ook mét een `path`. Rollen doen hier
+# hetzelfde werk; wie groepen wil, maakt ze in de console en dan hoort daar
+# een eigen oplossing bij — geen stille half werkende import.
+#
 # Het bestand bevat plaatshouders voor de clientgeheimen; die worden hier uit
 # de gemounte Secrets ingevuld vóór het posten, zodat er geen geheim in git
 # staat. Gebruikers staan niet in het bestand en worden dus ook niet geraakt.
@@ -51,7 +57,7 @@ spec:
               #    beveiligingskoppen). De update-aanroep leest hetzelfde bestand;
               #    Keycloak negeert daarbij de geneste clients/rollen/groepen.
               $K update realms/westerweel -f /tmp/realm.json
-              # 2. Clients, rollen en groepen: die doet een partial import,
+              # 2. Clients en rollen: die doet een partial import,
               #    want de realm-update raakt ze niet. OVERWRITE = het bestand wint.
               $K create partialImport -r westerweel -s ifResourceExists=OVERWRITE -o -f /tmp/realm.json
               echo "realm westerweel bijgewerkt uit git"
