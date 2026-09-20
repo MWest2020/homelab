@@ -1,0 +1,79 @@
+# Realm uit git toepassen op een BESTAAND realm.
+#
+# `--import-realm` (zie keycloak.yaml) maakt alleen een realm dat nog niet
+# bestaat. Een client die je later aan het bestand toevoegt, landt daardoor
+# nooit in het cluster — en dan is "het staat in git" een illusie. Deze Job
+# draait bij elke ArgoCD-sync (PostSync-hook) en doet een partial import met
+# `ifResourceExists=OVERWRITE`: clients uit het bestand worden aangemaakt of
+# bijgewerkt, precies zoals het bestand ze beschrijft.
+#
+# Het bestand bevat plaatshouders voor de clientgeheimen; die worden hier uit
+# de gemounte Secrets ingevuld vóór het posten, zodat er geen geheim in git
+# staat. Gebruikers staan niet in het bestand en worden dus ook niet geraakt.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-realm-sync
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: sync
+          image: quay.io/keycloak/keycloak:26.4.2
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              K=/opt/keycloak/bin/kcadm.sh
+              for i in $(seq 1 30); do
+                if $K config credentials --server http://keycloak:8080 --realm master \
+                     --user "$KC_ADMIN_USER" --password "$KC_ADMIN_PASSWORD" >/dev/null 2>&1; then
+                  break
+                fi
+                echo "keycloak nog niet bereikbaar ($i/30)"; sleep 10
+              done
+              $K config credentials --server http://keycloak:8080 --realm master \
+                --user "$KC_ADMIN_USER" --password "$KC_ADMIN_PASSWORD" >/dev/null
+              sed -e "s|\${WANDERER_CLIENT_SECRET}|$WANDERER_CLIENT_SECRET|g" \
+                  -e "s|\${WORDSWORTH_CLIENT_SECRET}|$WORDSWORTH_CLIENT_SECRET|g" \
+                  /realm/realm-westerweel.json > /tmp/realm.json
+              $K create partialImport -r westerweel -s ifResourceExists=OVERWRITE -o -f /tmp/realm.json
+              echo "realm westerweel bijgewerkt uit git"
+          env:
+            - name: KC_ADMIN_USER
+              valueFrom:
+                secretKeyRef: { name: keycloak-admin, key: username }
+            - name: KC_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: keycloak-admin, key: password }
+            - name: WANDERER_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: wanderer-oidc, key: client_secret }
+            - name: WORDSWORTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: wordsworth-oidc, key: client_secret }
+          volumeMounts:
+            - { name: realm, mountPath: /realm, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "50m", memory: "256Mi" }
+            limits:   { cpu: "1",   memory: "1Gi" }
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+        - name: tmp
+          emptyDir: {}

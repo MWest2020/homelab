@@ -11,3 +11,4 @@ generatorOptions:
 resources:
   - keycloak.yaml
   - tunnel.yaml
+  - realm-sync-job.yaml

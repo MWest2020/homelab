@@ -70,6 +70,9 @@ spec:
             - name: WANDERER_CLIENT_SECRET
               valueFrom:
                 secretKeyRef: { name: wanderer-oidc, key: client_secret }
+            - name: WORDSWORTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: wordsworth-oidc, key: client_secret }
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               valueFrom:
                 secretKeyRef: { name: keycloak-admin, key: username }

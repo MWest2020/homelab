@@ -17,8 +17,29 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "secret": "${WANDERER_CLIENT_SECRET}",
-      "redirectUris": ["https://wanderer.westerweel.work/ui/oauth/callback"],
-      "webOrigins": ["https://wanderer.westerweel.work"]
+      "redirectUris": [
+        "https://wanderer.westerweel.work/ui/oauth/callback"
+      ],
+      "webOrigins": [
+        "https://wanderer.westerweel.work"
+      ]
+    },
+    {
+      "clientId": "wordsworth",
+      "name": "Wordsworth",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "secret": "${WORDSWORTH_CLIENT_SECRET}",
+      "redirectUris": [
+        "https://wordsworth.westerweel.work/oauth2/callback"
+      ],
+      "webOrigins": [
+        "https://wordsworth.westerweel.work"
+      ]
     }
   ]
 }
