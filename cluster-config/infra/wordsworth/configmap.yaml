@@ -27,6 +27,11 @@ data:
   WORDSWORTH_VC_ISSUER: "https://issuer.test.wordsworth"
   WORDSWORTH_VC_VCT: "https://wordsworth/eudi/reveal-authorization"
   WORDSWORTH_VC_REQUIRED: "false"
+  # Detectielijsten: allow.json/deny.json, mee in het image (lists/ in de repo).
+  # Niet in een ConfigMap, want de content-hash hiervan staat in elk
+  # de-identificatie-auditrecord en hoort terug te leiden naar een commit die
+  # iemand heeft bekeken. Zie docs/how-to/detection-lists.md.
+  WORDSWORTH_DETECTION_LISTS: "/app/lists"
   # F4-mitigatie: alleen deze caller-labels mogen de VOLLEDIGE
   # de-identified tekst lezen (/anonymized + /export/anonymized.zip).
   #
