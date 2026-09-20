@@ -27,6 +27,17 @@ data:
   WORDSWORTH_VC_ISSUER: "https://issuer.test.wordsworth"
   WORDSWORTH_VC_VCT: "https://wordsworth/eudi/reveal-authorization"
   WORDSWORTH_VC_REQUIRED: "false"
+  # De sleutels van Keycloak rechtstreeks bij de buur in het cluster ophalen.
+  #
+  # Dit MOET expliciet: Keycloak adverteert in zijn eigen discovery-document een
+  # PUBLIEKE jwks_uri, ook als je dat document intern opvraagt. Zonder deze
+  # regel gaat de pod dus alsnog via Cloudflare en de eigen tunnel terug naar
+  # binnen -- twee extra partijen voor een netwerkhop, en op 2026-09-20 gaf
+  # Cloudflare daarop 403 omdat urllib geen User-Agent stuurde.
+  #
+  # De UITGEVER blijft de publieke naam: dat is wat in `iss` staat en dus wat
+  # gecontroleerd wordt. Adres en identiteit zijn twee dingen.
+  WORDSWORTH_OIDC_JWKS_URL: "http://keycloak.keycloak.svc.cluster.local:8080/realms/westerweel/protocol/openid-connect/certs"
   # Detectielijsten: allow.json/deny.json, mee in het image (lists/ in de repo).
   # Niet in een ConfigMap, want de content-hash hiervan staat in elk
   # de-identificatie-auditrecord en hoort terug te leiden naar een commit die
