@@ -2,7 +2,8 @@
 #
 # Image: het exapp-image bevat de kale `wanderer`-binary; we starten die direct
 # (niet de AppAPI-shim). Gepind op DIGEST — tags zijn verplaatsbaar.
-# core-v0.3.0 = Wanderer v0.3.0 (release 2026-09-20, accountability-dimensie).
+# core-v0.3.1 = Wanderer v0.3.1 (release 2026-09-20): geplande scans
+# leveren zelf een oordeel, dus het schema hiernaast vult de UI echt.
 #
 # Toegang: inloggen gaat via Keycloak (OIDC, realm `westerweel` op
 # iam.westerweel.work) — zie config.yaml. De htpasswd is daarmee weg; het
@@ -72,7 +73,7 @@ spec:
             limits:   { cpu: "500m", memory: "128Mi" }
       containers:
         - name: wanderer
-          image: ghcr.io/mwest2020/wanderer-exapp@sha256:ffed0109f08676007f0ea00d06a8590ae580f4d9cd9e78ec0e19bb5948d1a376
+          image: ghcr.io/mwest2020/wanderer-exapp@sha256:c65bdd2cc78d7850a6bea82e509ab207615f7b56455c1ffcb7204dc22b3fba19
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/wanderer"]
           args:
