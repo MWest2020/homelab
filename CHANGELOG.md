@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-20 (6) — wanderer naar v0.4.0 (antwoord-eerst UI)
+
+### Wat & waarom
+- Image naar `wanderer-exapp@sha256:9f7448e3…` (core-v0.4.0). `/ui/` is nu een
+  invoerveld plus recent beantwoorde domeinen; een scan geeft één Nederlandse zin
+  (ja/nee/onbekend) die zegt wat het oordeel bepaalde, de pagina vult zich terwijl
+  de scan loopt, en de onderbouwing staat één klik verder.
+- Scannen mag voor ingelogde gebruikers; zonder authenticatie weigert die route en
+  zegt de opstartregel dat. De instantie zit achter Keycloak, dus dat is gedekt.
+
 ## 2026-09-20 (5) — docs: de nodes hebben 1 vCPU, niet 4
 
 ### Wat & waarom
