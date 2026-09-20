@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-09-20 (3) — fix: tailnet-UI's in de browser + realm in git
+
+### Wat & waarom
+- **Realm en client stonden niet in git.** De manifests wel, maar `westerweel` en de
+  client `wanderer` waren met `kcadm` aangemaakt en leefden alleen in de database.
+  Nu: `cluster-config/infra/keycloak/realm-westerweel.json` + `--import-realm`. Het
+  clientgeheim staat als `${WANDERER_CLIENT_SECRET}` in het bestand en komt uit
+  hetzelfde Secret dat Wanderer mount — de plaatshouder `$(env:…)` werkt NIET, die
+  bleef letterlijk staan. Bewezen door het realm te verwijderen en de pod te
+  herstarten: het realm kwam terug uit het bestand en het geheim was gelijk aan de env.
+  Gebruikers staan bewust niet in het bestand: mensen zijn geen configuratie.
+- **Twee echte fouten in de tailnet-ingang:**
+  1. De Service `keycloak` selecteerde op `app: keycloak`, en de cloudflared-pods van
+     de tunnel dragen datzelfde label. Twee derde van het verkeer kwam bij de tunnel
+     uit in plaats van bij Keycloak — vandaar de wegvallende verbindingen. Nu selecteert
+     hij ook op `component: server`. (Wanderer had dit al goed.)
+  2. De tailnet-ingang was een LoadBalancer-Service op **http** poort 8080. Met curl
+     werkt dat, in een browser niet: die probeert https en loopt vast. Beide apps
+     hebben nu een Tailscale-**Ingress** met MagicDNS-certificaat.
+- **Nagemeten:** `https://wanderer.tail8f7877.ts.net/healthz` 200 en `/ui/` 302 naar de
+  login; `https://keycloak.tail8f7877.ts.net/admin/master/console/` 200 met geldig
+  certificaat. Publiek: de volledige inlogketen met curl — `/ui/` → Keycloak-formulier
+  → inloggen → terug op het Wanderer-dashboard met sessiecookie.
+- NB: een Deployment-selector is onveranderlijk; de Keycloak-Deployment moest daarvoor
+  één keer verwijderd en opnieuw aangemaakt worden.
+
 ## 2026-09-20 (2) — feat: Keycloak als identiteitsprovider (iam.westerweel.work)
 
 ### Wat & waarom
