@@ -93,13 +93,21 @@
       "realmRoles": [
         "beheer",
         "lezer"
-      ]
+      ],
+      "path": "/beheerders",
+      "subGroups": [],
+      "attributes": {},
+      "clientRoles": {}
     },
     {
       "name": "lezers",
       "realmRoles": [
         "lezer"
-      ]
+      ],
+      "path": "/lezers",
+      "subGroups": [],
+      "attributes": {},
+      "clientRoles": {}
     }
   ]
 }
