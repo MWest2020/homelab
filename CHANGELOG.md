@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-20 (5) — docs: de nodes hebben 1 vCPU, niet 4
+
+### Wat & waarom
+- Nagemeten: alle zes cluster-VM's rapporteren `capacity.cpu = 1`, terwijl
+  `terraform/k8s-cluster/variables.tf` vier cores per shape beschrijft. Het geheugen
+  klopt wél (8GB control plane, 16GB worker), dus de templates zelf staan op één core.
+  De hardware is niet de grens — de toewijzing is het.
+- Runbook toegevoegd (`docs/how-to/32-node-cores-ophogen.md`): eerst de templates
+  (`qm set 9001|9002 --cores 4`), dan per node draineren, afsluiten, cores zetten,
+  starten, terugzetten — één node tegelijk, met een controle ertussen.
+- Daarin staat ook welke lokale volumes per node stilliggen tijdens die herstart
+  (`local-path` verhuist niet), zodat je weet wat een paar minuten weg is. Postgres
+  draait met drie instances gespreid en doet een failover.
+- Niets hoeft opnieuw geïnstalleerd te worden; geen manifest verandert.
+
 ## 2026-09-20 (4) — fix: CPU-verzoeken teruggebracht, want de habitat-workers pasten niet meer
 
 ### Wat & waarom
