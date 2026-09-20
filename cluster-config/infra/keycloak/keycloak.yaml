@@ -24,15 +24,15 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keycloak
-  labels: { app: keycloak }
+  labels: { app: keycloak, component: server }
 spec:
   replicas: 1
   strategy: { type: Recreate }
   selector:
-    matchLabels: { app: keycloak }
+    matchLabels: { app: keycloak, component: server }
   template:
     metadata:
-      labels: { app: keycloak }
+      labels: { app: keycloak, component: server }
     spec:
       securityContext:
         runAsNonRoot: true
@@ -42,7 +42,14 @@ spec:
       containers:
         - name: keycloak
           image: quay.io/keycloak/keycloak:26.4.2
-          args: ["start", "--optimized=false"]
+          # --import-realm leest /opt/keycloak/data/import/*.json bij het
+          # starten. Het maakt een realm die nog niet bestaat; een bestaand
+          # realm wordt NIET overschreven. Het bestand is dus de bron voor
+          # hoe het realm wordt aangemaakt, niet een doorlopende synchronisatie
+          # — een wijziging in de console staat daarna niet vanzelf in git.
+          # Gebruikers staan bewust niet in dit bestand: dat zijn mensen, geen
+          # configuratie, en hun wachtwoorden horen niet in een repo.
+          args: ["start", "--optimized=false", "--import-realm"]
           env:
             - { name: KC_DB, value: postgres }
             - { name: KC_DB_URL, value: "jdbc:postgresql://homelab-pg-rw.cnpg-database.svc.cluster.local:5432/keycloak" }
@@ -51,10 +58,18 @@ spec:
               valueFrom:
                 secretKeyRef: { name: keycloak-db, key: password }
             - { name: KC_HOSTNAME, value: "https://iam.westerweel.work" }
-            - { name: KC_HOSTNAME_ADMIN, value: "http://keycloak.tail8f7877.ts.net:8080" }
+            - { name: KC_HOSTNAME_ADMIN, value: "https://keycloak.tail8f7877.ts.net" }
             - { name: KC_HTTP_ENABLED, value: "true" }
             - { name: KC_PROXY_HEADERS, value: xforwarded }
             - { name: KC_HEALTH_ENABLED, value: "true" }
+            # Het clientgeheim komt uit hetzelfde geheim dat Wanderer mount
+            # (een kopie van `wanderer-oidc` in deze namespace, want een
+            # secretKeyRef kan niet over namespaces heen),
+            # zodat beide kanten per definitie dezelfde waarde hebben. In het
+            # realm-bestand staat alleen de plaatshouder $(env:...).
+            - name: WANDERER_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: wanderer-oidc, key: client_secret }
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               valueFrom:
                 secretKeyRef: { name: keycloak-admin, key: username }
@@ -79,30 +94,50 @@ spec:
             httpGet: { path: /health/live, port: 9000 }
             periodSeconds: 30
             failureThreshold: 6
+          volumeMounts:
+            - { name: realm, mountPath: /opt/keycloak/data/import, readOnly: true }
           resources:
             requests: { cpu: "100m", memory: "512Mi" }
             limits:   { cpu: "2",    memory: "2Gi" }
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: keycloak
 spec:
-  selector: { app: keycloak }
+  # LET OP: óók op component selecteren. De cloudflared-pods van de tunnel
+  # dragen hetzelfde `app: keycloak`-label; zonder `component: server` gaat
+  # twee derde van het verkeer naar de tunnel-pod en krijg je een
+  # wegvallende verbinding in plaats van Keycloak.
+  selector: { app: keycloak, component: server }
   ports:
     - { port: 8080, targetPort: 8080 }
 ---
 # Tailnet-intern (NIET publiek): de beheerconsole op
-# http://keycloak.<tailnet>.ts.net:8080/admin
-apiVersion: v1
-kind: Service
+# https://keycloak.<tailnet>.ts.net/admin
+#
+# Dit is een Ingress en geen LoadBalancer-Service: de Tailscale-operator
+# zet er dan TLS met een MagicDNS-certificaat voor, en dat is wat een
+# browser nodig heeft. Een kale http-Service op poort 8080 werkt met curl
+# maar niet in een browser, die probeert https en loopt vast.
+# Geen `tailscale.com/funnel`-annotatie: dit blijft binnen de tailnet.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
   name: keycloak-ts
   annotations:
     tailscale.com/hostname: "keycloak"
 spec:
-  type: LoadBalancer
-  loadBalancerClass: tailscale
-  selector: { app: keycloak }
-  ports:
-    - { port: 8080, targetPort: 8080 }
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: keycloak
+      port:
+        number: 8080
+  tls:
+    - hosts:
+        - keycloak

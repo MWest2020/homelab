@@ -1,0 +1,24 @@
+{
+  "realm": "westerweel",
+  "displayName": "Westerweel homelab",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": true,
+  "clients": [
+    {
+      "clientId": "wanderer",
+      "name": "Wanderer",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "secret": "$(env:WANDERER_CLIENT_SECRET)",
+      "redirectUris": ["https://wanderer.westerweel.work/ui/oauth/callback"],
+      "webOrigins": ["https://wanderer.westerweel.work"]
+    }
+  ]
+}

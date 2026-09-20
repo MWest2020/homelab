@@ -1,6 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: keycloak
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - realm-westerweel.json
+generatorOptions:
+  disableNameSuffixHash: true
+
 resources:
   - keycloak.yaml
   - tunnel.yaml
