@@ -5,6 +5,7 @@ resources:
   - configmap.yaml
   - init-job.yaml
   - api.yaml
+  - oauth2-proxy.yaml
   - api-tailscale.yaml
   - api-tailscale-https.yaml
   - corpus-pvc.yaml

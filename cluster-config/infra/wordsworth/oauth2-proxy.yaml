@@ -1,0 +1,88 @@
+# oauth2-proxy: de inlogdeur vóór de Wordsworth-console.
+#
+# Waarom een proxy en niet inloggen in de app zelf: wordsworth controleert
+# wél een token (sinds de change keycloak-identity), maar zet zelf geen
+# inlogstroom op. De proxy doet de OIDC-dans met Keycloak en geeft het
+# ID-token door in de Authorization-kop; wordsworth verifieert dat token
+# tegen de uitgever en leest daar het e-mailadres uit — de caller in het
+# auditspoor. Zo blijft er precies één plek die identiteit vaststelt.
+#
+# Alleen het PUBLIEKE pad loopt hierlangs (de Cloudflare-tunnel wijst naar
+# deze proxy). De tailnet-Service blijft rechtstreeks naar de API wijzen,
+# want daar praten CLI's met api-sleutels tegenaan; een inlogscherm zou die
+# breken.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordsworth-auth
+  labels: { app: wordsworth, component: auth }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: wordsworth, component: auth }
+  template:
+    metadata:
+      labels: { app: wordsworth, component: auth }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.13.0
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://iam.westerweel.work/realms/westerweel
+            - --client-id=wordsworth
+            - --redirect-url=https://wordsworth.westerweel.work/oauth2/callback
+            - --upstream=http://wordsworth-api:8000
+            - --http-address=0.0.0.0:4180
+            # Het ID-token gaat mee naar boven; wordsworth verifieert het zelf.
+            - --pass-authorization-header=true
+            - --set-authorization-header=true
+            # Geen e-mailkop als waarheid: die is niet ondertekend.
+            - --pass-basic-auth=false
+            - --pass-user-headers=false
+            # Wie mag naar binnen: iedereen die het realm toelaat. Het realm
+            # laat geen zelfregistratie toe, dus dat is de afgeschermde lijst.
+            - --email-domain=*
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-expire=10h
+            # De health-route moet zonder login bereikbaar blijven, anders
+            # ziet Kubernetes een inlogpagina aan voor een gezonde app.
+            - --skip-auth-route=^/health$
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: wordsworth-oidc, key: client_secret }
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef: { name: wordsworth-oidc, key: cookie_secret }
+          ports:
+            - { containerPort: 4180 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          readinessProbe:
+            httpGet: { path: /ping, port: 4180 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /ping, port: 4180 }
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: "20m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordsworth-auth
+spec:
+  selector: { app: wordsworth, component: auth }
+  ports:
+    - { port: 4180, targetPort: 4180 }
