@@ -47,6 +47,12 @@ spec:
               sed -e "s|\${WANDERER_CLIENT_SECRET}|$WANDERER_CLIENT_SECRET|g" \
                   -e "s|\${WORDSWORTH_CLIENT_SECRET}|$WORDSWORTH_CLIENT_SECRET|g" \
                   /realm/realm-westerweel.json > /tmp/realm.json
+              # 1. Realm-instellingen (wachtwoordbeleid, brute-force, sessies,
+              #    beveiligingskoppen). De update-aanroep leest hetzelfde bestand;
+              #    Keycloak negeert daarbij de geneste clients/rollen/groepen.
+              $K update realms/westerweel -f /tmp/realm.json
+              # 2. Clients, rollen en groepen: die doet een partial import,
+              #    want de realm-update raakt ze niet. OVERWRITE = het bestand wint.
               $K create partialImport -r westerweel -s ifResourceExists=OVERWRITE -o -f /tmp/realm.json
               echo "realm westerweel bijgewerkt uit git"
           env:

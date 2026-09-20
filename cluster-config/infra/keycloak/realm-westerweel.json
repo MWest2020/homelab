@@ -22,7 +22,11 @@
       ],
       "webOrigins": [
         "https://wanderer.westerweel.work"
-      ]
+      ],
+      "fullScopeAllowed": true,
+      "attributes": {
+        "post.logout.redirect.uris": "https://wanderer.westerweel.work/ui/*"
+      }
     },
     {
       "clientId": "wordsworth",
@@ -39,6 +43,62 @@
       ],
       "webOrigins": [
         "https://wordsworth.westerweel.work"
+      ],
+      "fullScopeAllowed": true,
+      "attributes": {
+        "post.logout.redirect.uris": "https://wordsworth.westerweel.work/*"
+      }
+    }
+  ],
+  "duplicateEmailsAllowed": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "editUsernameAllowed": false,
+  "passwordPolicy": "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(3)",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 10,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "accessTokenLifespan": 300,
+  "offlineSessionIdleTimeout": 2592000,
+  "browserSecurityHeaders": {
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xFrameOptions": "SAMEORIGIN",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains",
+    "xContentTypeOptions": "nosniff",
+    "referrerPolicy": "no-referrer"
+  },
+  "roles": {
+    "realm": [
+      {
+        "name": "beheer",
+        "description": "Beheer van het homelab: mag alles in de aangesloten apps."
+      },
+      {
+        "name": "lezer",
+        "description": "Mag meekijken: rapporten en consoles lezen, niets wijzigen."
+      }
+    ]
+  },
+  "defaultRoles": [
+    "lezer"
+  ],
+  "groups": [
+    {
+      "name": "beheerders",
+      "realmRoles": [
+        "beheer",
+        "lezer"
+      ]
+    },
+    {
+      "name": "lezers",
+      "realmRoles": [
+        "lezer"
       ]
     }
   ]
