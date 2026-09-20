@@ -1,0 +1,13 @@
+# Declaratieve database voor Keycloak op de bestaande homelab-pg-cluster.
+# De rol `keycloak` staat in cluster-config/infra/cnpg-database/cluster.yaml
+# (managed.roles); deze CR maakt de database en geeft die rol het eigendom.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: keycloak
+
+spec:
+  name: keycloak
+  owner: keycloak
+  cluster:
+    name: homelab-pg

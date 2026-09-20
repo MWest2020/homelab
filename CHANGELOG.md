@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-20 (2) — feat: Keycloak als identiteitsprovider (iam.westerweel.work)
+
+### Wat & waarom
+- Per app een htpasswd bijhouden werkt niet (Mark: "dit werkt irritant"). Wanderer
+  heeft OIDC-login al ingebouwd; wat ontbrak was een provider. Nieuwe app `keycloak`
+  (`cluster-config/infra/keycloak/`, ArgoCD sync-wave 5, vóór de apps die hem gebruiken).
+- Database op de bestaande `homelab-pg`-cluster (Mark: "mag dezelfde cnpg"): een
+  beheerde rol `keycloak` in `cluster.yaml` plus een declaratieve `Database`-CR.
+- Publiek alleen wat nodig is om in te loggen: de tunnel laat `^/realms/`,
+  `^/resources/` en `^/js/` door en verder niets. De beheerconsole (`/admin`) is
+  tailnet-only (`keycloak.<tailnet>.ts.net:8080`) — een beheerconsole aan het open
+  internet is precies de afhankelijkheid die Wanderer bij anderen aanwijst.
+- Out-of-band secrets (nooit in git): `keycloak-db` (in cnpg-database én keycloak),
+  `keycloak-admin`, `keycloak-tunnel`.
+
 ## 2026-09-20 — wanderer naar v0.3.0 (accountability-dimensie)
 
 ### Wat & waarom

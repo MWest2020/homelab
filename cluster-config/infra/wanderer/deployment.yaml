@@ -10,6 +10,11 @@
 # publieke tunnel ALLEEN het pad /ui door (ingress-regel bij Cloudflare, zie
 # tunnel.yaml). In-cluster en via de tailnet is de API wel bereikbaar.
 #
+# Schema: cluster-config/infra/wanderer/schedules.yaml — vier publieke
+# doelen, elk wekelijks, passief. De scheduler beoordeelt elke geslaagde
+# scan zelf (Wanderer-change 2026-09-20-assess-scheduled-scans); zonder
+# die change staat er wel een scan maar geen oordeel op de rapportpagina.
+#
 # GeoIP: DB-IP Lite (CC BY 4.0, https://db-ip.com), mmdb-formaat compatibel met
 # GeoLite2. De initContainer haalt bij elke podstart de database van deze
 # maand op (valt terug op vorige maand zolang de nieuwe er nog niet is). Faalt
@@ -77,6 +82,7 @@ spec:
             - --ui-htpasswd=/etc/wanderer/htpasswd
             - --geoip=/geoip/dbip-asn.mmdb
             - --geoip-country=/geoip/dbip-country.mmdb
+            - --schedules=/etc/wanderer/schedules/schedules.yaml
           ports:
             - containerPort: 8080
           env:
@@ -88,7 +94,8 @@ spec:
           volumeMounts:
             - { name: data,     mountPath: /var/lib/wanderer }
             - { name: geoip,    mountPath: /geoip, readOnly: true }
-            - { name: htpasswd, mountPath: /etc/wanderer, readOnly: true }
+            - { name: htpasswd,  mountPath: /etc/wanderer, readOnly: true }
+            - { name: schedules, mountPath: /etc/wanderer/schedules, readOnly: true }
             - { name: tmp,      mountPath: /tmp }
           startupProbe:
             httpGet: { path: /healthz, port: 8080 }
@@ -111,6 +118,9 @@ spec:
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        - name: schedules
+          configMap:
+            name: wanderer-schedules
         - name: htpasswd
           # Out-of-band Secret `wanderer-htpasswd` (key `htpasswd`, bcrypt) —
           # nooit in git.

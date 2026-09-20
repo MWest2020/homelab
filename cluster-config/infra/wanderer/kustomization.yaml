@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: wanderer
 resources:
   - pvc.yaml
+  - schedules.yaml
   - deployment.yaml
   - tailscale.yaml
   - tunnel.yaml

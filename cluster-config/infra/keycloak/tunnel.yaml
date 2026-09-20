@@ -1,0 +1,77 @@
+# Cloudflare Tunnel voor Keycloak — https://iam.westerweel.work.
+#
+# De ingress-regel bij Cloudflare laat ALLEEN de OIDC-paden door
+# (^/realms/, ^/resources/, ^/js/); al het andere krijgt 404. De
+# beheerconsole (/admin) staat dus niet aan het open internet — die
+# bereik je over de tailnet (keycloak.<tailnet>.ts.net:8080).
+#
+# Run-token: out-of-band Secret `keycloak-tunnel` (key TUNNEL_TOKEN),
+# nooit in Git. Instellingen overgenomen van netnl/wordsworth (twee
+# replica's, http2, DNS over TCP, ndots 2) — die komen uit echte
+# storingen, zie cluster-config/infra/netnl/tunnel.yaml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak-tunnel
+  labels: { app: keycloak, component: tunnel }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: keycloak, component: tunnel }
+  template:
+    metadata:
+      labels: { app: keycloak, component: tunnel }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app: keycloak, component: tunnel }
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 1.0.0.1
+        options:
+          - { name: ndots, value: "2" }
+          - { name: use-vc }
+          - { name: attempts, value: "3" }
+          - { name: timeout, value: "2" }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --protocol
+            - http2
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: keycloak-tunnel, key: TUNNEL_TOKEN }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "10m",  memory: "32Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }

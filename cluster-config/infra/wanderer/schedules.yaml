@@ -1,0 +1,35 @@
+# Scanschema voor de publieke demo-instantie.
+#
+# Waarom deze doelen: Wanderer meet de extern zichtbare voetafdruk van
+# Nederlandse publieke organisaties, en dit zijn publieke websites van
+# precies dat soort organisaties. Alle waarneming is passief en niet te
+# onderscheiden van een gewone bezoeker (RDAP, DNS, TLS, één HTTPS-GET
+# per pad, security.txt). Geen SMTP, geen brute force, geen scraping.
+#
+# De tijden lopen uiteen zodat de vier scans elkaar niet in de weg
+# zitten; elk doel wordt één keer per week gescand. Wil je een ander
+# rijtje: pas dit bestand aan, ArgoCD synct het en `wanderer serve`
+# herleest het schema bij SIGHUP (of een herstart van de pod).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wanderer-schedules
+data:
+  schedules.yaml: |
+    schedules:
+      - name: rijksoverheid
+        cron: "17 3 * * 1"
+        target:
+          domain: rijksoverheid.nl
+      - name: ncsc
+        cron: "17 4 * * 1"
+        target:
+          domain: ncsc.nl
+      - name: digid
+        cron: "17 5 * * 1"
+        target:
+          domain: digid.nl
+      - name: mijnoverheid
+        cron: "17 6 * * 1"
+        target:
+          domain: mijnoverheid.nl

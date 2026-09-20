@@ -1,0 +1,108 @@
+# Keycloak — de identiteitsprovider van het homelab (iam.westerweel.work).
+#
+# Waarom (Mark, 2026-09-20): per app een htpasswd bijhouden werkt niet.
+# Wanderer heeft OIDC-login al ingebouwd (ADR-0013 in die repo); wat
+# ontbrak was een provider. Wordsworth en netnl kunnen er later achter.
+#
+# Database: de bestaande homelab-pg-cluster (Mark: "mag dezelfde cnpg").
+# Rol + database staan declaratief in cnpg-database/cluster.yaml en
+# database.yaml hiernaast.
+#
+# Publiek versus beheer:
+#   - de tunnel laat ALLEEN de OIDC-paden door (^/realms/, ^/resources/,
+#     ^/js/). Die heeft een bezoeker nodig om in te loggen.
+#   - de beheerconsole (/admin) is NIET publiek: die bereik je over de
+#     tailnet (keycloak.<tailnet>.ts.net:8080). Een beheerconsole aan het
+#     open internet hangen is precies het soort afhankelijkheid dat deze
+#     scanner bij anderen aanwijst.
+#
+# KC_PROXY_HEADERS=xforwarded + KC_HTTP_ENABLED: TLS eindigt bij
+# Cloudflare, de pod praat http binnen het cluster. KC_HOSTNAME vertelt
+# Keycloak onder welke naam hij naar buiten bestaat, anders bouwt hij
+# verkeerde redirect-URL's in de discovery-documenten.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels: { app: keycloak }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: keycloak }
+  template:
+    metadata:
+      labels: { app: keycloak }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.4.2
+          args: ["start", "--optimized=false"]
+          env:
+            - { name: KC_DB, value: postgres }
+            - { name: KC_DB_URL, value: "jdbc:postgresql://homelab-pg-rw.cnpg-database.svc.cluster.local:5432/keycloak" }
+            - { name: KC_DB_USERNAME, value: keycloak }
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: keycloak-db, key: password }
+            - { name: KC_HOSTNAME, value: "https://iam.westerweel.work" }
+            - { name: KC_HOSTNAME_ADMIN, value: "http://keycloak.tail8f7877.ts.net:8080" }
+            - { name: KC_HTTP_ENABLED, value: "true" }
+            - { name: KC_PROXY_HEADERS, value: xforwarded }
+            - { name: KC_HEALTH_ENABLED, value: "true" }
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef: { name: keycloak-admin, key: username }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: keycloak-admin, key: password }
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 9000, name: management }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # Keycloak schrijft zijn build-cache in de image
+            capabilities: { drop: ["ALL"] }
+          startupProbe:
+            httpGet: { path: /health/started, port: 9000 }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 9000 }
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /health/live, port: 9000 }
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: "100m", memory: "512Mi" }
+            limits:   { cpu: "2",    memory: "2Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  selector: { app: keycloak }
+  ports:
+    - { port: 8080, targetPort: 8080 }
+---
+# Tailnet-intern (NIET publiek): de beheerconsole op
+# http://keycloak.<tailnet>.ts.net:8080/admin
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-ts
+  annotations:
+    tailscale.com/hostname: "keycloak"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector: { app: keycloak }
+  ports:
+    - { port: 8080, targetPort: 8080 }

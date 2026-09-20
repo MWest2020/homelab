@@ -42,5 +42,18 @@ spec:
       database: app
       owner: app
 
+  # Beheerde rollen. Keycloak (iam.westerweel.work) draait op deze cluster
+  # — Mark, 2026-09-20: "mag dezelfde cnpg". Het wachtwoord staat in het
+  # out-of-band Secret `keycloak-db` (key `password`), nooit in Git; de
+  # keycloak-namespace heeft een kopie van datzelfde secret. De database
+  # zelf wordt declaratief aangemaakt (Database-CR, keycloak/database.yaml).
+  managed:
+    roles:
+      - name: keycloak
+        ensure: present
+        login: true
+        passwordSecret:
+          name: keycloak-db
+
   monitoring:
     enablePodMonitor: false # geen Prometheus-operator/PodMonitor-CRD aanwezig
