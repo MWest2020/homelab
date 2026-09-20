@@ -16,7 +16,7 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "secret": "$(env:WANDERER_CLIENT_SECRET)",
+      "secret": "${WANDERER_CLIENT_SECRET}",
       "redirectUris": ["https://wanderer.westerweel.work/ui/oauth/callback"],
       "webOrigins": ["https://wanderer.westerweel.work"]
     }
