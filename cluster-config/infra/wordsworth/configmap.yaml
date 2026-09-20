@@ -48,16 +48,18 @@ data:
   #
   # LET OP: een callerlabel is niet hetzelfde ding onder beide deuren. Met
   # WORDSWORTH_API_KEYS is het het label vóór de dubbele punt ("console"); met
-  # Cloudflare Access is het het GEVERIFIEERDE E-MAILADRES uit het JWT. Toen we
+  # Keycloak (sinds 2026-09-20) is het het GEVERIFIEERDE E-MAILADRES uit het
+  # OIDC-token — het adres van de gebruiker in realm `westerweel`. Met
+  # Cloudflare Access was het het e-mailadres uit dát JWT. Toen we
   # op Access overgingen bleven "console,cli" staan, en dus weigerde deze lijst
   # iedereen -- ook de beheerder, die een kale JSON-403 kreeg op /console.
-  WORDSWORTH_CORPUS_READ_LABELS: "console,cli,mark@westerweel.work"
+  WORDSWORTH_CORPUS_READ_LABELS: "console,cli,mark@westerweel.work,markwesterweel@gmail.com"
   # Wie een reveal-grant mag uitgeven of intrekken. Een grant is de sleutel tot
   # klare PII, dus dit is een kleinere kring dan "iedereen met een api-key". LEEG
   # betekent hier bewust NIEMAND (anders dan bij corpus-read), dus deze regel moet
   # blijven staan zolang WORDSWORTH_API_KEYS gezet is — zie wordsworth#38.
   # Zelfde verhaal als hierboven: onder Access is dit een e-mailadres.
-  WORDSWORTH_GRANT_ISSUER_LABELS: "console,cli,mark@westerweel.work"
+  WORDSWORTH_GRANT_ISSUER_LABELS: "console,cli,mark@westerweel.work,markwesterweel@gmail.com"
   # access-identity: een geverifieerde Cloudflare Access-assertie wordt het
   # callerlabel, zodat het auditspoor een PERSOON noemt in plaats van een
   # sleutelbos. Beide waarden zijn nodig; een ervan alleen levert geen verifier
