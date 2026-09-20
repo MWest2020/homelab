@@ -40,6 +40,11 @@ spec:
             # token; deze twee vertellen de app wiens handtekening geldt.
             - { name: WORDSWORTH_OIDC_ISSUER, value: "https://iam.westerweel.work/realms/westerweel" }
             - { name: WORDSWORTH_OIDC_AUDIENCE, value: "wordsworth" }
+            # De sleutels halen we INTERN op. Via de publieke naam gaat het
+            # verkeer het cluster uit naar Cloudflare en weer terug, en dat
+            # gaf een 403 op de bot-regels (urllib stuurde geen User-Agent).
+            # De uitgever blijft de publieke naam: dat staat in het token.
+            - { name: WORDSWORTH_OIDC_JWKS_URL, value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/westerweel/protocol/openid-connect/certs" }
           envFrom:
             - configMapRef: { name: wordsworth-config }
             - secretRef:    { name: wordsworth-db }
