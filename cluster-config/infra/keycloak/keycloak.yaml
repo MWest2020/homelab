@@ -100,7 +100,7 @@ spec:
           volumeMounts:
             - { name: realm, mountPath: /opt/keycloak/data/import, readOnly: true }
           resources:
-            requests: { cpu: "100m", memory: "512Mi" }
+            requests: { cpu: "40m", memory: "512Mi" }
             limits:   { cpu: "2",    memory: "2Gi" }
       volumes:
         - name: realm

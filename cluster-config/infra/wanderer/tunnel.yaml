@@ -86,5 +86,5 @@ spec:
             httpGet: { path: /ready, port: 2000 }
             periodSeconds: 15
           resources:
-            requests: { cpu: "10m",  memory: "32Mi" }
+            requests: { cpu: "5m",   memory: "32Mi" }
             limits:   { cpu: "250m", memory: "128Mi" }

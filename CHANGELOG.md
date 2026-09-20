@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-20 (4) — fix: CPU-verzoeken teruggebracht, want de habitat-workers pasten niet meer
+
+### Wat & waarom
+- Twee habitat-runs strandden zonder één regel uitvoer. Niet de build, maar de
+  planner: `0/6 nodes are available: 3 Insufficient cpu`. De werknodes hebben
+  **1 CPU** elk; een worker-Job vraagt 250m, en er was nog 69–190m vrij.
+- De toevoegingen van vandaag (Keycloak 100m, de realm-sync-job 50m, wanderer 50m,
+  oauth2-proxy 20m, vier tunnel-pods à 10m) vroegen samen ruim 200m terwijl ze
+  nagenoeg niets doen: een cloudflared-connector en een inlogproxy staan te wachten.
+  Verzoeken teruggebracht naar 40m / 20m / 25m / 10m / 5m. Limieten ongemoeid, dus
+  een piek mag nog steeds.
+- Dit is een pleister op een echte grens: drie werknodes van één core is krap voor
+  een cluster dat OpenSearch, Ollama, OpenAnonymiser, Postgres én bouw-Jobs draait.
+  Meer vCPU per node is Proxmox-werk en dus mensenwerk.
+
 ## 2026-09-20 (3) — fix: tailnet-UI's in de browser + realm in git
 
 ### Wat & waarom
