@@ -27,8 +27,17 @@ resource "proxmox_virtual_environment_vm" "vm" {
   # (local-lvm). Pakt pas na volledige stop/start van de VM (reboot in de gast
   # is niet genoeg). Eerst plan + apply -target op één worker (bpg-historie
   # met post-clone overrides, zie feedback_template_per_size).
+  # cores HOORT hier, hoe tegenstrijdig dat ook voelt met de regel hierboven.
+  # De bpg-provider beheert een gedeclareerd `cpu`-blok in zijn geheel: laat je
+  # `cores` weg, dan vult hij de default 1 in en overschrijft hij daarmee de 4
+  # cores uit de template. Dat is precies wat er gebeurde — templates 9001/9002
+  # (en hun tegenhangers op px-02/03) staan op 4, de zes draaiende VM's stonden
+  # op 1, en het cluster liep vol: habitat-runs bleven `Pending` met
+  # "0/6 nodes are available: 3 Insufficient cpu" (2026-09-20).
+  # Wijzigen pakt pas na een volledige stop/start van de VM, net als cpu.type.
   cpu {
-    type = "host"
+    type  = "host"
+    cores = 4
   }
 
   network_device {

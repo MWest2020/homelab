@@ -36,11 +36,10 @@ variable "vms" {
     vm_id          = number
     node_name      = string
     ip             = string
-    # LET OP (waargenomen 2026-09-20): de draaiende VM's hebben 1 vCPU, niet 4.
-    # Het geheugen uit de templates kwam wél door (8GB/16GB), de cores niet — dus
-    # de templates zelf stonden op 1 core. Omdat de shape uit de template komt en
-    # niet uit terraform, repareer je dat met `qm set 9001|9002 --cores 4` en
-    # daarna per VM een herstart. Zie docs/how-to/32-node-cores-ophogen.md.
+    # LET OP (waargenomen 2026-09-20): de draaiende VM's hadden 1 vCPU, niet 4,
+    # terwijl álle templates op 4 staan. Oorzaak zat niet in de template maar in
+    # het `cpu`-blok in main.tf: de provider vult daar de default cores=1 in.
+    # Zie main.tf en docs/how-to/32-node-cores-ophogen.md.
     template_vm_id = number # per-shape template: bv. CP=9001 (4c/8GB/50GB), worker=9002 (4c/16GB/50GB)
     role           = string # "control-plane" | "worker"
   }))

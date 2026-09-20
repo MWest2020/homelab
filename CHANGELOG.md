@@ -3,13 +3,14 @@
 ## 2026-09-20 (5) — docs: de nodes hebben 1 vCPU, niet 4
 
 ### Wat & waarom
-- Nagemeten: alle zes cluster-VM's rapporteren `capacity.cpu = 1`, terwijl
-  `terraform/k8s-cluster/variables.tf` vier cores per shape beschrijft. Het geheugen
-  klopt wél (8GB control plane, 16GB worker), dus de templates zelf staan op één core.
-  De hardware is niet de grens — de toewijzing is het.
-- Runbook toegevoegd (`docs/how-to/32-node-cores-ophogen.md`): eerst de templates
-  (`qm set 9001|9002 --cores 4`), dan per node draineren, afsluiten, cores zetten,
-  starten, terugzetten — één node tegelijk, met een controle ertussen.
+- Nagemeten: alle zes cluster-VM's rapporteren `capacity.cpu = 1`. De templates niet:
+  die staan alle zes op 4 cores (via de Proxmox-API gecontroleerd). De oorzaak zat in
+  `terraform/k8s-cluster/main.tf`: het `cpu`-blok stond er alleen voor `type = "host"`,
+  maar de bpg-provider beheert zo'n blok in zijn geheel en vult voor `cores` zijn eigen
+  default 1 in — die overschrijft wat uit de template kwam. `cores = 4` staat er nu bij.
+- Runbook toegevoegd (`docs/how-to/32-node-cores-ophogen.md`): per VM draineren,
+  `terraform apply -target` (die doet de stop/start), terugzetten — één tegelijk,
+  workers eerst, control planes daarna, met een controle ertussen.
 - Daarin staat ook welke lokale volumes per node stilliggen tijdens die herstart
   (`local-path` verhuist niet), zodat je weet wat een paar minuten weg is. Postgres
   draait met drie instances gespreid en doet een failover.

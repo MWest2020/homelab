@@ -1,28 +1,50 @@
 # Nodes van 1 naar 4 vCPU brengen
 
-De zes cluster-VM's draaien op **één vCPU**, terwijl de bedoeling vier was.
-`terraform/k8s-cluster/variables.tf` zegt het zelf:
+De zes cluster-VM's draaiden op **één vCPU**, terwijl de bedoeling vier
+was. Dat valt niet op tot iets niet meer ingepland kan worden: op
+2026-09-20 bleven twee habitat-runs anderhalf uur `Pending` staan met
+`0/6 nodes are available: 3 Insufficient cpu`, wat op een vastgelopen
+build lijkt in plaats van op een vol cluster.
 
-```
-template_vm_id = number # per-shape template: bv. CP=9001 (4c/8GB/50GB), worker=9002 (4c/16GB/50GB)
+## Waar het aan lag
+
+Niet aan de templates. Die staan alle zes op 4 cores (9001/9002 op
+px-01, 9011/9012 op px-02, 9021/9022 op px-03) — nagemeten via de
+Proxmox-API.
+
+Het zat in `terraform/k8s-cluster/main.tf`:
+
+```hcl
+cpu {
+  type = "host"
+}
 ```
 
-Het geheugen uit die templates is wél doorgekomen (8 GB voor de control
-planes, 16 GB voor de workers), de cores niet. Dat valt niet op tot iets
-niet meer ingepland kan worden — op 2026-09-20 bleven twee habitat-runs
-anderhalf uur `Pending` staan met
-`0/6 nodes are available: 3 Insufficient cpu`, en dat lijkt op een
-vastgelopen build in plaats van een vol cluster.
+De bpg-provider beheert een gedeclareerd `cpu`-blok **in zijn geheel**.
+Laat je `cores` weg, dan vult hij zijn eigen default in — 1 — en
+overschrijft daarmee de 4 cores die uit de template kwamen. Het blok is
+ooit toegevoegd om alleen het cpu-*type* op `host` te zetten (AVX2 voor
+de Bun-gebaseerde `claude`-binary); dat het daarmee ook de cores ging
+bepalen, was niet de bedoeling.
+
+De regel "hardware-shape komt uit de template" klopt dus nog steeds —
+maar een `cpu`-blok is een override, ook als je maar één veld invult.
+
+## De reparatie
+
+`cores = 4` staat nu in dat blok. Daarmee is de bron van waarheid weer
+terraform, en zet een volgende `apply` het niet terug.
 
 ## Hoeft er iets opnieuw geïnstalleerd te worden?
 
-Nee. Dit is per VM: afsluiten, cores omzetten, starten. Het cluster
-blijft draaien zolang je **één node tegelijk** doet. Niets wordt
-opnieuw uitgerold, geen data verplaatst, geen manifest gewijzigd.
+Nee. Per VM is het: afsluiten, cores zetten, starten. Geen manifest
+verandert, geen data verhuist, het cluster blijft draaien zolang je
+**één node tegelijk** doet. Een wijziging in het cpu-blok pakt pas na
+een volledige stop/start — een reboot ín de gast is niet genoeg.
 
-Wat wél tijdelijk weg is: alles wat op díé node een lokaal volume heeft.
-De opslagklasse is `local-path`, dus een volume ligt vast op één node en
-verhuist niet mee. Zo lag het op 2026-09-20:
+Wat wél een paar minuten wegvalt: alles met een lokaal volume op díé
+node. De opslagklasse is `local-path`, dus zo'n volume ligt vast op één
+node en verhuist niet mee:
 
 | node | volumes die zolang stilliggen |
 | --- | --- |
@@ -30,47 +52,48 @@ verhuist niet mee. Zo lag het op 2026-09-20:
 | node-02 | `homelab-pg-1`, `opensearch-data` |
 | node-03 | `homelab-pg-2`, `ollama-models`, `wordsworth-corpus` |
 
-Postgres staat met drie instances verspreid, dus één node eruit betekent
-daar een failover en geen stilstand. Voor de rest geldt: die dienst is
-een paar minuten weg. Controleer daarom vóór elke node of de vorige
-weer volledig terug is.
+Postgres draait met drie instances gespreid, dus één node eruit geeft
+daar een failover en geen stilstand.
 
-## De templates eerst
+## Uitvoeren (vanaf jumpy)
 
-Zet de templates goed, anders komt de volgende kloon weer op één core
-uit. Op de Proxmox-host:
+De API-token staat in `terraform/k8s-cluster/.env`; ssh naar `root@px-*`
+werkt vanaf jumpy niet en is hier ook niet nodig.
 
 ```bash
-qm set 9001 --cores 4      # control-plane-shape
-qm set 9002 --cores 4      # worker-shape
+cd ~/homelab && git pull
+cd terraform/k8s-cluster && set -a && . ./.env && set +a
+terraform plan -target='proxmox_virtual_environment_vm.vm["node-01"]'
 ```
 
-## Per node, één tegelijk
+Dan per VM, **één tegelijk**, in deze volgorde: eerst de workers
+(node-01, node-02, node-03), daarna de control planes (cp-01, cp-02,
+cp-03). Control planes als laatste, zodat het cluster tijdens het
+zwaarste deel een volledige etcd-meerderheid houdt.
 
 ```bash
-# 1. leeghalen (vanaf een host met kubectl)
+# 1. leeghalen
 kubectl drain node-01 --ignore-daemonsets --delete-emptydir-data --timeout=5m
 
-# 2. op de Proxmox-host: netjes afsluiten, cores zetten, starten
-qm shutdown <vmid> && sleep 20
-qm set <vmid> --cores 4
-qm start <vmid>
+# 2. terraform zet de cores en doet de stop/start
+terraform apply -target='proxmox_virtual_environment_vm.vm["node-01"]'
 
-# 3. terug in dienst nemen
+# 3. terug in dienst
 kubectl uncordon node-01
 
-# 4. controleren vóór je de volgende doet
+# 4. controleren vóór de volgende
 kubectl get node node-01 -o jsonpath='{.status.capacity.cpu}{"\n"}'   # 4
 kubectl get pods -A --field-selector status.phase!=Running --no-headers
 ```
 
-Stap 4 is geen formaliteit: een pod met een lokaal volume komt pas terug
-als zijn node terug is, en die wil je gezien hebben voordat je de
-volgende node leeghaalt.
+Stap 4 is geen formaliteit: een pod met een lokaal volume komt pas
+terug als zijn node terug is, en die wil je gezien hebben voordat je de
+volgende leeghaalt. `drain` verplaatst zo'n pod niet — dat is verwacht
+gedrag bij `local-path` en geen reden voor `--force`.
 
-`drain` verplaatst pods met een lokaal volume niet — die worden gestopt
-en komen terug zodra de node er weer is. Dat is verwacht gedrag bij
-`local-path` en geen reden om `--force` te gebruiken.
+Voor de control planes hetzelfde recept, met `cp-01` enzovoort. Wacht
+tussen twee control planes tot `kubectl get nodes` alle drie weer
+`Ready` meldt.
 
 ## Daarna
 
@@ -78,12 +101,12 @@ Met 4 cores per node kan de pleister van 2026-09-20 terug:
 
 - `dispatch/job-template.yaml` in de habitat-repo mag weer `cpu: 250m`
   vragen in plaats van 150m;
-- de CPU-verzoeken van keycloak (40m), wanderer (25m), de inlogproxy
-  (10m) en de tunnels (5m) mogen ruimer, al is er weinig reden toe —
-  ze gebruiken het niet;
+- de verlaagde verzoeken van keycloak (40m), wanderer (25m), de
+  inlogproxy (10m) en de tunnels (5m) mogen ruimer, al is er weinig
+  reden toe — ze gebruiken het niet;
 - `openanonymiser` hoeft niet teruggeschaald van drie replica's.
 
-Controleer tot slot dat het cluster weer lucht heeft:
+Controle tot slot:
 
 ```bash
 for n in node-01 node-02 node-03; do
