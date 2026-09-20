@@ -60,6 +60,16 @@ spec:
               # 2. Clients en rollen: die doet een partial import,
               #    want de realm-update raakt ze niet. OVERWRITE = het bestand wint.
               $K create partialImport -r westerweel -s ifResourceExists=OVERWRITE -o -f /tmp/realm.json
+              # 3. Tweefactor verplicht. De required action is een eigen
+              #    deelresource (/authentication/required-actions/<alias>) en komt
+              #    niet mee met de realm-update of de partial import; hij staat
+              #    wél in realm-westerweel.json zodat het bestand blijft zeggen
+              #    wat er hoort te gelden. defaultAction=true betekent: elke
+              #    NIEUWE gebruiker moet het instellen. Bestaande gebruikers
+              #    krijgen de actie eenmalig toegekend (zie docs); anders zou het
+              #    aanzetten stilletjes alleen voor toekomstige accounts gelden.
+              $K update authentication/required-actions/CONFIGURE_TOTP -r westerweel \
+                -s enabled=true -s defaultAction=true
               echo "realm westerweel bijgewerkt uit git"
           env:
             - name: KC_ADMIN_USER
