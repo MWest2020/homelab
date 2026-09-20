@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-21 — wanderer naar v0.5.0 (vloot, x/n, regeluitleg)
+
+### Wat & waarom
+- Image naar `wanderer-exapp@sha256:f87bc893…` (core-v0.5.0). Domeinen zijn nu bij
+  te houden als vloot per organisatie, het vlootscherm scoort `x/n` met de
+  onbeantwoorde vragen apart, en de regelpagina legt een regel uit — inclusief de
+  grenzen waarop hij beslist en één concrete handeling per falend oordeel.
+
 ## 2026-09-20 (6) — wanderer naar v0.4.0 (antwoord-eerst UI)
 
 ### Wat & waarom
