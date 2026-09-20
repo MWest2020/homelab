@@ -4,7 +4,8 @@
 # (niet de AppAPI-shim). Gepind op DIGEST — tags zijn verplaatsbaar.
 # core-v0.3.0 = Wanderer v0.3.0 (release 2026-09-20, accountability-dimensie).
 #
-# Toegang: de UI staat achter htpasswd (`--ui-htpasswd`, bcrypt); het
+# Toegang: inloggen gaat via Keycloak (OIDC, realm `westerweel` op
+# iam.westerweel.work) — zie config.yaml. De htpasswd is daarmee weg; het
 # scanformulier staat UIT (`--ui-allow-scan` niet gezet). De REST-API heeft
 # géén authenticatie (internal/api/api.go: "trusted-network") — daarom laat de
 # publieke tunnel ALLEEN het pad /ui door (ingress-regel bij Cloudflare, zie
@@ -79,7 +80,7 @@ spec:
             - --addr=:8080
             - --db=/var/lib/wanderer/wanderer.db
             - --ui
-            - --ui-htpasswd=/etc/wanderer/htpasswd
+            - --config=/etc/wanderer/config/serve.yaml
             - --geoip=/geoip/dbip-asn.mmdb
             - --geoip-country=/geoip/dbip-country.mmdb
             - --schedules=/etc/wanderer/schedules/schedules.yaml
@@ -94,7 +95,8 @@ spec:
           volumeMounts:
             - { name: data,     mountPath: /var/lib/wanderer }
             - { name: geoip,    mountPath: /geoip, readOnly: true }
-            - { name: htpasswd,  mountPath: /etc/wanderer, readOnly: true }
+            - { name: config,    mountPath: /etc/wanderer/config, readOnly: true }
+            - { name: oidc,      mountPath: /etc/wanderer/oidc, readOnly: true }
             - { name: schedules, mountPath: /etc/wanderer/schedules, readOnly: true }
             - { name: tmp,      mountPath: /tmp }
           startupProbe:
@@ -121,12 +123,14 @@ spec:
         - name: schedules
           configMap:
             name: wanderer-schedules
-        - name: htpasswd
-          # Out-of-band Secret `wanderer-htpasswd` (key `htpasswd`, bcrypt) —
-          # nooit in git.
+        - name: config
+          configMap:
+            name: wanderer-config
+        - name: oidc
+          # Out-of-band Secret `wanderer-oidc` (key client_secret) — nooit in git.
           secret:
-            secretName: wanderer-htpasswd
-            items: [{ key: htpasswd, path: htpasswd }]
+            secretName: wanderer-oidc
+            items: [{ key: client_secret, path: client_secret }]
 ---
 apiVersion: v1
 kind: Service

@@ -4,6 +4,7 @@ namespace: wanderer
 resources:
   - pvc.yaml
   - schedules.yaml
+  - config.yaml
   - deployment.yaml
   - tailscale.yaml
   - tunnel.yaml

@@ -13,7 +13,11 @@
   tailnet-only (`keycloak.<tailnet>.ts.net:8080`) — een beheerconsole aan het open
   internet is precies de afhankelijkheid die Wanderer bij anderen aanwijst.
 - Out-of-band secrets (nooit in git): `keycloak-db` (in cnpg-database én keycloak),
-  `keycloak-admin`, `keycloak-tunnel`.
+  `keycloak-admin`, `keycloak-tunnel`, `wanderer-oidc`.
+- Realm `westerweel` met gebruiker `mark` en client `wanderer`
+  (redirect `https://wanderer.westerweel.work/ui/oauth/callback`).
+- Wanderer logt nu in via Keycloak (`config.yaml` → `oidc`-blok); de htpasswd is weg.
+- Scanschema erbij (`schedules.yaml`): vier publieke doelen, elk wekelijks, passief.
 
 ## 2026-09-20 — wanderer naar v0.3.0 (accountability-dimensie)
 

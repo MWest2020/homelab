@@ -1,0 +1,22 @@
+# serve.yaml voor Wanderer. Bevat het OIDC-blok; het clientgeheim staat
+# NIET hier maar in het out-of-band Secret `wanderer-oidc` (key
+# client_secret), dat als bestand wordt gemount — zo blijft het buiten
+# git, net als bij netnl en wordsworth.
+#
+# Provider = Keycloak op iam.westerweel.work, realm `westerweel`. De
+# tunnel van Keycloak laat alleen /realms/, /resources/ en /js/ door;
+# dat is precies wat een inlogstroom nodig heeft.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wanderer-config
+data:
+  serve.yaml: |
+    ui:
+      enabled: true
+    oidc:
+      provider_url: https://iam.westerweel.work/realms/westerweel
+      client_id: wanderer
+      client_secret_file: /etc/wanderer/oidc/client_secret
+      redirect_url: https://wanderer.westerweel.work/ui/oauth/callback
+      session_ttl: 12h
