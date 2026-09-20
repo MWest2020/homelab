@@ -48,6 +48,10 @@ spec:
             # Wie mag naar binnen: iedereen die het realm toelaat. Het realm
             # laat geen zelfregistratie toe, dus dat is de afgeschermde lijst.
             - --email-domain=*
+            # Geen tussenpagina met een knop: meteen door naar Keycloak. Die
+            # tussenstap levert alleen een extra klik op, en voor een curl of
+            # een monitor een 403 die op een fout lijkt.
+            - --skip-provider-button=true
             - --cookie-secure=true
             - --cookie-samesite=lax
             - --cookie-expire=10h
