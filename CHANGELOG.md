@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-20 — wanderer naar v0.3.0 (accountability-dimensie)
+
+### Wat & waarom
+- `cluster-config/infra/wanderer/deployment.yaml`: image naar
+  `wanderer-exapp@sha256:ffed0109…` (core-v0.3.0). Daarmee draait de publieke
+  instantie de accountability-dimensie: zeven regels, Nederlandse antwoordlijst,
+  reden-codes die "n.v.t." onderscheiden van "onbekend".
+
 ## 2026-09-19 — feat: Wanderer publiek op wanderer.westerweel.work
 
 ### Wat & waarom
