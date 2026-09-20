@@ -56,3 +56,7 @@ cloudflare.ini
 *.tfstate.lock.info
 .terraform.lock.hcl
 terraform.tfvars
+# Terraform-planbestanden zijn wegwerpartefacten (en kunnen waarden bevatten
+# die je niet in git wilt). Draai een plan opnieuw in plaats van hem te bewaren.
+tfplan
+*.tfplan
