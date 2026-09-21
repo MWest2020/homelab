@@ -7,4 +7,4 @@ last_reviewed: 2026-07-12
 
 Dit document is verplaatst naar [`how-to/03-installation.md`](how-to/03-installation.md).
 
-Deze stub blijft staan voor bestaande externe links (README, CLAUDE.md, en verwijzingen elders in de repo) en wordt niet meer bijgewerkt.
+Deze stub blijft staan voor bestaande externe links (README, AGENTS.md, en verwijzingen elders in de repo) en wordt niet meer bijgewerkt.
