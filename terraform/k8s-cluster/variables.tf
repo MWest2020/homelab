@@ -33,9 +33,9 @@ variable "ssh_public_key" {
 variable "vms" {
   description = "Map of Kubernetes VMs to create on Proxmox (hardware komt uit de gekozen template)"
   type = map(object({
-    vm_id          = number
-    node_name      = string
-    ip             = string
+    vm_id     = number
+    node_name = string
+    ip        = string
     # LET OP (waargenomen 2026-09-20): de draaiende VM's hadden 1 vCPU, niet 4,
     # terwijl álle templates op 4 staan. Oorzaak zat niet in de template maar in
     # het `cpu`-blok in main.tf: de provider vult daar de default cores=1 in.

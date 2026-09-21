@@ -1,3 +1,8 @@
+---
+status: current
+last_reviewed: 2026-09-20
+---
+
 # Nodes van 1 naar 4 vCPU brengen
 
 De zes cluster-VM's draaiden op **één vCPU**, terwijl de bedoeling vier
