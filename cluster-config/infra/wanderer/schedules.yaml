@@ -29,6 +29,13 @@ data:
         cron: "17 5 * * 1"
         target:
           domain: digid.nl
+      # Het demodomein: wekelijks, zodat /demo altijd een recente meting
+      # toont. Zonder schema zou de demopagina blijven hangen op de laatste
+      # handmatige scan.
+      - name: westerweel
+        cron: "17 2 * * 1"
+        target:
+          domain: westerweel.work
       - name: mijnoverheid
         cron: "17 6 * * 1"
         target:

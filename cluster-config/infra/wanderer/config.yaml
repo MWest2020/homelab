@@ -14,6 +14,12 @@ data:
   serve.yaml: |
     ui:
       enabled: true
+    # Publieke demopagina op /demo: één vooraf ingesteld domein, zonder
+    # inlog en zonder scanknop. westerweel.work is Marks eigen domein, dus
+    # geen vraagstuk over toestemming. Leeg = geen demo (route bestaat dan
+    # niet). Zie de change 2026-09-21-demo-pagina in de Wanderer-repo.
+    demo:
+      target: westerweel.work
     oidc:
       provider_url: https://iam.westerweel.work/realms/westerweel
       client_id: wanderer
