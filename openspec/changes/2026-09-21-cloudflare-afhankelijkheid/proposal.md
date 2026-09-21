@@ -67,7 +67,31 @@ niet voor alles hetzelfde te zijn:
 **4. Kiezen en opschrijven.** Per naam vastleggen welke route hij loopt
 en waarom, zodat de volgende die hier kijkt niet hoeft te raden.
 
-## Voorstel
+## Besluit (Mark, 2026-09-21)
+
+**We blijven voorlopig bij Cloudflare.** *"zolang we geen users hebben,
+blijven we even bij cloudflare … op termijn zelf ook soeverein."*
+
+Dat is een besluit, geen uitstel: zonder gebruikers loopt niemand het
+risico dat hierboven staat, en de kosten van eigen terminatie (een VPS,
+WireGuard, TLS-beheer) wegen dan niet op tegen wat het beschermt.
+
+**Wanneer dit terugkomt** — zodat het geen gewoonte wordt die niemand
+meer bekijkt:
+
+- zodra er andere mensen dan Mark inloggen op `iam.westerweel.work`,
+  want dan reist er vreemde identiteit over die edge;
+- zodra er een dienst op staat die persoonsgegevens draagt (wordsworth
+  met echte dossiers in plaats van gepubliceerde Woo-stukken);
+- zodra Wanderer aan derden wordt aangeboden — dan is de eigen
+  voetafdruk onderdeel van het aanbod.
+
+Wat we nu wél doen: **meten**. Onze eigen namen komen op hetzelfde
+scanschema als de doelen die we voor anderen bekijken, zodat de
+afhankelijkheid zichtbaar blijft in plaats van te verdwijnen omdat we
+hem kennen.
+
+## Voorstel (voor later, als de trigger afgaat)
 
 Doen: **1 en 2** (meten, en de zone verhuizen). Voor **3** de
 identiteitslaag als eerste kandidaat voor eigen terminatie — daar loopt

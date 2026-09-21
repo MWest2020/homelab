@@ -36,6 +36,23 @@ data:
         cron: "17 2 * * 1"
         target:
           domain: westerweel.work
+      # Onze eigen namen staan op hetzelfde schema als de doelen die we
+      # voor anderen bekijken (change cloudflare-afhankelijkheid, besluit
+      # 2026-09-21: we blijven voorlopig bij Cloudflare, maar we meten het
+      # wel). Anders verdwijnt een afhankelijkheid uit beeld omdat je hem
+      # kent.
+      - name: iam
+        cron: "17 7 * * 1"
+        target:
+          domain: iam.westerweel.work
+      - name: wordsworth
+        cron: "17 8 * * 1"
+        target:
+          domain: wordsworth.westerweel.work
+      - name: netnl-api
+        cron: "17 9 * * 1"
+        target:
+          domain: api.westerweel.work
       - name: mijnoverheid
         cron: "17 6 * * 1"
         target:
