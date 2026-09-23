@@ -8,12 +8,25 @@ jobs:
   gates:
     uses: MWest2020/handbook/.github/workflows/docs-gates.yml@864d1d9e89e36d77be398968f473f588e461bf60  # main
     with:
-      code_paths: "ansible/,apps/,cluster-config/,docker/,kubernetes/,terraform/,claude-lxc-iac/,scripts/"
-      # scripts/ stond hier niet in, terwijl daar het afsluitscript woont dat
-      # bij een stroomstoring de hele homelab omlaag brengt. Juist dat hoort
-      # niet te kunnen wijzigen zonder dat de runbook meebeweegt.
-      # De runbooks van deze repo staan in docusaurus/docs/. De root-docs/ is de
-      # oude boom en staat sinds augustus stil; daarnaar tellen maakte de gate
-      # onhaalbaar met echte documentatie.
+      code_paths: "ansible/,apps/,docker/,kubernetes/,terraform/,claude-lxc-iac/,scripts/"
+      # scripts/ was missing here, while it holds the shutdown script that takes
+      # the whole homelab down on a power failure. That in particular should not
+      # be changeable without the runbook moving with it.
+      #
+      # cluster-config/ was removed on 2026-09-23. Almost every change there is
+      # an image pin bump -- one digest, in two manifests, with nothing to
+      # document. Three of those on 2026-09-22 alone, each needing the
+      # docs-drift-ok label. The gate is deliberately path-based with no content
+      # analysis, so it cannot tell a digest from a behaviour change; keeping the
+      # directory meant a label on nearly every deploy, and a label that routine
+      # stops being a signal.
+      # What this costs, said out loud: a genuinely NEW manifest or a changed
+      # configmap in cluster-config/ no longer requires a docs change. That is
+      # the trade, and the alternative was worse -- see the docs-gates how-to:
+      # a gate you cannot pass honestly teaches people to route around it.
+      #
+      # This repo's runbooks live in docusaurus/docs/. The root docs/ is the old
+      # tree and has stood still since August; counting it made the gate
+      # unreachable by writing real documentation.
       docs_paths: "docusaurus/docs/,docs/"
       drift_mode: "fail"
