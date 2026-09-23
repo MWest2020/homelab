@@ -255,3 +255,26 @@ was een security-review waarin `POST /grants` geen eigen autorisatie had.
 Deze kennisbank (Docusaurus, statische build) wordt **buiten** het cluster gehost, zodat
 ze leesbaar blijft als het cluster zelf onbereikbaar is — juist tijdens een incident
 wanneer je de runbooks nodig hebt.
+
+## `cluster-config/` valt buiten de drift-gate (2026-09-23)
+
+De docs-gate laat een PR falen die code-paden raakt zonder dat er iets onder
+`docusaurus/docs/` meebeweegt. `cluster-config/` stond daarbij, en dat werkte
+averechts: verreweg de meeste wijzigingen daar zijn **image-pins** — één digest,
+in twee manifesten, met niets te documenteren. Op 2026-09-22 alleen al drie
+stuks, elk met het label `docs-drift-ok` erop.
+
+De gate is met opzet puur padgebaseerd, zonder inhoudsanalyse. Hij kán een
+digest dus niet van een gedragswijziging onderscheiden. Het label op vrijwel elke
+uitrol zetten maakt van een uitzondering een gewoonte, en een label dat routine
+is, is geen signaal meer.
+
+**Wat dit kost, hardop:** een écht nieuw manifest of een gewijzigde configmap in
+`cluster-config/` vraagt nu geen docs-wijziging meer. Dat is de ruil. Het
+alternatief was slechter — zie de docs-gates-how-to in de handbook: een gate die
+je niet eerlijk kunt halen, leert mensen hem te omzeilen, en daarna doet hij ook
+niets meer waar hij wél klopt.
+
+`ansible/`, `terraform/`, `apps/`, `kubernetes/`, `docker/`, `claude-lxc-iac/`
+en `scripts/` blijven staan. Daar is een wijziging bijna altijd gedrag, en bij
+`scripts/` hangt er een afsluitscript in dat de hele homelab omlaag brengt.
