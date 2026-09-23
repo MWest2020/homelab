@@ -17,13 +17,24 @@ metadata:
   name: wordsworth-auth
   labels: { app: wordsworth, component: auth }
 spec:
-  replicas: 1
+  # Two replicas on two nodes (wordsworth change hoge-beschikbaarheid, step 2).
+  # Safe because sessions are the default cookie store, signed with the one
+  # OAUTH2_PROXY_COOKIE_SECRET: either replica serves any user.
+  replicas: 2
   selector:
     matchLabels: { app: wordsworth, component: auth }
   template:
     metadata:
       labels: { app: wordsworth, component: auth }
     spec:
+      # Required, not preferred: two replicas on one node is one node's worth
+      # of redundancy with twice the pods.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels: { app: wordsworth, component: auth }
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -90,3 +101,14 @@ spec:
   selector: { app: wordsworth, component: auth }
   ports:
     - { port: 4180, targetPort: 4180 }
+---
+# A drain never takes the last one.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wordsworth-auth
+  labels: { app: wordsworth, component: auth }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: wordsworth, component: auth }

@@ -5,13 +5,24 @@ metadata:
   name: wordsworth-api
   labels: { app: wordsworth, component: api }
 spec:
-  replicas: 1
+  # Two replicas on two nodes (wordsworth change hoge-beschikbaarheid, step 2).
+  # Safe because the api mounts no node-bound volume and its rate limits live
+  # in Postgres, shared by both.
+  replicas: 2
   selector:
     matchLabels: { app: wordsworth, component: api }
   template:
     metadata:
       labels: { app: wordsworth, component: api }
     spec:
+      # Required, not preferred: two replicas on one node is one node's worth
+      # of redundancy with twice the pods.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels: { app: wordsworth, component: api }
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -27,7 +38,7 @@ spec:
           # en scripts/pin_check.py in MWest2020/wordsworth.
           # sha-cf03830. api en init-job blijven op dezelfde digest, anders
           # ontbreken de kolom-migraties.
-          image: ghcr.io/mwest2020/wordsworth@sha256:835aeb4e3cd60527431adc377a9d8f648b6b3d6831a81d5c19b095226885827d
+          image: ghcr.io/mwest2020/wordsworth@sha256:cbfa7a3d9abfbde470af17f7a4a7083237df65516ef4ae277821fbb39aca855d
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -89,3 +100,14 @@ spec:
   ports:
     - { port: 8000, targetPort: 8000 }
   type: ClusterIP
+---
+# A drain never takes the last one.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wordsworth-api
+  labels: { app: wordsworth, component: api }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: wordsworth, component: api }
