@@ -65,9 +65,14 @@ kind: CronJob
 metadata:
   name: wanderer-standards
 spec:
-  # Maandag, na de geplande Wanderer-scans (03:17-05:17 UTC). standards.max_age
-  # is 30 dagen; wekelijks laat dus drie keer ruimte voor een gemiste run.
-  schedule: "47 6 * * 1"
+  # Zondag, dus vóór de geplande Wanderer-scans van maandag (02:17-09:17 UTC).
+  # De volgorde doet ertoe: het vlootscherm toont per domein de nieuwste scan,
+  # en een import is een eigen scan zonder beoordeling. Landt de import ná de
+  # perimeterscan, dan staat het domein tot de week erna op 0/0 (zo gezien op
+  # 2026-09-23 met de eerste run). Ervóór pakt de maandagscan de import mee via
+  # FindingsForAssessment. standards.max_age is 30 dagen; wekelijks laat dus
+  # drie keer ruimte voor een gemiste run.
+  schedule: "47 6 * * 0"
   timeZone: Etc/UTC
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
