@@ -73,6 +73,11 @@ spec:
   # FindingsForAssessment. standards.max_age is 30 dagen; wekelijks laat dus
   # drie keer ruimte voor een gemiste run.
   schedule: "47 6 * * 0"
+  # Uit tot Wanderer importscans overslaat bij "nieuwste scan" én bij drift
+  # (PreviousScanForTarget kijkt niet naar modus: een maandagscan na een
+  # zondagimport zou elke bevinding als nieuw melden). De import van
+  # 2026-09-23 blijft 30 dagen geldig. Aan met de release die dat repareert.
+  suspend: true
   timeZone: Etc/UTC
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
