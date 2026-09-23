@@ -75,7 +75,7 @@ spec:
             limits:   { cpu: "500m", memory: "128Mi" }
       containers:
         - name: wanderer
-          image: ghcr.io/mwest2020/wanderer-exapp@sha256:c927d7110ddb9f0cb4b90d1984cb69d49f427cfbb566be295fa83f0f4a382237
+          image: ghcr.io/mwest2020/wanderer-exapp@sha256:d28b14970bc314ecd941508401d9306a41551026b43ddabc5b56b78505ce317e
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/wanderer"]
           args:
@@ -91,6 +91,11 @@ spec:
             - containerPort: 8080
           env:
             - { name: HOME, value: /tmp }
+            # Token voor POST /imports/internetnl (CronJob wanderer-standards).
+            # Secret staat buiten git; ontbreekt het, dan weigert de route alles.
+            - name: WANDERER_IMPORT_TOKEN
+              valueFrom:
+                secretKeyRef: { name: wanderer-import, key: token }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

@@ -1,0 +1,138 @@
+# Wanderer's standards-dimensie gevoed (change 2026-09-23-standards-feed in
+# MWest2020/Wanderer). Wekelijks: een internet.nl-batch op de facade, web en
+# mail, als netnl-findings/v1 geëxporteerd en naar Wanderer gepost.
+#
+# Waarom een POST en geen `wanderer import` in deze Job: de Deployment zegt het
+# zelf, "RWO-volume + SQLite: nooit twee schrijvers". De server is de enige
+# schrijver; deze Job levert alleen een bestand af.
+#
+# Welke hosts: alleen die van de operator zelf. Dat is netnl's eigen regel voor
+# de facade (zie netnl-measure: "meet alleen hosts die je zelf beheert").
+# rijksoverheid.nl, ncsc.nl, digid.nl en mijnoverheid.nl staan wel in de vloot,
+# maar niet hier; hun standards-regels blijven eerlijk "niet gemeten".
+# Mail alleen voor westerweel.work: de andere drie hebben geen MX.
+#
+# Secrets (out-of-band, nooit in git):
+#   wanderer-standards-netnl  INTERNETNL_CREDENTIAL — eigen tenant `wanderer`
+#                             op de facade, zodat het audit-spoor daar zegt
+#                             wie mat (netnl-admin user add wanderer)
+#   wanderer-import           token — hetzelfde dat de Deployment als
+#                             WANDERER_IMPORT_TOKEN krijgt
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wanderer-standards-scripts
+data:
+  measure.sh: |
+    #!/bin/sh
+    # Zet /work/web.json en /work/mail.json neer, of faalt hardop.
+    set -eu
+    meet() {
+      soort=$1; shift
+      # De CLI schrijft het request-id naar STDERR, en niet altijd met
+      # dezelfde hoofdletter ("request-id:" en "Request-id:" allebei gezien,
+      # 2026-09-22/23). Vandaar 2>&1 >/dev/null en [Rr]. Een eerste versie las
+      # stdout en had elke week "geen request-id" opgeleverd.
+      id=$(internetnl submit "$@" --type "$soort" --no-poll \
+             --name "wanderer-standards $soort $(date -u +%F)" \
+           2>&1 >/dev/null | sed -n 's/^[Rr]equest-id: //p')
+      [ -n "$id" ] || { echo "geen request-id voor $soort" >&2; exit 1; }
+      internetnl poll "$id" >/dev/null
+      # `results --format findings` eindigt niet-nul en schrijft niets als de
+      # batch niet af is: een half bestand bestaat hier dus nooit.
+      internetnl results "$id" --format findings --findings-out "/work/$soort.json"
+      echo "$soort: $id, $(wc -c < "/work/$soort.json") bytes"
+    }
+    meet web westerweel.work iam.westerweel.work wordsworth.westerweel.work api.westerweel.work
+    meet mail westerweel.work
+  import.sh: |
+    #!/bin/sh
+    # Post beide bestanden. --fail-with-body: een 401 of 400 laat de Job falen
+    # én toont waarom, in plaats van stil "Completed".
+    set -eu
+    for soort in web mail; do
+      echo "$soort:"
+      curl -sS --fail-with-body \
+        -H "Authorization: Bearer $WANDERER_IMPORT_TOKEN" \
+        -H "Content-Type: application/json" \
+        --data-binary "@/work/$soort.json" \
+        http://wanderer.wanderer.svc.cluster.local:8080/imports/internetnl
+      echo
+    done
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wanderer-standards
+spec:
+  # Maandag, na de geplande Wanderer-scans (03:17-05:17 UTC). standards.max_age
+  # is 30 dagen; wekelijks laat dus drie keer ruimte voor een gemiste run.
+  schedule: "47 6 * * 1"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      # Een mail-batch duurde 2026-09-22 zo'n zes minuten; 45 min is ruim.
+      activeDeadlineSeconds: 2700
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          initContainers:
+            - name: measure
+              # Ná findings-export (internetnl-cli 20d279e). De netnl-measure-Job
+              # pint een ouder image zonder `--format findings`.
+              image: ghcr.io/mwest2020/internetnl-cli:sha-20d279e@sha256:b2b4610961f27b568986e31abbe9c6e4fa9d8fd264df247b1fcdbcd3c70ad00b
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "/scripts/measure.sh"]
+              env:
+                - { name: HOME, value: /tmp }
+                # Het publieke endpoint, zoals elke tenant: dezelfde weg door
+                # tunnel en facade.
+                - { name: INTERNETNL_ENDPOINT, value: "https://api.westerweel.work" }
+              envFrom:
+                - secretRef: { name: wanderer-standards-netnl }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: work,    mountPath: /work }
+                - { name: tmp,     mountPath: /tmp }
+                - { name: scripts, mountPath: /scripts, readOnly: true }
+              resources:
+                requests: { cpu: "50m", memory: "128Mi" }
+                limits:   { cpu: "500m", memory: "256Mi" }
+          containers:
+            - name: import
+              image: curlimages/curl:8.16.0
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "/scripts/import.sh"]
+              env:
+                - name: WANDERER_IMPORT_TOKEN
+                  valueFrom:
+                    secretKeyRef: { name: wanderer-import, key: token }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: work,    mountPath: /work, readOnly: true }
+                - { name: scripts, mountPath: /scripts, readOnly: true }
+              resources:
+                requests: { cpu: "10m", memory: "32Mi" }
+                limits:   { cpu: "250m", memory: "64Mi" }
+          volumes:
+            - { name: work, emptyDir: {} }
+            - { name: tmp,  emptyDir: {} }
+            - name: scripts
+              configMap: { name: wanderer-standards-scripts, defaultMode: 0555 }

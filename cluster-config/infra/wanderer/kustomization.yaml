@@ -8,3 +8,4 @@ resources:
   - deployment.yaml
   - tailscale.yaml
   - tunnel.yaml
+  - standards-feed.yaml
