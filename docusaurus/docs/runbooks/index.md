@@ -93,18 +93,24 @@ helm upgrade cilium cilium/cilium -n kube-system \
 
 Kerninstellingen: `kubeProxyReplacement=true`, Hubble aan, Gateway API aan.
 
-## GitOps: apps beheren (Argo CD app-of-apps)
+## GitOps: apps beheren (Argo CD)
 
-Eén root-Application beheert alle child-apps onder `apps/infrastructure/`. De root wordt
-éénmalig gebootstrapt; daarna gaat **alles via Git** — geen `kubectl apply` naar productie.
+**Er draait géén root-Application.** `apps/root-app.yaml` is nooit gebootstrapt
+(nagemeten 2026-09-24: `kubectl -n argocd get applications` toont alleen de losse
+apps). Elke Application onder `apps/infrastructure/` is los ge-applied; een nieuw
+bestand daar deployt dus **niet** vanzelf. Daarna gaat wel alles via Git: elke
+Application synct automatisch (selfHeal) uit `cluster-config/infra/<app>`.
 
 ```bash
-# Eenmalige bootstrap (daarna beheert Argo CD zichzelf)
-kubectl apply -f apps/root-app.yaml
-
-# Nieuwe app toevoegen = YAML in apps/infrastructure/ committen; de root pikt 'm op
+# Nieuwe app: manifest in apps/infrastructure/ committen, en de Application zelf eenmalig applyen
+kubectl apply -f https://raw.githubusercontent.com/MWest2020/homelab/main/apps/infrastructure/<app>.yaml
 kubectl get applications -n argocd          # sync-status van alle apps
 ```
+
+**De root-app niet alsnog aanzetten** zonder eerst op te ruimen: `apps/infrastructure/`
+bevat ook Applications die bewust níét op het cluster draaien (argocd, argo-workflows,
+argo-events, argo-rollouts, nextcloud-platform, …). Met automated sync zou de root die
+allemaal uitrollen.
 
 Sync-waves bepalen de volgorde (operator-CRDs vóór de CRs die ze nodig hebben). Operators
 met te grote CRDs (CNPG, Tailscale) syncen met `ServerSideApply=true` — client-side apply
