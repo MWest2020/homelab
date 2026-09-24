@@ -75,6 +75,14 @@ kubectl -n openbao exec openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 \
 
 ## Notes
 
-- The scoped token has a 768h TTL/period — renew or reissue before expiry.
+- The scoped token has a 768h period. `wordsworth-openbao-renew` (CronJob in
+  the wordsworth namespace) renews it weekly with `renew-self` and fails
+  visibly if it can't. It expired once, on 2026-09-23 18:58 UTC, exactly 768h
+  after it was created: every OpenBao call from wordsworth then got a 403.
+- Reissuing is done by Claude from the agent node (Mark, 2026-09-24): read
+  `root_token` from the `openbao-keys` Secret, `bao token create
+  -policy=wordsworth-transit -period=768h`, and write the result straight into
+  the `wordsworth-openbao` Secret in one pipeline, so neither token is printed.
+  Then replace the API pods one by one.
 - Nothing here writes unseal/root material to git; it lives only in the
   out-of-band `openbao-keys`/`wordsworth-openbao` Secrets (etcd), not in the repo.
