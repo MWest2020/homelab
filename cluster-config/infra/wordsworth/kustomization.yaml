@@ -8,5 +8,4 @@ resources:
   - oauth2-proxy.yaml
   - api-tailscale.yaml
   - api-tailscale-https.yaml
-  - corpus-pvc.yaml
   - tunnel.yaml

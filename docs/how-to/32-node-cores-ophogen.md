@@ -55,7 +55,7 @@ node en verhuist niet mee:
 | --- | --- |
 | node-01 | `homelab-pg-3`, `netnl-data`, `openbao`, `seaweedfs-data`, `wanderer-data` |
 | node-02 | `homelab-pg-1`, `opensearch-data` |
-| node-03 | `homelab-pg-2`, `ollama-models`, `wordsworth-corpus` |
+| node-03 | `homelab-pg-2`, `ollama-models` |
 
 Postgres draait met drie instances gespreid, dus één node eruit geeft
 daar een failover en geen stilstand.
