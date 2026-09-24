@@ -1,12 +1,16 @@
 ---
-# Provisioning voor de buzz-relay VM (boomhuis-communicatielaag, vm 109, .60).
+# Provisioning voor de relay-VM van Ratatoskr (vm 109, .60): het besturings-
+# systeem, Docker en de map /opt/buzz-relay. Meer niet.
 #
-# Stack (docker/buzz-relay/docker-compose.yml, vendored van block/buzz):
-#   - relay (ghcr.io/block/buzz, gepind in .env)
-#   - postgres 17 + redis 7 + seaweedfs (+ seaweedfs-init, run-once)
+# De stack zelf komt sinds 2026-09-11 uit MWest2020/ratatoskr, `deploy/`
+# (compose + .env.example), en wordt uitgerold zoals docs/how-to/installeren.md
+# daar beschrijft. Tot 2026-09-24 kopieerde dit playbook ook een eigen,
+# vendored docker-compose.yml en deed het `up -d --force-recreate`: wie het nu
+# nog had gedraaid, had de live installatie teruggezet naar een oude stack.
+# Die stappen zijn eruit (ratatoskr-change opruimen-na-migratie).
 #
 # Geen Caddy/certbot: de relay is alleen via LAN + tailnet bereikbaar (ws://),
-# transport-encryptie komt van Tailscale. Spec: MWest2020/boomhuis (add-relay).
+# transport-encryptie komt van Tailscale.
 #
 # Run:
 #   ansible-playbook -i inventory/buzz-relay-hosts.yml playbooks/deploy-buzz-relay.yml -vv
@@ -79,63 +83,9 @@
         group: ubuntu
         mode: "0755"
 
-    - name: Copy docker-compose.yml
-      copy:
-        src: ../../docker/buzz-relay/docker-compose.yml
-        dest: /opt/buzz-relay/docker-compose.yml
-        owner: ubuntu
-        group: ubuntu
-        mode: "0644"
-      register: compose_file
-
-    - name: Check whether .env already exists on VM
-      stat:
-        path: /opt/buzz-relay/.env
-      register: env_stat
-
-    - name: Seed .env from example if missing
-      copy:
-        src: ../../docker/buzz-relay/env.example
-        dest: /opt/buzz-relay/.env
-        owner: ubuntu
-        group: ubuntu
-        mode: "0600"
-      when: not env_stat.stat.exists
-
-    - name: Show .env-init warning if just seeded
-      debug:
-        msg: |
-          /opt/buzz-relay/.env is just seeded from env.example.
-          Vervang elke CHANGE_ME (openssl rand -hex 32) en zet RELAY_OWNER_PUBKEY
-          (Marks pubkey uit boomhuis identities.yml) VOOR 'docker compose up -d'.
-          Draai daarna dit playbook opnieuw.
-      when: not env_stat.stat.exists
-
-    - name: Refuse to start while .env still contains CHANGE_ME
-      shell: "! grep -q CHANGE_ME /opt/buzz-relay/.env"
-      changed_when: false
-      register: env_ready
-      failed_when: false
-      when: env_stat.stat.exists
-
-    - name: Pull container images
-      shell: docker compose pull
-      args:
-        chdir: /opt/buzz-relay
-      when: env_stat.stat.exists and env_ready.rc == 0
-
-    - name: Start docker stack
-      shell: >
-        docker compose up -d
-        {{ '--force-recreate' if compose_file.changed else '' }}
-      args:
-        chdir: /opt/buzz-relay
-      when: env_stat.stat.exists and env_ready.rc == 0
-
     - name: Announce next-step
       debug:
         msg:
-          - "Buzz-relay stack deployed op buzz-relay (192.168.178.60)."
-          - "Health: curl http://192.168.178.60:3000/ — relay-poort 3000, tailnet-only."
+          - "Host klaar: Docker en /opt/buzz-relay staan."
+          - "De stack: MWest2020/ratatoskr deploy/ + docs/how-to/installeren.md."
           - "Route .60/32 adverteren: playbooks/configure-tailscale-routes.yml + console-approval."
-      when: env_stat.stat.exists and env_ready.rc == 0

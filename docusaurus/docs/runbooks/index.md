@@ -301,11 +301,10 @@ template 9002 `ubuntu-24.04-large`) en geconfigureerd met Ansible:
 ansible-playbook -i inventory/buzz-relay-hosts.yml playbooks/deploy-buzz-relay.yml
 ```
 
-- De echte `.env` leeft **alleen op de host** (0600); het playbook weigert te starten
-  zolang er `CHANGE_ME`-placeholders in staan. Template: `docker/buzz-relay/env.example`.
-- `docker-compose.yml` is vendored van upstream block/buzz — bij een upstream-upgrade:
-  nieuwe kopie nemen en de gemarkeerde SeaweedFS-afwijking opnieuw aanbrengen (zie
-  [Beslissingen](../beslissingen/)).
+- Het playbook richt alleen de host in (Docker, `/opt/buzz-relay`). De stack zelf
+  komt uit [MWest2020/ratatoskr `deploy/`](https://github.com/MWest2020/ratatoskr/tree/main/deploy)
+  en wordt uitgerold volgens `docs/how-to/installeren.md` daar. De echte `.env`
+  leeft **alleen op de host** (0600).
 - Geen Caddy/certbot in deze stack: de relay is LAN/tailnet-only.
 
 ## Applicaties deployen (Proxmox-VM's)
