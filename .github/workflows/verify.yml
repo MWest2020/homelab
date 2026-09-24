@@ -3,6 +3,10 @@ name: verify
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # Most work lands directly on main (handbook operating agreements), so a
+  # PR-only trigger checked almost nothing.
+  push:
+    branches: [main]
 jobs:
   verify:
     runs-on: ubuntu-latest
