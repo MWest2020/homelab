@@ -5,6 +5,7 @@ resources:
   - configmap.yaml
   - init-job.yaml
   - api.yaml
+  - openbao-renew.yaml
   - oauth2-proxy.yaml
   - api-tailscale.yaml
   - api-tailscale-https.yaml

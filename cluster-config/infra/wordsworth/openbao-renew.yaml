@@ -1,0 +1,63 @@
+# Het transit-token van wordsworth is een periodiek token (-period=768h, zie
+# infra/openbao/README.md): zonder verlenging vervalt het na 32 dagen. Dat
+# gebeurde op 2026-09-23 18:58 UTC, precies 768 uur na het aanmaken, en
+# daarna faalde alles wat OpenBao nodig heeft (inname, herverwerken, onthullen)
+# met een kale 403.
+#
+# Deze Job verlengt het token wekelijks met renew-self. Daar is geen root-token
+# voor nodig: OpenBao's default-policy staat renew-self en lookup-self toe.
+# Faalt de verlenging, dan faalt de Job zichtbaar -- ook dat is het punt: een
+# token dat ongemerkt vervalt, is hoe het de eerste keer misging.
+#
+# De respons van renew-self bevat het token zelf; die gaat naar /dev/null. Het
+# log toont alleen de statuscode en de resterende ttl.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wordsworth-openbao-renew
+spec:
+  schedule: "23 4 * * 1"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels: { app: wordsworth, job: openbao-renew }
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: renew
+              image: curlimages/curl:8.16.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  B=http://openbao.openbao.svc.cluster.local:8200/v1/auth/token
+                  code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+                    -H "X-Vault-Token: $WORDSWORTH_OPENBAO_TOKEN" "$B/renew-self")
+                  echo "renew-self: $code"
+                  [ "$code" = 200 ] || { echo "verlengen mislukt: token verlopen of ingetrokken, zie infra/openbao/README.md" >&2; exit 1; }
+                  curl -sS -H "X-Vault-Token: $WORDSWORTH_OPENBAO_TOKEN" "$B/lookup-self" \
+                    | grep -o '"ttl":[0-9]*' | head -1
+              env:
+                - name: WORDSWORTH_OPENBAO_TOKEN
+                  valueFrom:
+                    secretKeyRef: { name: wordsworth-openbao, key: WORDSWORTH_OPENBAO_TOKEN }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              resources:
+                requests: { cpu: "5m", memory: "16Mi" }
+                limits:   { cpu: "100m", memory: "32Mi" }
