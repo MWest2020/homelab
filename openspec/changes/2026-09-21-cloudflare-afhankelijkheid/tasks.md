@@ -1,11 +1,11 @@
 # Tasks: cloudflare-afhankelijkheid
 
 ## 1. Meten wat we zelf zijn
-- [ ] 1.1 `iam.westerweel.work`, `wordsworth.westerweel.work` en
+- [x] 1.1 `iam.westerweel.work`, `wordsworth.westerweel.work` en
   `api.westerweel.work` op het Wanderer-scanschema, naast
   `westerweel.work` dat er al op staat.
-- [ ] 1.2 Eén meting vastleggen als nulpunt: welke van onze eigen namen
-  scoren waarop, met datum.
+- [x] 1.2 Eén meting vastleggen als nulpunt: welke van onze eigen namen
+  scoren waarop, met datum. (`nulpunt.md`, 2026-09-24.)
 
 > **Geparkeerd per 2026-09-21 (besluit Mark): alles onder 2 en 3 wacht op
 > een trigger uit de proposal. Niet openstaand werk, wel bewaard werk.**
