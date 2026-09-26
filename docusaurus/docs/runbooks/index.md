@@ -154,9 +154,13 @@ kubectl -n wordsworth port-forward svc/wordsworth-api 8000:8000 &
 curl -s localhost:8000/health
 ```
 
-Extra Ollama-model nodig? Toevoegen aan de PostSync-pull-Job
-(`cluster-config/infra/ollama/pull-bge-m3.yaml`) en committen — de hook draait bij de
-volgende sync opnieuw. Let op: CPU-only, een pull + cold-start duurt minuten.
+Another Ollama model, or a new version of one? Add or change its pin in the init
+container of `cluster-config/infra/ollama/ollama-statefulset.yaml` (name plus the
+first 12 characters of its digest) and commit. Each of the two instances pulls its own
+models and refuses to start if a digest differs from its pin. Changing the pin of the
+embedding model means re-embedding the whole corpus: vectors from two model versions
+must never meet in one index. CPU-only: a pull plus cold start takes minutes per
+instance, and the instances roll one at a time.
 
 :::note Geheugen-tuning ingest
 `/ingest` buffert PDF-uploads in het API-proces. Worker-recycling staat bewust **uit**
