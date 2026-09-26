@@ -1,0 +1,119 @@
+# OpenSearch on three nodes (wordsworth change hoge-beschikbaarheid, task 3.1a).
+#
+# Stands BESIDE the single-node Deployment in opensearch.yaml under its own
+# names, until wordsworth is switched over and a week has passed (design.md,
+# Decision 3): the embeddings live only in the index, so the old one stays as
+# the rollback. Three, not two: with two, losing one leaves no majority to
+# elect a cluster manager and the survivor stops taking writes.
+#
+# Each node keeps its own local-path volume; OpenSearch replicates shards
+# between them, so nothing has to be shared (Decision 1). A node whose worker
+# is down waits Pending for it while the other two serve.
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-cluster-headless
+spec:
+  clusterIP: None
+  # Discovery has to find peers before any of them is ready.
+  publishNotReadyAddresses: true
+  selector: { app: opensearch-cluster }
+  ports:
+    - { name: http, port: 9200, targetPort: 9200 }
+    - { name: transport, port: 9300, targetPort: 9300 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-cluster
+spec:
+  type: ClusterIP
+  selector: { app: opensearch-cluster }
+  ports:
+    - { port: 9200, targetPort: 9200 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch-cluster
+  labels: { app: opensearch-cluster }
+spec:
+  serviceName: opensearch-cluster-headless
+  replicas: 3
+  # All three start together: none is ready until a quorum has formed, so an
+  # ordered start would wait forever for the first one.
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: { app: opensearch-cluster }
+  template:
+    metadata:
+      labels: { app: opensearch-cluster }
+    spec:
+      securityContext:
+        fsGroup: 1000
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels: { app: opensearch-cluster }
+      initContainers:
+        # OpenSearch requires vm.max_map_count >= 262144 or it refuses to start.
+        - name: sysctl
+          image: busybox:1.37
+          command: ["sh", "-c", "sysctl -w vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:2.19.1
+          env:
+            - name: node.name
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: cluster.name, value: wordsworth }
+            - { name: network.host, value: "0.0.0.0" }
+            - { name: discovery.seed_hosts, value: opensearch-cluster-headless }
+            # Only read on the very first start, to bootstrap the cluster.
+            - name: cluster.initial_cluster_manager_nodes
+              value: opensearch-cluster-0,opensearch-cluster-1,opensearch-cluster-2
+            - { name: DISABLE_SECURITY_PLUGIN, value: "true" }
+            - { name: DISABLE_INSTALL_DEMO_CONFIG, value: "true" }
+            - { name: OPENSEARCH_JAVA_OPTS, value: "-Xms512m -Xmx512m" }
+            - { name: bootstrap.memory_lock, value: "false" }
+            - { name: cluster.routing.allocation.disk.threshold_enabled, value: "false" }
+            # The migration copies the wordsworth index from the old node with
+            # reindex-from-remote; nothing else is allowed.
+            - { name: reindex.remote.allowlist, value: "opensearch.opensearch.svc.cluster.local:9200" }
+          ports:
+            - { containerPort: 9200, name: http }
+            - { containerPort: 9300, name: transport }
+          readinessProbe:
+            httpGet: { path: /_cluster/health, port: 9200 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 30   # cold JVM on 1 CPU is slow
+          resources:
+            requests: { cpu: "250m", memory: "1500Mi" }
+            limits:   { cpu: "1",    memory: "2560Mi" }
+          volumeMounts:
+            - { name: data, mountPath: /usr/share/opensearch/data }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi
+---
+# One at a time: two copies of every shard survive one node going.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: opensearch-cluster
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app: opensearch-cluster }

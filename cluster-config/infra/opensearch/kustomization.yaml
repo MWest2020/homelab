@@ -3,3 +3,4 @@ kind: Kustomization
 namespace: opensearch
 resources:
   - opensearch.yaml
+  - opensearch-cluster.yaml
