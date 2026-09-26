@@ -1,0 +1,118 @@
+# Ollama on two nodes (wordsworth change hoge-beschikbaarheid, task 3.2).
+#
+# Two instances, one per node, each with its own models on its own local-path
+# volume: Ollama holds no state beyond its model files, so nothing has to be
+# shared (design.md, Decision 1). The `ollama` Service balances both.
+#
+# Each pod pulls its OWN models in an init container, and checks them against
+# a pin. The old PostSync Job pulled through the Service, which reaches one
+# instance at random, by floating tag. With two instances that means two
+# versions of bge-m3 can end up side by side, and their vectors mixed in one
+# index where kNN compares numbers from two different models without anyone
+# noticing. The pins are the digests that made every vector in the index on
+# 2026-09-25:
+#   bge-m3:latest  7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab
+#   llama3.2:3b    a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72
+# `ollama list` shows the first 12 characters, and the check compares those.
+# A pod whose model is not the pinned one does not start. Changing a model is
+# changing a pin here, on purpose, and then re-embedding the corpus.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-headless
+spec:
+  clusterIP: None
+  selector: { app: ollama, role: server }
+  ports:
+    - { port: 11434, targetPort: 11434 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ollama
+  labels: { app: ollama }
+spec:
+  serviceName: ollama-headless
+  replicas: 2
+  selector:
+    matchLabels: { app: ollama, role: server }
+  template:
+    metadata:
+      labels: { app: ollama, role: server }
+    spec:
+      # Required: two instances on one node is one node's worth of redundancy.
+      # Matches every Ollama pod, the old Deployment's too, so during the
+      # switch no node carries two.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels: { app: ollama }
+      initContainers:
+        - name: models
+          image: ollama/ollama:0.6.8
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              ollama serve >/tmp/serve.log 2>&1 &
+              serve=$!
+              until ollama list >/dev/null 2>&1; do sleep 1; done
+              for pin in "bge-m3:latest 790764642607" "llama3.2:3b a80c4f17acd5"; do
+                set -- $pin
+                got=$(ollama list | awk -v m="$1" '$1 == m {print $2}')
+                # Pull only when the pinned model is not already here, so a
+                # restart never picks up a tag that moved in the registry.
+                if [ "$got" != "$2" ]; then
+                  ollama pull "$1"
+                  got=$(ollama list | awk -v m="$1" '$1 == m {print $2}')
+                fi
+                if [ "$got" != "$2" ]; then
+                  echo "model $1 is '$got', pinned $2: refusing to serve a different model" >&2
+                  exit 1
+                fi
+                echo "model $1 = $got (pinned)"
+              done
+              kill "$serve"
+          volumeMounts:
+            - { name: models, mountPath: /root/.ollama }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.6.8
+          ports:
+            - containerPort: 11434
+          env:
+            - { name: OLLAMA_HOST, value: "0.0.0.0:11434" }
+          readinessProbe:
+            tcpSocket: { port: 11434 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "250m", memory: "2Gi" }
+            limits:   { cpu: "2",    memory: "5Gi" }
+          volumeMounts:
+            - { name: models, mountPath: /root/.ollama }
+  volumeClaimTemplates:
+    - metadata:
+        name: models
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 15Gi
+---
+# A drain never takes both.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ollama
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app: ollama, role: server }

@@ -3,4 +3,4 @@ kind: Kustomization
 namespace: ollama
 resources:
   - ollama.yaml
-  - pull-bge-m3.yaml
+  - ollama-statefulset.yaml
