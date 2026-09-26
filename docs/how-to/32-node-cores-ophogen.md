@@ -53,9 +53,9 @@ node en verhuist niet mee:
 
 | node | volumes die zolang stilliggen |
 | --- | --- |
-| node-01 | `homelab-pg-3`, `netnl-data`, `openbao`, `seaweedfs-data`, `wanderer-data`, `models-ollama-1` |
-| node-02 | `homelab-pg-1`, `opensearch-data`, `models-ollama-0` |
-| node-03 | `homelab-pg-2` |
+| node-01 | `homelab-pg-3`, `netnl-data`, `openbao`, `seaweedfs-data`, `wanderer-data`, `models-ollama-1`, `data-opensearch-cluster-2` |
+| node-02 | `homelab-pg-1`, `opensearch-data` (old single node, until 2026-10-03), `models-ollama-0`, `data-opensearch-cluster-1` |
+| node-03 | `homelab-pg-2`, `data-opensearch-cluster-0` |
 
 Postgres draait met drie instances gespreid, dus één node eruit geeft
 daar een failover en geen stilstand.
