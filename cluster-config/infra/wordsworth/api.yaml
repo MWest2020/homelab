@@ -14,6 +14,10 @@ spec:
   template:
     metadata:
       labels: { app: wordsworth, component: api }
+      annotations:
+        # The pods read wordsworth-config through envFrom, which only a restart
+        # picks up. Change this with a config change that must reach them.
+        wordsworth/config: "opensearch-cluster 2026-09-26"
     spec:
       # Required, not preferred: two replicas on one node is one node's worth
       # of redundancy with twice the pods.

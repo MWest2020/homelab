@@ -5,7 +5,9 @@ kind: ConfigMap
 metadata:
   name: wordsworth-config
 data:
-  WORDSWORTH_OPENSEARCH_URL: "http://opensearch.opensearch.svc.cluster.local:9200"
+  # The three-node cluster since 2026-09-26 (hoge-beschikbaarheid 3.1a). The
+  # single node at opensearch:9200 stays a week as the rollback.
+  WORDSWORTH_OPENSEARCH_URL: "http://opensearch-cluster.opensearch.svc.cluster.local:9200"
   WORDSWORTH_OPENSEARCH_INDEX: "wordsworth"
   WORDSWORTH_OLLAMA_URL: "http://ollama.ollama.svc.cluster.local:11434"
   WORDSWORTH_EMBEDDING_MODEL: "bge-m3"
