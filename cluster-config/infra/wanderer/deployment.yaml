@@ -75,7 +75,7 @@ spec:
             limits:   { cpu: "500m", memory: "128Mi" }
       containers:
         - name: wanderer
-          image: ghcr.io/mwest2020/wanderer-exapp@sha256:a35aba20da6f4da9682890cd2af515f0543701e62efd4b05c49ab3b2f6a0015e
+          image: ghcr.io/mwest2020/wanderer-exapp@sha256:95a09b181febe9730bbfb2d300e6e4036cc85067cb58c76ba28ebe97da4aff2f
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/wanderer"]
           args:
