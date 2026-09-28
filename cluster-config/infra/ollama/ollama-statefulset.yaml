@@ -89,9 +89,12 @@ spec:
           env:
             - { name: OLLAMA_HOST, value: "0.0.0.0:11434" }
             # One request per model at a time: a second /ask queues instead of
-            # both slowing down (measured 2026-09-28 at the default: two
-            # concurrent took ~650 s each, one alone 310 s). Per model, so an
-            # embedding never waits behind a generation.
+            # both slowing down. Per model, so an embedding never waits behind
+            # a generation. Measured 2026-09-28 on ollama-0 (k=8): two
+            # concurrent went from ~650 s EACH to 234 s and 637 s -- the first
+            # answer arrives almost 3x sooner, the queued one still takes as
+            # long as before. One alone: 301 s. Memory: peak 6013 MiB (was
+            # 6600), anon 4527 MiB (was 5321), llama KV cache 448 MiB (was 896).
             - { name: OLLAMA_NUM_PARALLEL, value: "1" }
           readinessProbe:
             tcpSocket: { port: 11434 }
