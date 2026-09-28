@@ -33,8 +33,17 @@ while true; do
     h=""; [ $((n % 6)) -eq 0 ] && h=$(https_ms)
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$t" "$(ping_ms "$ROUTER")" "$(ping_ms "$NODE")" \
         "$(ping_ms "$EXTERN")" "$(dns_ms)" "$h" >> "$f"
+    # Eens per 10 min de regels van de DaemonSet netlog (cluster-config/infra/netlog)
+    # binnenhalen: podlogs verdwijnen bij een herstart van pod of node, en dat is
+    # precies het moment waar het om gaat. Overlap wordt ontdubbeld.
+    if [ $((n % 60)) -eq 0 ]; then
+        c="$DIR/cluster-$(date -u +%F).log"
+        ssh -o BatchMode=yes -o ConnectTimeout=5 jumpy \
+            'kubectl -n netlog logs -l app=netlog --since=11m --tail=-1 --max-log-requests=10' \
+            2>/dev/null >> "$c" && sort -u -o "$c" "$c"
+    fi
     # Eens per uur: logs ouder dan 30 dagen weg.
-    [ $((n % 360)) -eq 0 ] && find "$DIR" -name '*.tsv' -mtime +30 -type f -exec rm -f {} + 2>/dev/null
+    [ $((n % 360)) -eq 0 ] && find "$DIR" \( -name '*.tsv' -o -name '*.log' \) -mtime +30 -type f -exec rm -f {} + 2>/dev/null
     n=$((n + 1))
     sleep 10
 done
