@@ -93,10 +93,14 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
-            # 5Gi was not enough: on 2026-09-26 two /ask calls (k=8) got both
-            # pods OOM-killed. 7Gi is the MEASURING limit, set wide enough to
-            # see the real peak (memory.peak); the final limit follows from
-            # that measurement, not from a guess.
+            # Measured 2026-09-28 on ollama-0, through wordsworth's own /ask
+            # path (k=8): one call peaks at 6600 MiB, two concurrent at 6693,
+            # two concurrent plus embeddings at 6800 (cgroup memory.peak). With
+            # both models loaded, ANON memory is 5321 MiB -- more than the old
+            # 5Gi (5120 MiB), which is why two /ask calls on 2026-09-26 got
+            # both pods OOM-killed: certain, not unlucky. The rest is file
+            # cache from reading the models, reclaimable. 7Gi is the limit the
+            # worst case was measured under; ~1.2 GiB above the anon peak.
             requests: { cpu: "250m", memory: "2Gi" }
             limits:   { cpu: "2",    memory: "7Gi" }
           volumeMounts:
