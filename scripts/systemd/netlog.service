@@ -1,0 +1,12 @@
+[Unit]
+Description=Netwerklogboek: elke 10 s router, cluster, extern, DNS (zie scripts/netlog.sh)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/agent/homelab/scripts/netlog.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
