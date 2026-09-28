@@ -62,9 +62,14 @@ Nog bewust uitgesteld: deelname aan de **community-blocklist** (CAPI), en de
 de Docker-`userland-proxy` alleen de RFC1918-bridge-gateway. Beide worden opgepakt vóór de
 proxy echt scherp publiek gaat.
 
-## App-of-apps + sync-waves i.p.v. losse `kubectl apply`
+## Sync-waves i.p.v. apply-volgorde (app-of-apps: ontworpen, niet gebootstrapt)
 
-Alle cluster-apps hangen onder één Argo CD root-Application (`apps/root-app.yaml`).
+Het ontwerp is app-of-apps: één Argo CD root-Application (`apps/root-app.yaml`) boven
+alle apps. In de praktijk is die root **nooit gebootstrapt** (nagemeten 2026-09-24):
+elke Application is eenmalig los ge-applied en synct daarna zelf uit Git. Alsnog
+aanzetten kan pas na opruimen, want `apps/infrastructure/` bevat ook Applications die
+bewust níét draaien (zie [Runbooks](../runbooks/)).
+
 Volgorde-afhankelijkheden (operator vóór CR, storage vóór consumer) worden expliciet
 gemaakt met **sync-waves** in plaats van impliciet met apply-volgorde: de CNPG-operator
 (wave 2) moet healthy zijn vóór het `homelab-pg`-Cluster-CR (wave 4), en Wordsworth
@@ -120,6 +125,34 @@ service naast OpenSearch, Ollama en Postgres op de 16Gi-workers.
 Bijvangst van 1-CPU-workers: de health-endpoint blokkeert tijdens inference, dus
 readiness/liveness zijn **TCP-probes** — een drukke pod blijft in de endpoints en wordt
 niet gekilld; een écht hangend proces accepteert ook geen connecties meer.
+
+## Hoge beschikbaarheid: replicatie in de applicatie, niet in storage
+
+De Wordsworth-straat gaat stap voor stap van één pod naar meerdere nodes (de
+wordsworth-change *hoge-beschikbaarheid*). Het uitgangspunt: **niets delen**. Elke
+instance heeft een eigen local-path-volume op de eigen worker, en de applicatie
+zorgt voor de redundantie — past bij de keuze voor `local-lvm` zonder Ceph hierboven.
+
+- **OpenSearch: drie nodes, niet twee.** Met twee houdt de overlevende na één uitval
+  geen meerderheid om een cluster-manager te kiezen, en neemt hij geen writes meer
+  aan. Met drie repliceert OpenSearch de shards over de nodes; een node waarvan de
+  worker weg is, blijft Pending terwijl de andere twee serveren.
+- **De oude index blijft een week als rollback.** De embeddings bestaan alleen in de
+  index, dus de single-node blijft na de omschakeling staan (tot 2026-10-03). Het
+  kopiëren is geverifieerd: evenveel documenten, elke `_source` identiek, vectoren
+  inbegrepen. BM25 rankt wel iets anders: de oude index telde verwijderde documenten
+  nog mee in zijn statistieken, de nieuwe rankt over het corpus zoals het is.
+- **Ollama: twee instances, elk met eigen modellen.** Ollama heeft geen andere staat
+  dan de modelbestanden, dus er valt niets te delen.
+- **Modellen op digest gepind, per pod gecontroleerd.** Vroeger pullde een
+  PostSync-Job via de Service op een zwevende tag. Met twee instances kunnen er dan
+  twee versies van `bge-m3` naast elkaar staan en belanden hun vectoren door elkaar in
+  één index. kNN vergelijkt dan getallen van twee verschillende modellen, en niemand
+  merkt het. Nu start een pod met een ander model gewoon niet; een model wisselen is
+  bewust een pin wijzigen én het corpus opnieuw embedden.
+- **API en oauth2-proxy: twee replica's, harde anti-affinity.** Twee replica's op één
+  node zijn de redundantie van één node met twee keer zoveel pods. De proxy kan veilig
+  twee replica's hebben: sessies zijn cookies, getekend met één gedeeld geheim.
 
 ## PostgreSQL via CNPG-operator i.p.v. handmatige StatefulSet
 
@@ -216,16 +249,6 @@ Drie keuzes eromheen:
 
 De gemeten set is bewust vast en eigendom van de operator — meet alleen hosts die je
 zelf beheert.
-
-## Vendored compose verbatim; afwijkingen gesanctioneerd én gemarkeerd
-
-De buzz-relay-compose is **verbatim vendored** van upstream block/buzz, met als regel
-"niet lokaal aanpassen" — zo blijft een upstream-upgrade een simpele nieuwe kopie.
-Afwijken mag alleen **gesanctioneerd** (expliciet besluit, gelogd in OpenSpec/CHANGELOG)
-en **gemarkeerd in de file-header**, zodat de afwijking bij een upgrade bewust opnieuw
-wordt aangebracht i.p.v. stilletjes te verdwijnen. Tot nu toe twee: het cpu-type
-(2026-07-06, MinIO's glibc-eis — kan terug naar default nu MinIO weg is) en de
-SeaweedFS-swap (2026-08-27).
 
 ## Images pinnen op digest, deploys als Git-commits
 

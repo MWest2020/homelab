@@ -139,7 +139,8 @@ docker buildx imagetools inspect ghcr.io/mwest2020/wordsworth:sha-<short>
   dan kan niemand nog een reveal-grant uitgeven.
 
 Prerequisite-secrets (out-of-band, nooit in Git): `wordsworth-db`, `wordsworth-s3`,
-`wordsworth-openbao` en `wordsworth-apikeys` (namespace `wordsworth`),
+`wordsworth-openbao`, `wordsworth-apikeys`, `wordsworth-oidc` (oauth2-proxy) en
+`wordsworth-tunnel` (Cloudflare-run-token) (namespace `wordsworth`),
 `seaweedfs-s3-config` (namespace `seaweedfs`), `operator-oauth` (namespace `tailscale`),
 `openbao-keys` (namespace `openbao`).
 
@@ -154,13 +155,51 @@ kubectl -n wordsworth port-forward svc/wordsworth-api 8000:8000 &
 curl -s localhost:8000/health
 ```
 
-Another Ollama model, or a new version of one? Add or change its pin in the init
-container of `cluster-config/infra/ollama/ollama-statefulset.yaml` (name plus the
-first 12 characters of its digest) and commit. Each of the two instances pulls its own
-models and refuses to start if a digest differs from its pin. Changing the pin of the
-embedding model means re-embedding the whole corpus: vectors from two model versions
-must never meet in one index. CPU-only: a pull plus cold start takes minutes per
-instance, and the instances roll one at a time.
+**Config-wijziging die de API moet zien?** De pods lezen `wordsworth-config` via
+`envFrom`, en dat pikt alleen een herstart op. Wijzig daarom in dezelfde commit de
+pod-annotatie `wordsworth/config` in `api.yaml`, zodat Argo CD de pods uitrolt.
+
+### Ollama: modellen wisselen
+
+Een ander Ollama-model, of een nieuwe versie? Voeg de pin toe of wijzig hem in de
+init-container van `cluster-config/infra/ollama/ollama-statefulset.yaml` (naam plus de
+eerste 12 tekens van de digest, zoals `ollama list` die toont) en commit. Beide
+instances pullen hun eigen modellen en weigeren te starten als een digest afwijkt van
+de pin.
+
+- Wisselen van het **embedding-model** betekent het hele corpus opnieuw embedden:
+  vectoren van twee modelversies mogen nooit in één index belanden.
+- CPU-only: pull plus cold start kost minuten per instance, en de instances rollen één
+  voor één (PDB `maxUnavailable: 1`).
+
+```bash
+kubectl -n ollama get pods -o wide                          # ollama-0/-1 op verschillende workers
+kubectl -n ollama logs ollama-0 -c models                   # "model bge-m3:latest = … (pinned)"
+```
+
+### OpenSearch: het cluster van drie nodes
+
+Sinds 2026-09-26 zoekt Wordsworth op `opensearch-cluster` (StatefulSet, drie pods, één
+per worker). De oude single-node `opensearch` draait er tot 2026-10-03 naast als
+rollback; daarna gaat hij weg.
+
+```bash
+kubectl -n opensearch get pods -l app=opensearch-cluster -o wide
+kubectl -n opensearch port-forward svc/opensearch-cluster 9200:9200 &
+curl -s 'localhost:9200/_cluster/health?pretty'   # status green, number_of_nodes 3
+curl -s 'localhost:9200/_cat/shards/wordsworth?v' # primary + replica op verschillende nodes
+```
+
+- **Onderhoud/drain**: de PDB laat één pod tegelijk gaan. Met één node weg kan het
+  cluster tijdelijk `yellow` zijn, maar het serveert door; de pod van een ontbrekende
+  worker wacht Pending tot die terug is (het volume is lokaal).
+- **Rollback (tot 2026-10-03)**: zet `WORDSWORTH_OPENSEARCH_URL` in
+  `cluster-config/infra/wordsworth/configmap.yaml` terug naar
+  `http://opensearch.opensearch.svc.cluster.local:9200`, wijzig de
+  `wordsworth/config`-annotatie in `api.yaml` en commit. Wat na de omschakeling is
+  ge-ingest, staat niet in de oude index.
+- `vm.max_map_count` zet een privileged init-container per pod; zonder die waarde
+  weigert OpenSearch te starten.
 
 :::note Geheugen-tuning ingest
 `/ingest` buffert PDF-uploads in het API-proces. Worker-recycling staat bewust **uit**
@@ -201,8 +240,17 @@ bao status                                          # Sealed: false, Initialized
 
 Daarna (met het root-token): Transit enablen, de `wordsworth`-KEK aanmaken en een
 **scoped token** uitgeven dat alléén onder die KEK mag wrappen/unwrappen — dat token
-gaat als Secret `wordsworth-openbao` naar de API. Het token heeft een 768h-period:
-tijdig verlengen of opnieuw uitgeven.
+gaat als Secret `wordsworth-openbao` naar de API. Het token heeft een 768h-period
+(32 dagen): verloopt het, dan faalt alles wat OpenBao nodig heeft (ingest,
+herverwerken, reveal) met een kale 403. Daarom verlengt de CronJob
+`wordsworth-openbao-renew` het wekelijks (maandag 04:23) met `renew-self`, zonder
+root-token. Een falende Job is het signaal: los het op of geef het token opnieuw uit
+vóór de period om is.
+
+```bash
+kubectl -n wordsworth get cronjob wordsworth-openbao-renew   # LAST SCHEDULE
+kubectl -n wordsworth get jobs --sort-by=.metadata.creationTimestamp | tail -3
+```
 
 **Auto-unseal (lab):** na bootstrap staat de unseal-key in het `openbao-keys`-Secret;
 een `postStart`-hook unsealt automatisch na elke pod-restart, dus de straat heelt

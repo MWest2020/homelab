@@ -31,8 +31,10 @@ Een **3-node Proxmox-cluster** met een **HA-Kubernetes** erop, volledig op VM's.
 - **Cilium** (eBPF CNI, kubeProxyReplacement, Gateway API).
 - **MetalLB** (L2, pool `192.168.178.220-230`).
 - **cert-manager** (Let's Encrypt DNS-01, wildcard `*.westerweel.work`).
-- **Argo CD** (GitOps, app-of-apps: één root-Application beheert alle child-apps
-  onder `apps/infrastructure/`). Van de bredere Argo-suite staan **Workflows**,
+- **Argo CD** (GitOps). Elke Application onder `apps/infrastructure/` is los
+  ge-applied en synct daarna automatisch uit Git; de root-Application
+  (`apps/root-app.yaml`) bestaat wel in de repo maar is **nooit gebootstrapt** (zie
+  [Runbooks](../runbooks/)). Van de bredere Argo-suite staan **Workflows**,
   **Rollouts** en **Events** wél als manifest in de repo
   (`kubernetes/infrastructure/argo-*`, met een Application in
   `apps/infrastructure/`), maar ze zijn **niet uitgerold**: Argo CD kent er geen
@@ -57,9 +59,16 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
 | 6 | Wordsworth API | RAG-API (ingest / search / hybrid / ask) |
 
 - **Ollama** (CPU-only, geen GPU): `bge-m3`-embeddings (1024-dim) + `llama3.2:3b` als
-  RAG-LLM; modellen worden door een PostSync-hook-Job gepulld.
-- **OpenSearch** (2.x, single-node): hybride zoekindex; security-plugin uit — alleen
-  in-cluster bereikbaar (ClusterIP).
+  RAG-LLM. **Twee instances** (StatefulSet, één per worker, harde anti-affinity, PDB
+  `maxUnavailable: 1`), elk met de eigen modellen op een eigen local-path-volume; de
+  `ollama`-Service verdeelt over beide. Een init-container pullt de modellen per pod
+  en vergelijkt ze met een **digest-pin**: wijkt een model af, dan start de pod niet.
+- **OpenSearch** (2.19, **cluster van drie nodes** sinds 2026-09-26): hybride
+  zoekindex. StatefulSet `opensearch-cluster`, één pod per worker, elk met een eigen
+  local-path-volume; OpenSearch repliceert de shards zelf. Parallelle start (geen node
+  is ready vóór er een quorum is), PDB `maxUnavailable: 1`. Security-plugin uit — alleen
+  in-cluster bereikbaar (ClusterIP). De oude single-node (`opensearch`) blijft tot
+  2026-10-03 staan als rollback.
 - **OpenAnonymiser**: PII-detectie over HTTP (GLiNER, CPU-only); het model zit in de
   image gebakken, geen runtime-download. Draait met **3 replica's, één per worker**
   (harde anti-affinity): Wordsworth hakt documenten in chunks en waaiert die over de
@@ -68,8 +77,9 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   Wordsworths data-keys wrapt (reversibele pseudonimisering); de KEK verlaat OpenBao
   nooit. Alleen in-cluster bereikbaar, non-root, en **sealed-by-design** — initialisatie
   gebeurt out-of-band door de operator (zie [Runbooks](../runbooks/)).
-- **Wordsworth API**: gehardende pod (non-root, read-only rootfs, alle capabilities
-  gedropt), image gepind op **digest** (`@sha256:…`), niet op een tag; het DB-schema
+- **Wordsworth API**: gehardende pods (non-root, read-only rootfs, alle capabilities
+  gedropt), **2 replica's op twee nodes** (harde anti-affinity), image gepind op
+  **digest** (`@sha256:…`), niet op een tag; het DB-schema
   wordt idempotent aangemaakt door een Argo CD PreSync init-Job. Sinds **Fase B** staat reversibele pseudonimisering aan:
   PII wordt vervangen door pseudoniemen waarvan de data-keys OpenBao-Transit-wrapped in
   de database liggen — herleidbaar voor wie dat mag, betekenisloos voor de rest.
@@ -85,12 +95,20 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   bovendien per caller-label: alleen `console` en `cli` mogen de volledige
   de-identified tekst lezen (`WORDSWORTH_CORPUS_READ_LABELS`) en reveal-grants
   uitgeven of intrekken (`WORDSWORTH_GRANT_ISSUER_LABELS`).
-- **Toegang**: de API is **niet publiek** — tailnet-intern via de Tailscale-operator,
-  op twee manieren naast de gewone ClusterIP-Service: een http-`:8000`-LoadBalancer
+- **Toegang via de tailnet**: via de Tailscale-operator, op twee manieren naast de
+  gewone ClusterIP-Service: een http-`:8000`-LoadBalancer
   (`loadBalancerClass: tailscale`) voor de CLI, en een **tailnet-private HTTPS-Ingress**
   (MagicDNS-cert, bewust zónder Funnel-annotatie) voor de browser-based **Wordsworth
   Console** (GitHub Pages) — https is daar nodig omdat de browser een http-API als
   mixed content blokkeert. CORS staat opt-in open voor alleen die Console-origin.
+- **Publieke demo-console** (sinds 2026-09-17): `wordsworth.westerweel.work` via een
+  Cloudflare Tunnel (2 cloudflared-replica's, zelfde instellingen als netnl) naar
+  **oauth2-proxy** (`wordsworth-auth`, 2 replica's). De proxy doet de OIDC-login bij
+  Keycloak en geeft het ID-token door; Wordsworth verifieert het en schrijft het
+  e-mailadres als caller in het auditspoor. Alleen dit publieke pad loopt via de proxy —
+  de tailnet-ingangen gaan direct naar de API, met API-keys. Publiek omdat de corpora
+  hier al gepubliceerde (Woo-)informatie zijn; wie met gevoelige data werkt, draait
+  Wordsworth zelf.
 
 ## Publieke edge: de netnl-facade
 
@@ -130,6 +148,30 @@ internet ──▶ Cloudflare Tunnel  (api.westerweel.work)     ─┤─▶ Ser
   initContainer meet met de ongewijzigde CLI, een publish-container met git+ssh duwt
   de artefacten weg. Zo blijft de deploy key uit de meet-container.
 
+## Wanderer: soevereiniteitsscanner
+
+**Wanderer** meet de extern zichtbare voetafdruk van Nederlandse publieke organisaties:
+passieve waarnemingen (RDAP, DNS, TLS, één HTTPS-GET per pad, `security.txt`), niet te
+onderscheiden van een gewone bezoeker. Het is een Argo CD-app (sync-wave 6), image
+digest-gepind.
+
+- **Eén replica, `Recreate`**: de staat is een SQLite-database op een RWO-volume
+  (`wanderer-data`) en er mag nooit meer dan één schrijver zijn.
+- **Geplande scans** uit de ConfigMap `wanderer-schedules`: vier publieke doelen, elk
+  wekelijks, op uiteenlopende tijden. De scheduler beoordeelt elke geslaagde scan zelf.
+- **Standards-feed** (CronJob, zondag): een Internet.nl-batch via de
+  [netnl-facade](#publieke-edge-de-netnl-facade) op alleen de eigen hosts, gepost naar
+  Wanderer — de server blijft de enige schrijver van de database.
+- **GeoIP** uit DB-IP Lite, bij elke podstart opgehaald door een init-container;
+  mislukt dat, dan start Wanderer zonder en scoren de geo-regels "onbekend".
+- **Toegang**:
+  - publiek `wanderer.westerweel.work` via een Cloudflare Tunnel, waarbij de
+    ingress-regel **alleen `/ui`** doorlaat: de REST-API heeft geen authenticatie en
+    mag nooit publiek bereikbaar zijn. De UI is alleen-lezen (scanformulier uit) en
+    inloggen gaat via Keycloak (OIDC).
+  - tailnet-intern via een Tailscale-Ingress (MagicDNS-cert): de volledige server, de
+    REST-API inbegrepen, voor CLI- en operatorgebruik.
+
 ## Buzz-relay-VM (boomhuis-communicatielaag)
 
 Naast het K8s-cluster, op de laptop-Proxmox-node: **VM 109 (`192.168.178.60`)** met een
@@ -138,8 +180,9 @@ communicatielaag voor het agent-ecosysteem (spec: `MWest2020/boomhuis`).
 
 - **Tailnet + LAN-only**: `ws://` zonder publieke DNS/TLS — transport-encryptie komt
   van Tailscale; closed relay mode.
-- Compose-stack **vendored verbatim** van upstream: relay + PostgreSQL 17 + Redis 7 +
-  SeaweedFS als S3-mediastore (een gesanctioneerde, gemarkeerde afwijking van de
-  vendored file — zie [Beslissingen](../beslissingen/)).
+- Compose-stack (Ratatoskr: relay, chat, PostgreSQL, Redis, SeaweedFS als
+  S3-mediastore) staat sinds 2026-09-11 in
+  [MWest2020/ratatoskr `deploy/`](https://github.com/MWest2020/ratatoskr/tree/main/deploy),
+  niet meer in deze repo. Het Ansible-playbook hier richt alleen de host in.
 
 *(Per onderwerp volgen detail-pagina's; de freshness-agent houdt dit synchroon met de repo.)*

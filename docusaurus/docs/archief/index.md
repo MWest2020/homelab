@@ -5,7 +5,8 @@ sidebar_position: 1
 
 # Archief
 
-Historie — bewaard, niet weggegooid. Hoe de homelab eruitzag vóór het Proxmox-cluster.
+Historie — bewaard, niet weggegooid: hoe de homelab eruitzag vóór het Proxmox-cluster,
+en onderdelen die sindsdien vervangen zijn.
 
 ## Baremetal "Kubernetes the Hard Way"
 
@@ -50,6 +51,33 @@ verwijderd — wordsworth-data checksum-geverifieerd overgezet (414 objecten), d
 nextcloud-bucket bleek leeg, buzz-relay's media idem gemigreerd (21 objecten). De
 afwegingen staan onder [Beslissingen](../beslissingen/); de uitvoering in de
 gearchiveerde OpenSpec-changes van 2026-08-27 in de repo.
+
+## Buzz-relay: vendored compose in deze repo (juli – september 2026)
+
+De compose-stack van de buzz-relay-VM stond eerst in deze repo (`docker/buzz-relay/`),
+**verbatim vendored** van upstream block/buzz. De regel was "niet lokaal aanpassen",
+zodat een upstream-upgrade een simpele nieuwe kopie bleef. Afwijken mocht alleen
+**gesanctioneerd** (expliciet besluit, gelogd in OpenSpec/CHANGELOG) en **gemarkeerd in
+de file-header**, zodat de afwijking bij een upgrade bewust opnieuw werd aangebracht in
+plaats van stilletjes te verdwijnen. Er waren er twee: het cpu-type (2026-07-06,
+MinIO's glibc-eis) en de SeaweedFS-swap (2026-08-27).
+
+Sinds 2026-09-11 komt de stack uit
+[MWest2020/ratatoskr `deploy/`](https://github.com/MWest2020/ratatoskr/tree/main/deploy).
+Op 2026-09-24 zijn de oude kopie en de systemd-unit `boomhuis-chat.service` hier
+verwijderd: er waren twee manieren om de chat te draaien, en één daarvan was dood.
+
+## Wordsworth-straat op één node (tot september 2026)
+
+Tot de wordsworth-change *hoge-beschikbaarheid* draaide elk onderdeel van de straat
+als één pod: OpenSearch als single-node-Deployment, Ollama als één Deployment waarvan
+een **PostSync-hook-Job** de modellen pullde via de Service, op zwevende tags. Het
+nieuwe model staat onder [Architectuur](../architectuur/), het waarom onder
+[Beslissingen](../beslissingen/).
+
+- **Ollama**: op 2026-09-26 vervangen door twee instances met digest-gepinde modellen.
+- **OpenSearch**: sinds 2026-09-26 zoekt Wordsworth op het cluster van drie nodes. De
+  single-node blijft tot 2026-10-03 staan als rollback.
 
 ## Nextcloud-tenants op Docker (laptop-node)
 
