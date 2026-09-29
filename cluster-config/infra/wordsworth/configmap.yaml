@@ -9,6 +9,11 @@ data:
   # single node at opensearch:9200 stays a week as the rollback.
   WORDSWORTH_OPENSEARCH_URL: "http://opensearch-cluster.opensearch.svc.cluster.local:9200"
   WORDSWORTH_OPENSEARCH_INDEX: "wordsworth"
+  # /ask generation budget. The default 600 s was measured too short on
+  # 2026-09-28: with Ollama at one request per model, a second /ask queued on
+  # the same instance finishes at ~637 s. Paths in front of it: gunicorn 1800 s,
+  # the tailnet proxies set no response timeout.
+  WORDSWORTH_LLM_TIMEOUT: "900"
   WORDSWORTH_OLLAMA_URL: "http://ollama.ollama.svc.cluster.local:11434"
   WORDSWORTH_EMBEDDING_MODEL: "bge-m3"
   WORDSWORTH_EMBEDDING_DIM: "1024"
