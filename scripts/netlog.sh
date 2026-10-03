@@ -35,12 +35,18 @@ while true; do
         "$(ping_ms "$EXTERN")" "$(dns_ms)" "$h" >> "$f"
     # Eens per 10 min de regels van de DaemonSet netlog (cluster-config/infra/netlog)
     # binnenhalen: podlogs verdwijnen bij een herstart van pod of node, en dat is
-    # precies het moment waar het om gaat. Overlap wordt ontdubbeld.
+    # precies het moment waar het om gaat. Altijd de laatste 3 uur, ontdubbeld: jumpy
+    # is via Tailscale bereikbaar, dus tijdens een internetstoring mislukt het ophalen
+    # (2026-10-03 00:18, tien minuten zonder internet, gat in het clusterlog). Met
+    # alleen "sinds 11 min" werd dat gat nooit meer gevuld. Elke regel gaat naar het
+    # bestand van zijn eigen dag.
     if [ $((n % 60)) -eq 0 ]; then
-        c="$DIR/cluster-$(date -u +%F).log"
         ssh -o BatchMode=yes -o ConnectTimeout=5 jumpy \
-            'kubectl -n netlog logs -l app=netlog --since=11m --tail=-1 --max-log-requests=10' \
-            2>/dev/null >> "$c" && sort -u -o "$c" "$c"
+            'kubectl -n netlog logs -l app=netlog --since=3h --tail=-1 --max-log-requests=10' \
+            2>/dev/null | awk -v d="$DIR" '/^20[0-9][0-9]-/ {print >> (d "/cluster-" substr($1,1,10) ".log")}'
+        for c in "$DIR/cluster-$(date -u +%F).log" "$DIR/cluster-$(date -u -d yesterday +%F).log"; do
+            [ -f "$c" ] && sort -u -o "$c" "$c"
+        done
     fi
     # Eens per uur: logs ouder dan 30 dagen weg.
     [ $((n % 360)) -eq 0 ] && find "$DIR" \( -name '*.tsv' -o -name '*.log' \) -mtime +30 -type f -exec rm -f {} + 2>/dev/null
