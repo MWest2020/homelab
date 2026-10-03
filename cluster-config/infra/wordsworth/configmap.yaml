@@ -6,7 +6,7 @@ metadata:
   name: wordsworth-config
 data:
   # The three-node cluster since 2026-09-26 (hoge-beschikbaarheid 3.1a). The
-  # single node at opensearch:9200 stays a week as the rollback.
+  # old single node was removed on 2026-10-03, after a week without rollback.
   WORDSWORTH_OPENSEARCH_URL: "http://opensearch-cluster.opensearch.svc.cluster.local:9200"
   WORDSWORTH_OPENSEARCH_INDEX: "wordsworth"
   # /ask generation budget. The default 600 s was measured too short on

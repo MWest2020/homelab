@@ -1,9 +1,8 @@
 # OpenSearch on three nodes (wordsworth change hoge-beschikbaarheid, task 3.1a).
 #
-# Stands BESIDE the single-node Deployment in opensearch.yaml under its own
-# names, until wordsworth is switched over and a week has passed (design.md,
-# Decision 3): the embeddings live only in the index, so the old one stays as
-# the rollback. Three, not two: with two, losing one leaves no majority to
+# Stood beside the old single-node Deployment until wordsworth was switched over
+# (2026-09-26) and a week had passed; that node and its volume were removed on
+# 2026-10-03 (design.md, Decision 3). Three, not two: with two, losing one leaves no majority to
 # elect a cluster manager and the survivor stops taking writes.
 #
 # Each node keeps its own local-path volume; OpenSearch replicates shards
@@ -82,8 +81,9 @@ spec:
             - { name: OPENSEARCH_JAVA_OPTS, value: "-Xms512m -Xmx512m" }
             - { name: bootstrap.memory_lock, value: "false" }
             - { name: cluster.routing.allocation.disk.threshold_enabled, value: "false" }
-            # The migration copies the wordsworth index from the old node with
-            # reindex-from-remote; nothing else is allowed.
+            # Used once, 2026-09-26, to copy the index from the old node, which
+            # no longer exists. Left in place because changing it restarts the
+            # cluster; harmless while nothing calls _reindex from a remote.
             - { name: reindex.remote.allowlist, value: "opensearch.opensearch.svc.cluster.local:9200" }
           ports:
             - { containerPort: 9200, name: http }

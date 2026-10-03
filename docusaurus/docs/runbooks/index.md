@@ -193,11 +193,9 @@ curl -s 'localhost:9200/_cat/shards/wordsworth?v' # primary + replica op verschi
 - **Onderhoud/drain**: de PDB laat één pod tegelijk gaan. Met één node weg kan het
   cluster tijdelijk `yellow` zijn, maar het serveert door; de pod van een ontbrekende
   worker wacht Pending tot die terug is (het volume is lokaal).
-- **Rollback (tot 2026-10-03)**: zet `WORDSWORTH_OPENSEARCH_URL` in
-  `cluster-config/infra/wordsworth/configmap.yaml` terug naar
-  `http://opensearch.opensearch.svc.cluster.local:9200`, wijzig de
-  `wordsworth/config`-annotatie in `api.yaml` en commit. Wat na de omschakeling is
-  ge-ingest, staat niet in de oude index.
+- **No rollback any more.** The old single node and its volume were removed on
+  2026-10-03, after a week in which nothing needed them. Recovery from a lost
+  index is a re-index from the database and the object store, not a switch back.
 - `vm.max_map_count` zet een privileged init-container per pod; zonder die waarde
   weigert OpenSearch te starten.
 
