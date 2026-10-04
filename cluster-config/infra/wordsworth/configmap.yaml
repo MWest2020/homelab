@@ -14,6 +14,12 @@ data:
   # the same instance finishes at ~637 s. Paths in front of it: gunicorn 1800 s,
   # the tailnet proxies set no response timeout.
   WORDSWORTH_LLM_TIMEOUT: "900"
+  # Hybrid search keeps the fused BM25 + kNN rank instead of re-sorting by
+  # whole-document cosine (change long-documents-rank-fairly, candidate 1).
+  # Measured on the Woo collection, Recall@8 short/middle/long went from
+  # 0.692/0.103/0.000 to 0.731/0.345/0.400; the windpark question finds its
+  # document first. An interim step: candidate 2a (passages) is the fix.
+  WORDSWORTH_HYBRID_FINAL_RANK: "rrf"
   WORDSWORTH_OLLAMA_URL: "http://ollama.ollama.svc.cluster.local:11434"
   WORDSWORTH_EMBEDDING_MODEL: "bge-m3"
   WORDSWORTH_EMBEDDING_DIM: "1024"
