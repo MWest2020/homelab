@@ -137,8 +137,9 @@ zorgt voor de redundantie — past bij de keuze voor `local-lvm` zonder Ceph hie
   geen meerderheid om een cluster-manager te kiezen, en neemt hij geen writes meer
   aan. Met drie repliceert OpenSearch de shards over de nodes; een node waarvan de
   worker weg is, blijft Pending terwijl de andere twee serveren.
-- **De oude index blijft een week als rollback.** De embeddings bestaan alleen in de
-  index, dus de single-node blijft na de omschakeling staan (tot 2026-10-03). Het
+- **De oude index bleef een week als rollback.** De embeddings bestaan alleen in de
+  index, dus de single-node bleef na de omschakeling staan en is pas op 2026-10-03
+  verwijderd, toen niets hem een week nodig had gehad. Het
   kopiëren is geverifieerd: evenveel documenten, elke `_source` identiek, vectoren
   inbegrepen. BM25 rankt wel iets anders: de oude index telde verwijderde documenten
   nog mee in zijn statistieken, de nieuwe rankt over het corpus zoals het is.
@@ -153,6 +154,63 @@ zorgt voor de redundantie — past bij de keuze voor `local-lvm` zonder Ceph hie
 - **API en oauth2-proxy: twee replica's, harde anti-affinity.** Twee replica's op één
   node zijn de redundantie van één node met twee keer zoveel pods. De proxy kan veilig
   twee replica's hebben: sessies zijn cookies, getekend met één gedeeld geheim.
+
+## Ollama: limieten meten, en vragen in de rij
+
+Op 2026-09-26 werden beide Ollama-pods OOM-gekilld door twee gelijktijdige `/ask`-calls.
+Dat was geen pech: met beide modellen geladen is het anonieme geheugen 5321 MiB, méér
+dan de toenmalige limit van 5Gi (5120 MiB). Twee keuzes volgden, beide op meting
+(2026-09-28, via Wordsworths eigen `/ask`-pad):
+
+- **Limit 7Gi.** De piek onder de zwaarste belasting (twee vragen plus embeddings) was
+  6800 MiB; een deel daarvan is file cache van het inlezen van de modellen, en dus
+  terug te winnen. 7Gi is de limit waaronder dat slechtste geval is gemeten.
+- **Eén request per model tegelijk** (`OLLAMA_NUM_PARALLEL=1`). Twee parallelle
+  generaties duurden elk ~650 s. In de rij is de eerste na ~235 s klaar en de tweede
+  na ~640 s — het eerste antwoord komt bijna drie keer zo snel, het tweede wordt er
+  niet trager van. Het is per model, dus een embedding wacht nooit achter een
+  generatie. Bijvangst: een lagere geheugenpiek (6013 MiB in plaats van 6600).
+
+Gevolg voor de keten: een wachtende vraag duurt langer dan de standaard-timeout van
+600 s, dus staat `WORDSWORTH_LLM_TIMEOUT` op 900 s.
+
+## Hybride zoeken: de gefuseerde rangorde houden
+
+Hybride zoeken fuseert BM25 en kNN, maar sorteerde het resultaat daarna opnieuw op
+cosine over het **hele document**. Lange documenten werden daardoor vrijwel nooit
+gevonden. Sinds 2026-10-04 blijft de gefuseerde rangorde staan
+(`WORDSWORTH_HYBRID_FINAL_RANK=rrf`).
+
+| Recall@8 (Woo-collectie) | kort | middel | lang |
+|---|---|---|---|
+| cosine over het hele document | 0,692 | 0,103 | 0,000 |
+| gefuseerde rangorde | 0,731 | 0,345 | 0,400 |
+
+De keuze zit achter een instelling en is eerst met de oude waarde als standaard
+uitgerold, zodat het gedrag pas veranderde met een zichtbare config-commit. Het is een
+**tussenstap**: de eigenlijke oplossing is zoeken op passages in plaats van hele
+documenten. De passage-index wordt al gebouwd en gemeten, maar het zoeken gebruikt hem
+nog niet.
+
+## Netwerklogboek i.p.v. een metrics-stack
+
+Aanleiding (2026-09-28): vijf keer in vijf dagen vielen alle Cloudflare-tunnels
+tegelijk om, en de switch van het cluster hangt aan een wifi-extender. Zonder metrics
+was achteraf niet te zien of de uplink wegviel, of welke node er op dat moment data
+doorheen duwde.
+
+Gekozen is het kleinste dat die vraag beantwoordt: een shell-lus per node en één op
+agent-lxc, die regels wegschrijven. Het cluster heeft geen Prometheus, en voor deze ene
+diagnosevraag is die ook niet neergezet.
+
+- **Twee meetpunten.** Van buiten het cluster (agent-lxc) zie je óf en wáár de
+  verbinding wegvalt; op de nodes zie je wie het verkeer maakt.
+- **Een image dat al op elke node staat** (`curlimages/curl`): uitrollen hoeft niets
+  over de verdachte verbinding te downloaden.
+- **Regels worden van het cluster weggehaald**, elke 10 minuten: podlogs verdwijnen
+  bij een herstart, juist het moment waar het om gaat. Altijd de laatste 3 uur,
+  ontdubbeld — met alleen "sinds de vorige ronde" bleef een gat na een internetstoring
+  voorgoed leeg.
 
 ## PostgreSQL via CNPG-operator i.p.v. handmatige StatefulSet
 

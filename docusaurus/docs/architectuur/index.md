@@ -63,12 +63,15 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   `maxUnavailable: 1`), elk met de eigen modellen op een eigen local-path-volume; de
   `ollama`-Service verdeelt over beide. Een init-container pullt de modellen per pod
   en vergelijkt ze met een **digest-pin**: wijkt een model af, dan start de pod niet.
+  Per instance **één request per model tegelijk** (`OLLAMA_NUM_PARALLEL=1`): een tweede
+  vraag wacht in de rij, een embedding wacht nooit achter een generatie. Memory-limit
+  **7Gi**, gemeten in plaats van geschat (zie [Beslissingen](../beslissingen/)).
 - **OpenSearch** (2.19, **cluster van drie nodes** sinds 2026-09-26): hybride
   zoekindex. StatefulSet `opensearch-cluster`, één pod per worker, elk met een eigen
   local-path-volume; OpenSearch repliceert de shards zelf. Parallelle start (geen node
   is ready vóór er een quorum is), PDB `maxUnavailable: 1`. Security-plugin uit — alleen
-  in-cluster bereikbaar (ClusterIP). De oude single-node (`opensearch`) blijft tot
-  2026-10-03 staan als rollback.
+  in-cluster bereikbaar (ClusterIP). De oude single-node (`opensearch`) en zijn volume
+  zijn op 2026-10-03 verwijderd, na een week zonder rollback (zie [Archief](../archief/)).
 - **OpenAnonymiser**: PII-detectie over HTTP (GLiNER, CPU-only); het model zit in de
   image gebakken, geen runtime-download. Draait met **3 replica's, één per worker**
   (harde anti-affinity): Wordsworth hakt documenten in chunks en waaiert die over de
@@ -83,6 +86,9 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   wordt idempotent aangemaakt door een Argo CD PreSync init-Job. Sinds **Fase B** staat reversibele pseudonimisering aan:
   PII wordt vervangen door pseudoniemen waarvan de data-keys OpenBao-Transit-wrapped in
   de database liggen — herleidbaar voor wie dat mag, betekenisloos voor de rest.
+  **Hybride zoeken** houdt sinds 2026-10-04 de gefuseerde BM25 + kNN-rangorde aan
+  (`WORDSWORTH_HYBRID_FINAL_RANK=rrf`) in plaats van achteraf op cosine over het hele
+  document te sorteren; `/ask` krijgt 900 s voor de generatie (`WORDSWORTH_LLM_TIMEOUT`).
 - **PostgreSQL**: CNPG-cluster `homelab-pg` — PG17 (digest-gepind), 3 instances met
   anti-affinity over de workers; app-credentials genereert de operator zelf.
 - **Object storage**: SeaweedFS (`weed server -s3`, ClusterIP `:8333`) is de S3-store
@@ -171,6 +177,25 @@ digest-gepind.
     inloggen gaat via Keycloak (OIDC).
   - tailnet-intern via een Tailscale-Ingress (MagicDNS-cert): de volledige server, de
     REST-API inbegrepen, voor CLI- en operatorgebruik.
+
+## Netwerklogboek (netlog)
+
+Het cluster heeft geen Prometheus. Om een netwerkstoring achteraf te kunnen aanwijzen
+draait er sinds 2026-09-28 een bewust klein logboek, op twee plekken:
+
+| Waar | Wat | Interval |
+|------|-----|----------|
+| elke clusternode (DaemonSet `netlog`, Argo CD-app, sync-wave 5) | load, CPU en rx/tx in Mbit/s van de hoofdinterface van de **node** | 30 s |
+| agent-lxc (`scripts/netlog.sh`, systemd-service) | ping naar router, node-01 en een extern adres, DNS via de router, HTTPS | 10 s (HTTPS 1×/min) |
+
+- De DaemonSet draait met `hostNetwork` (anders ziet hij de tellers van de pod, niet
+  van de node), non-root, read-only rootfs, alle capabilities gedropt, en tolereert de
+  control-plane-taint — alle zes de nodes loggen.
+- Het script op agent-lxc haalt elke 10 minuten de DaemonSet-regels binnen: podlogs
+  verdwijnen bij een herstart van pod of node, en dat is precies het moment waar het
+  om gaat. Logs blijven 30 dagen staan.
+
+Uitlezen: zie [Runbooks](../runbooks/#netwerkstoring-terugzoeken-netlog).
 
 ## Buzz-relay-VM (boomhuis-communicatielaag)
 

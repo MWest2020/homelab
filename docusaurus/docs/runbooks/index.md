@@ -177,11 +177,34 @@ kubectl -n ollama get pods -o wide                          # ollama-0/-1 op ver
 kubectl -n ollama logs ollama-0 -c models                   # "model bge-m3:latest = … (pinned)"
 ```
 
+### `/ask` is traag of loopt in een timeout
+
+Elke Ollama-instance behandelt **één request per model tegelijk**
+(`OLLAMA_NUM_PARALLEL=1`). Een tweede `/ask` op dezelfde instance wacht dus in de rij;
+dat is opzet, geen storing.
+
+| Situatie (gemeten 2026-09-28, k=8) | Duur |
+|---|---|
+| één `/ask` alleen | ~300 s |
+| twee tegelijk: de eerste | ~235 s |
+| twee tegelijk: de wachtende | ~640 s |
+
+De timeouts in de keten zijn daarop afgesteld: `WORDSWORTH_LLM_TIMEOUT` staat op
+**900 s** (de standaard van 600 s was korter dan een wachtende vraag), gunicorn op
+1800 s, en de tailnet-proxies zetten geen response-timeout.
+
+```bash
+kubectl -n ollama get pods                                  # RESTARTS: OOMKilled?
+kubectl -n ollama describe pod ollama-0 | grep -A3 'Last State'
+```
+
+Een OOM-kill wijst op een te krappe memory-limit: de limit is 7Gi, gemeten onder de
+zwaarste belasting. Verlaag hem niet zonder opnieuw te meten.
+
 ### OpenSearch: het cluster van drie nodes
 
 Sinds 2026-09-26 zoekt Wordsworth op `opensearch-cluster` (StatefulSet, drie pods, één
-per worker). De oude single-node `opensearch` draait er tot 2026-10-03 naast als
-rollback; daarna gaat hij weg.
+per worker). De oude single-node `opensearch` is op 2026-10-03 verwijderd.
 
 ```bash
 kubectl -n opensearch get pods -l app=opensearch-cluster -o wide
@@ -193,9 +216,11 @@ curl -s 'localhost:9200/_cat/shards/wordsworth?v' # primary + replica op verschi
 - **Onderhoud/drain**: de PDB laat één pod tegelijk gaan. Met één node weg kan het
   cluster tijdelijk `yellow` zijn, maar het serveert door; de pod van een ontbrekende
   worker wacht Pending tot die terug is (het volume is lokaal).
-- **No rollback any more.** The old single node and its volume were removed on
-  2026-10-03, after a week in which nothing needed them. Recovery from a lost
-  index is a re-index from the database and the object store, not a switch back.
+- **Geen rollback meer.** De oude single-node en zijn volume zijn op 2026-10-03
+  verwijderd, na een week waarin niets ze nodig had. Herstel van een verloren index
+  is opnieuw indexeren vanuit de database en de object store, niet terugschakelen.
+- De env `reindex.remote.allowlist` wijst nog naar de verdwenen node. Die is één keer
+  gebruikt voor de migratie en blijft bewust staan: weghalen herstart het hele cluster.
 - `vm.max_map_count` zet een privileged init-container per pod; zonder die waarde
   weigert OpenSearch te starten.
 
@@ -341,6 +366,41 @@ Bekende oorzaken, alle al gemitigeerd in `tunnel.yaml`:
 Blijven er herstarts komen, controleer dan of beide replica's echt op verschillende
 nodes staan — de anti-affinity is `preferred` — en of de logs nog `quic` noemen (dan is
 de `--protocol`-arg niet actief).
+
+## Netwerkstoring terugzoeken (netlog)
+
+Vielen de tunnels om, of was het cluster even onbereikbaar? Het netwerklogboek (zie
+[Architectuur](../architectuur/#netwerklogboek-netlog)) laat zien wát er wegviel en
+welke node op dat moment verkeer maakte.
+
+```bash
+# Per node: <tijd> <node> load1=… cpu=…% rx=… tx=… Mbit/s (interface)
+kubectl -n netlog logs -l app=netlog --prefix --since=2h
+kubectl -n netlog get pods -o wide          # één pod per node, ook op de control-planes
+```
+
+Op agent-lxc staan de bestanden per dag (UTC) in `~/netlog/`:
+
+| Bestand | Inhoud |
+|---|---|
+| `<datum>.tsv` | `tijd`, `router_ms`, `node01_ms`, `extern_ms`, `dns_router_ms`, `https_ms` |
+| `cluster-<datum>.log` | de regels van de DaemonSet, elke 10 min binnengehaald |
+
+Lezen:
+
+- **Een leeg veld is de storing**: geen antwoord binnen de time-out. `https_ms` is
+  alleen eens per minuut gevuld; daartussen is leeg normaal.
+- Welke kolom leeg is, wijst de plek aan: `extern_ms` is het pad naar buiten,
+  `node01_ms` het pad naar het cluster (node-01 zit achter de switch aan de
+  wifi-extender).
+- **Een gat in `cluster-<datum>.log` vult zichzelf.** Het ophalen loopt via jumpy en
+  mislukt tijdens een internetstoring; daarom haalt elke ronde de laatste 3 uur op en
+  ontdubbelt het bestand. Podlogs van vóór een pod- of node-herstart zijn wel weg.
+
+Doelen en map zijn instelbaar met `NETLOG_DIR`, `NETLOG_ROUTER`, `NETLOG_NODE`,
+`NETLOG_EXTERN`, `NETLOG_DNSNAAM` en `NETLOG_URL`. De service
+(`scripts/systemd/netlog.service`) herstart vanzelf; logs ouder dan 30 dagen worden
+opgeruimd.
 
 ## Buzz-relay deployen (VM 109)
 

@@ -77,7 +77,13 @@ nieuwe model staat onder [Architectuur](../architectuur/), het waarom onder
 
 - **Ollama**: op 2026-09-26 vervangen door twee instances met digest-gepinde modellen.
 - **OpenSearch**: sinds 2026-09-26 zoekt Wordsworth op het cluster van drie nodes. De
-  single-node blijft tot 2026-10-03 staan als rollback.
+  single-node (Deployment `opensearch`, `Recreate`, één 10Gi-volume `opensearch-data`,
+  `discovery.type: single-node`) bleef een week staan als rollback en is op
+  **2026-10-03** verwijderd, met zijn volume. De index was vooraf gekopieerd met
+  reindex-from-remote.
+- **Ollama-limit 5Gi** (tot 2026-09-28): te krap voor twee geladen modellen, wat twee
+  gelijktijdige `/ask`-calls op 2026-09-26 met een OOM-kill van beide pods aantoonden.
+  Nu 7Gi, gemeten.
 
 ## Nextcloud-tenants op Docker (laptop-node)
 
