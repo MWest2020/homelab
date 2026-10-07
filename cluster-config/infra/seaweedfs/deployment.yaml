@@ -29,6 +29,13 @@ spec:
             - -s3.config=/etc/seaweedfs/s3_config.json
             - -dir=/data
             - -master.volumeSizeLimitMB=1024
+          env:
+            # Eén volume per groei in plaats van zeven (master.toml
+            # [master.volume_growth] copy_1, standaard 7). Deze server heeft maar
+            # 14 slots: wordsworth nam er 7, het metadata-log van de filer
+            # (/topics, collectie '') de andere 7, en een volgende groei van
+            # wordsworth had 7 vrije slots tegelijk nodig gehad. wordsworth#201.
+            - { name: WEED_MASTER_VOLUME_GROWTH_COPY_1, value: "1" }
           ports:
             - name: s3
               containerPort: 8333
