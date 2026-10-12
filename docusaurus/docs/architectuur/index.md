@@ -93,7 +93,10 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   anti-affinity over de workers; app-credentials genereert de operator zelf.
 - **Object storage**: SeaweedFS (`weed server -s3`, ClusterIP `:8333`) is de S3-store
   voor de documenten — de data is in augustus 2026 checksum-geverifieerd gemigreerd
-  vanaf MinIO (zie [Archief](../archief/)).
+  vanaf MinIO (zie [Archief](../archief/)). Eén all-in-one pod (master + volume + filer
+  + S3) op een RWO-PVC, volumes van maximaal 1 GiB; een collectie groeit met **één
+  volume per keer** (`WEED_MASTER_VOLUME_GROWTH_COPY_1=1`, zie
+  [Beslissingen](../beslissingen/)).
 - **Caller-auth (opt-in)**: API-keys via het out-of-band Secret `wordsworth-apikeys`.
   Daarnaast een **EUDI-VC reveal-gate** (TEST-issuer, `REQUIRED=false`): een aangeboden
   verifiable credential versmalt een reveal tot grant ∩ VC-geautoriseerde types; zonder

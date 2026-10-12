@@ -187,7 +187,9 @@ gevonden. Sinds 2026-10-04 blijft de gefuseerde rangorde staan
 | gefuseerde rangorde | 0,731 | 0,345 | 0,400 |
 
 De keuze zit achter een instelling en is eerst met de oude waarde als standaard
-uitgerold, zodat het gedrag pas veranderde met een zichtbare config-commit. Het is een
+uitgerold, zodat het gedrag pas veranderde met een zichtbare config-commit. Sinds
+2026-10-05 is de gefuseerde rangorde ook de standaard in de code; de instelling blijft
+expliciet in de ConfigMap staan. Het is een
 **tussenstap**: de eigenlijke oplossing is zoeken op passages in plaats van hele
 documenten. De passage-index wordt al gebouwd en gemeten, maar het zoeken gebruikt hem
 nog niet.
@@ -237,6 +239,23 @@ die MinIO had. De migratie liep in drie gearchiveerde OpenSpec-changes (2026-08-
 
 Ceph RGW blijft het lange-termijndoel; de S3-seam maakt die latere swap identiek aan
 deze. De oude situatie staat in het [Archief](../archief/).
+
+### Eén volume per groei, niet zeven
+
+SeaweedFS maakt bij elke groei van een collectie standaard **zeven** volumes tegelijk
+aan (`[master.volume_growth] copy_1` in `master.toml`). Dat past bij
+een cluster van volumeservers, niet bij één all-in-one pod met **14 slots**:
+
+| Collectie | Slots |
+|---|---|
+| `wordsworth` (de documenten) | 7 |
+| metadata-log van de filer (`/topics`, de naamloze collectie) | 7 |
+| vrij | 0 |
+
+Een volgende groei van `wordsworth` had zeven vrije slots tegelijk nodig gehad — die
+waren er niet. Sinds 2026-10-07 staat `WEED_MASTER_VOLUME_GROWTH_COPY_1=1`: een
+collectie groeit met één volume (maximaal 1 GiB, `-master.volumeSizeLimitMB=1024`) per
+keer en gebruikt alleen de slots die ze echt vult.
 
 ## netnl: facade in-cluster, batch-instance op de VPS
 
