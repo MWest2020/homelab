@@ -10,6 +10,9 @@ build goes live by updating both digests in `deployment.yaml`.
 
   ```
   kubectl get secret ghcr-pull -n agents -o json \
-    | jq 'del(.metadata.namespace,.metadata.uid,.metadata.resourceVersion,.metadata.creationTimestamp,.metadata.annotations,.metadata.ownerReferences)' \
+    | python3 -c 'import json,sys; s=json.load(sys.stdin); s["metadata"]={"name":"ghcr-pull"}; print(json.dumps(s))' \
     | kubectl apply -n convergence -f -
   ```
+
+The Argo CD Application itself was applied once by hand (no root app runs;
+see the runbooks index), on 2026-10-24.
