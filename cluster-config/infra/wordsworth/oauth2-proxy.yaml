@@ -66,6 +66,12 @@ spec:
             - --cookie-secure=true
             - --cookie-samesite=lax
             - --cookie-expire=10h
+            # Het token dat we doorgeven (--pass-authorization-header) leeft
+            # zo lang als Keycloak's access-token (standaard 5 minuten); de
+            # api weigert een verlopen token en stuurt naar /console/login, die
+            # om een api-sleutel vraagt. Zonder verversing gebeurde dat vijf
+            # minuten na elke login (2026-10-24). Ververs dus ruim daarbinnen.
+            - --cookie-refresh=4m
             # De health-route moet zonder login bereikbaar blijven, anders
             # ziet Kubernetes een inlogpagina aan voor een gezonde app.
             - --skip-auth-route=^/health$
