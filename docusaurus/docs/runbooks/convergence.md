@@ -35,5 +35,6 @@ digests in `deployment.yaml`; Argo CD rolls the pod.
 ## Out-of-band
 
 The packages are private, so the namespace needs the `ghcr-pull` secret,
-copied from `agents` (command in `cluster-config/infra/convergence/README.md`).
+copied from `agents` (command in `cluster-config/infra/convergence/README.md`;
+jumpy has no `jq`, so it uses python3).
 Without it the pod stays in `ImagePullBackOff`.
