@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: convergence
+  namespace: argocd
+  annotations:
+    # After the tailscale-operator (Funnel exposure) is up.
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MWest2020/homelab.git
+    targetRevision: main
+    path: cluster-config/infra/convergence
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: convergence
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

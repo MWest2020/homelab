@@ -1,0 +1,63 @@
+# convergence — the game's site (/) and 2D demo (/play/) with its
+# server-authoritative game server, devnet only (MWest2020/convergence,
+# docs/how-to/deploy.md). One pod: nginx (web) proxies /ws to the game server
+# on 127.0.0.1:8787, so site, demo and WebSocket share one origin.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convergence
+  labels: { app: convergence }
+spec:
+  replicas: 1               # the game state lives in the server process; one
+  strategy: { type: Recreate }   # world, one pod
+  selector:
+    matchLabels: { app: convergence }
+  template:
+    metadata:
+      labels: { app: convergence }
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull   # private packages; out-of-band, see README.md
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: server
+          image: ghcr.io/mwest2020/convergence-server:sha-7520222@sha256:571a60523a32fae063967a3b328ed41b31ccf20d4034c88bbfd2ee44479dab26
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: PORT, value: "8787" }
+          ports:
+            - containerPort: 8787
+          securityContext:
+            runAsUser: 1000   # the image's USER node, numeric for runAsNonRoot
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8787 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+        - name: web
+          image: ghcr.io/mwest2020/convergence-web:sha-7520222@sha256:243369d708cd80c0d5e5f7fcafd428bbb27ae2dfaea2f73404dee02ef6f2541f
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          securityContext:
+            runAsUser: 101    # nginx-unprivileged
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }   # pid file and temp paths
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}
