@@ -1,0 +1,20 @@
+# Public exposure via Tailscale Funnel: https://convergence.<tailnet>.ts.net,
+# TLS terminated by the tailscale-operator (same pattern as netnl/funnel.yaml).
+# convergence.westerweel.work follows when Mark adds the Cloudflare hostname.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: convergence
+  annotations:
+    tailscale.com/funnel: "true"
+    tailscale.com/hostname: "convergence"
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: convergence
+      port:
+        number: 8080
+  tls:
+    - hosts:
+        - convergence
