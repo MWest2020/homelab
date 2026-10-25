@@ -1,0 +1,55 @@
+# STOPGAP public link while the Funnel cannot work: the tailnet's ACL does not
+# grant tag:k8s the `funnel` node attribute, so convergence.<tailnet>.ts.net
+# never gets public DNS (2026-10-25; netnl's Funnel has the same gap).
+# A Cloudflare quick tunnel needs no account and no token; its URL
+# (https://<random>.trycloudflare.com) is printed in this pod's log and
+# CHANGES on every restart. Remove this file once either permanent route
+# works: the ACL attribute (Funnel) or the convergence.westerweel.work
+# hostname on a named tunnel.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convergence-quick-tunnel
+  labels: { app: convergence, component: quick-tunnel }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: convergence, component: quick-tunnel }
+  template:
+    metadata:
+      labels: { app: convergence, component: quick-tunnel }
+    spec:
+      # Same UDP avoidance as netnl/tunnel.yaml: DNS over TCP, http2 not QUIC.
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 1.0.0.1
+        options:
+          - { name: ndots, value: "2" }
+          - { name: use-vc }
+          - { name: attempts, value: "3" }
+          - { name: timeout, value: "2" }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --protocol
+            - http2
+            - --url
+            - http://convergence.convergence.svc.cluster.local:8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "10m",  memory: "32Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }

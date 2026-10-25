@@ -22,8 +22,14 @@ One pod, two containers, both pinned by digest:
 
 ## Access
 
-- **Public:** `https://convergence.tail8f7877.ts.net` through a Tailscale
-  Funnel Ingress (same construction as netnl).
+- **Public, today:** a Cloudflare quick tunnel (`quick-tunnel.yaml`), a stopgap.
+  Its URL is in the pod log and changes on every restart:
+  `kubectl -n convergence logs deploy/convergence-quick-tunnel | grep trycloudflare`.
+- **Funnel:** `https://convergence.tail8f7877.ts.net` is configured but **not
+  public**: the tailnet ACL does not grant `tag:k8s` the `funnel` node
+  attribute, so the name has no public DNS (netnl's Funnel has the same gap).
+  Fix, tailnet admin only: add
+  `"nodeAttrs": [{"target": ["tag:k8s"], "attr": ["funnel"]}]` to the policy.
 - `convergence.westerweel.work` follows when Mark adds the Cloudflare hostname.
 
 ## Deploy a new build
