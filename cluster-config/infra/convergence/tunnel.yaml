@@ -1,0 +1,124 @@
+# Cloudflare Tunnel: the public name for the game's site and demo —
+# https://convergence.westerweel.work → tunnel `convergence` (ba2190b8…) → this
+# cloudflared pod → Service convergence:8080 (nginx: site, /play/, /ws).
+# Same construction as netnl/tunnel.yaml, including its UDP avoidance (DNS
+# over TCP, http2 instead of QUIC); see the notes there for why.
+#
+# The tunnel is remotely managed: the ingress rule (hostname → service) lives
+# at Cloudflare (Zero Trust → Networks → Tunnels), created 2026-10-25 by API.
+# The token is the out-of-band Secret `convergence-tunnel` (README.md).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convergence-tunnel
+  labels: { app: convergence-tunnel }
+spec:
+  # HA-fix (2026-09-06): twee connectors op dezelfde tunnel. Cloudflare
+  # ondersteunt dit expliciet — meerdere cloudflared-instanties registreren
+  # zich op één tunnel-ID en het edge verdeelt het verkeer. Reden: de
+  # DNS-fix hieronder haalde de SRV-lookupfouten weg, maar er bleef een
+  # tweede storing over. Op 2026-09-06 04:32 vielen alle vier de
+  # edge-verbindingen tegelijk weg en stopte cloudflared met
+  # "no more connections active and exiting" — het proces probeert dan niet
+  # opnieuw, het eindigt. Drie herstarts in zestien uur, en tijdens elke
+  # herstart geeft Cloudflare HTTP 530 op api.westerweel.work.
+  # Met twee replica's neemt de andere connector het verkeer over terwijl de
+  # eerste herstart, zodat een herstart geen zichtbare storing meer is.
+  replicas: 2
+  selector:
+    matchLabels: { app: convergence-tunnel }
+  template:
+    metadata:
+      labels: { app: convergence-tunnel }
+    spec:
+      # Twee replica's op hetzelfde knooppunt geven geen redundantie tegen
+      # een knooppunt dat wegvalt. `preferred` en niet `required`: op een
+      # cluster van drie kleine nodes moet een replica nog steeds ergens
+      # terechtkunnen als er eentje in onderhoud is.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app: convergence-tunnel }
+      # DNS-fix (2026-09-05): cloudflared zoekt bij het opstarten de SRV-record
+      # _v2-origintunneld._tcp.argotunnel.com op. Faalt die lookup, dan stopt
+      # het proces met exit 1 — geen retry. Dat gebeurde ~6x/dag ("server
+      # misbehaving" van CoreDNS), en tijdens zo'n herstart geeft Cloudflare
+      # HTTP 530 op api.westerweel.work; de dagelijkse meting van
+      # internetnl-cli-demo viel er op 2026-09-05 op om.
+      #   - ndots 2: die naam heeft 3 punten, dus met de standaard ndots 5 werd
+      #     hij eerst tegen alle search-domains geprobeerd (vier zinloze
+      #     queries naar CoreDNS vóór de echte). Nu direct absoluut.
+      #   - 1.1.1.1 als extra nameserver ACHTER de cluster-resolver: valt in
+      #     als CoreDNS SERVFAIL geeft. ClusterFirst blijft staan, want de
+      #     tunnel-ingress wijst naar de cluster-Service `netnl` — die moet
+      #     door CoreDNS opgelost blijven worden.
+      #
+      # VERVOLG (2026-09-08): de ndots-fix hielp, maar loste het niet op.
+      # Beide overgebleven storingen bleken UDP:
+      #   - de SRV-lookup faalde nu op de fallback zelf:
+      #     "read udp …->1.1.1.1:53: i/o timeout";
+      #   - en de QUIC-verbinding viel om met "accept stream listener
+      #     encountered a failure while serving", waarna cloudflared met
+      #     "no more connections active and exiting" stopt.
+      # QUIC is UDP, DNS is standaard UDP. Eén gemeenschappelijke oorzaak in
+      # het UDP-pad van dit cluster naar buiten is dus waarschijnlijker dan
+      # twee losse toevalligheden. Daarom mijden we UDP op beide fronten:
+      #   - `use-vc` dwingt DNS over TCP (CoreDNS en 1.1.1.1 spreken beide TCP);
+      #   - `--protocol http2` bij de args laat cloudflared over TCP verbinden
+      #     in plaats van QUIC.
+      # Twee resolvers en attempts 3 maken de opstart-lookup daarbovenop
+      # minder gevoelig voor één hapering — cloudflared doet die lookup één
+      # keer en stopt bij falen, er is geen retry in het proces zelf.
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 1.0.0.1
+        options:
+          - { name: ndots, value: "2" }
+          - { name: use-vc }
+          - { name: attempts, value: "3" }
+          - { name: timeout, value: "2" }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532        # image draait als nonroot
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            # TCP in plaats van QUIC — zie de UDP-notitie bij dnsConfig.
+            # Iets meer latency dan QUIC, maar dit pad blijkt UDP niet
+            # betrouwbaar te dragen en een omgevallen QUIC-verbinding laat
+            # cloudflared afsluiten.
+            - --protocol
+            - http2
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: convergence-tunnel, key: TUNNEL_TOKEN }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "10m",  memory: "32Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }

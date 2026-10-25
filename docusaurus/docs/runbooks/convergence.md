@@ -22,9 +22,14 @@ One pod, two containers, both pinned by digest:
 
 ## Access
 
-- **Public:** `https://convergence.tail8f7877.ts.net` through a Tailscale
-  Funnel Ingress (same construction as netnl).
-- `convergence.westerweel.work` follows when Mark adds the Cloudflare hostname.
+- **Public:** `https://convergence.westerweel.work` through the Cloudflare
+  tunnel `convergence` (remotely managed; ingress rule and CNAME created by API
+  on 2026-10-25). The cloudflared pods carry their own label
+  (`app: convergence-tunnel`): the game Service selects `app: convergence`.
+- **Funnel:** `https://convergence.tail8f7877.ts.net` is configured but **not
+  public**: the tailnet ACL does not grant `tag:k8s` the `funnel` node
+  attribute, so the name has no public DNS (netnl's Funnel has the same gap).
+  Fix, tailnet admin only: `"nodeAttrs": [{"target": ["tag:k8s"], "attr": ["funnel"]}]`.
 
 ## Deploy a new build
 
@@ -37,4 +42,5 @@ digests in `deployment.yaml`; Argo CD rolls the pod.
 The packages are private, so the namespace needs the `ghcr-pull` secret,
 copied from `agents` (command in `cluster-config/infra/convergence/README.md`;
 jumpy has no `jq`, so it uses python3).
-Without it the pod stays in `ImagePullBackOff`.
+Without it the pod stays in `ImagePullBackOff`. The tunnel token is the
+out-of-band Secret `convergence-tunnel`.
