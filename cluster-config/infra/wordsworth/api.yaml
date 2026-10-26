@@ -42,7 +42,7 @@ spec:
           # en scripts/pin_check.py in MWest2020/wordsworth.
           # sha-cf03830. api en init-job blijven op dezelfde digest, anders
           # ontbreken de kolom-migraties.
-          image: ghcr.io/mwest2020/wordsworth@sha256:b9a59bf019725a160afbff7c5c3584d925969b5affd2ec97d57aa06bc159373b
+          image: ghcr.io/mwest2020/wordsworth@sha256:c3412836c057d8bcf8042dbe91fecc2408c2d232df4a62c131f7d8e615d6fed9
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
