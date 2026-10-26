@@ -44,3 +44,8 @@ Secrets are out of band, never in git: `keycloak-db` (in `cnpg-database` and
   was unusable through HTTP login because of it. Write password files without
   a newline (`printf '%s'`, or `print(..., end='')`). When in doubt, `kcadm.sh`
   inside the pod uses the env value literally and does work.
+- **Access tokens live five minutes.** An oauth2-proxy that passes the token
+  on (`--pass-authorization-header`, as `wordsworth-auth` does) hands the app
+  an expired token five minutes after login unless it refreshes. Set
+  `--cookie-refresh` well inside that lifespan; Wordsworth uses `4m`
+  (2026-10-24: without it every session fell back to the API-key login page).

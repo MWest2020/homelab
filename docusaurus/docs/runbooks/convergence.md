@@ -20,13 +20,16 @@ One pod, two containers, both pinned by digest:
   and `/healthz` proxied to the server. Site, demo and WebSocket share one
   origin.
 
+Both containers run non-root with a read-only root filesystem and all
+capabilities dropped; nginx gets an `emptyDir` on `/tmp` for its pid file.
+
 ## Access
 
 - **Public:** `https://convergence.westerweel.work` through the Cloudflare
   tunnel `convergence` (remotely managed; ingress rule and CNAME created by API
   on 2026-10-25). The cloudflared pods carry their own label
   (`app: convergence-tunnel`): the game Service selects `app: convergence`.
-- **Funnel:** `https://convergence.tail8f7877.ts.net` is configured but **not
+- **Funnel:** `https://convergence.<tailnet>.ts.net` is configured but **not
   public**: the tailnet ACL does not grant `tag:k8s` the `funnel` node
   attribute, so the name has no public DNS (netnl's Funnel has the same gap).
   Fix, tailnet admin only: `"nodeAttrs": [{"target": ["tag:k8s"], "attr": ["funnel"]}]`.
@@ -35,7 +38,21 @@ One pod, two containers, both pinned by digest:
 
 The convergence repository's `image` workflow pushes
 `ghcr.io/mwest2020/convergence-{server,web}:sha-<commit>` on main. Update both
-digests in `deployment.yaml`; Argo CD rolls the pod.
+digests in `deployment.yaml`; Argo CD rolls the pod. Because of `Recreate`, a
+rollout is a short outage and resets the game world.
+
+## Verify
+
+```bash
+kubectl -n convergence get pods                      # convergence 2/2, convergence-tunnel ×2
+kubectl -n convergence logs -l app=convergence-tunnel --tail=20
+curl -sI https://convergence.westerweel.work/        # 200 from nginx
+```
+
+The tunnel uses the same construction as netnl's: two cloudflared replicas
+(anti-affinity `preferred`), DNS over TCP and `--protocol http2` instead of
+QUIC. An HTTP 530 means no connector is up; see *HTTP 530 op
+`api.westerweel.work`* in the [runbooks index](./index.md).
 
 ## Out-of-band
 

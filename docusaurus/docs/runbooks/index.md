@@ -367,6 +367,9 @@ Blijven er herstarts komen, controleer dan of beide replica's echt op verschille
 nodes staan — de anti-affinity is `preferred` — en of de logs nog `quic` noemen (dan is
 de `--protocol`-arg niet actief).
 
+De tunnels van Wordsworth en [Convergence](./convergence.md) zijn op dezelfde manier
+gebouwd; dezelfde checks gelden daar (namespace en pod-label verschillen per app).
+
 ## Netwerkstoring terugzoeken (netlog)
 
 Vielen de tunnels om, of was het cluster even onbereikbaar? Het netwerklogboek (zie

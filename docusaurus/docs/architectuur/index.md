@@ -113,7 +113,9 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
 - **Publieke demo-console** (sinds 2026-09-17): `wordsworth.westerweel.work` via een
   Cloudflare Tunnel (2 cloudflared-replica's, zelfde instellingen als netnl) naar
   **oauth2-proxy** (`wordsworth-auth`, 2 replica's). De proxy doet de OIDC-login bij
-  Keycloak en geeft het ID-token door; Wordsworth verifieert het en schrijft het
+  Keycloak en geeft het token door; het ververst de sessie elke 4 minuten
+  (`--cookie-refresh=4m`), binnen de 5 minuten die een Keycloak-access-token
+  leeft. Wordsworth verifieert het token en schrijft het
   e-mailadres als caller in het auditspoor. Alleen dit publieke pad loopt via de proxy —
   de tailnet-ingangen gaan direct naar de API, met API-keys. Publiek omdat de corpora
   hier al gepubliceerde (Woo-)informatie zijn; wie met gevoelige data werkt, draait
@@ -180,6 +182,22 @@ digest-gepind.
     inloggen gaat via Keycloak (OIDC).
   - tailnet-intern via een Tailscale-Ingress (MagicDNS-cert): de volledige server, de
     REST-API inbegrepen, voor CLI- en operatorgebruik.
+
+## Convergence: de game (devnet)
+
+De site, 2D-demo en server-authoritative gameserver van `MWest2020/convergence`,
+**alleen devnet**.
+Argo CD-app `convergence` (sync-wave 7), beide images digest-gepind.
+
+- **Eén pod, twee containers**: nginx (`:8080`) serveert de site (`/`) en de demo
+  (`/play/`) en proxyt `/ws` naar de gameserver op `127.0.0.1:8787` — één origin voor
+  alles. De spelwereld leeft in het serverproces, dus **één replica, `Recreate`**.
+- **Publiek** via `convergence.westerweel.work`: een Cloudflare Tunnel met dezelfde
+  constructie als netnl (2 cloudflared-replica's, TCP i.p.v. QUIC). Een Funnel-Ingress
+  staat klaar, maar is niet publiek zolang de tailnet-ACL het `funnel`-attribuut niet
+  toekent.
+
+Beheer: zie [Convergence](../runbooks/convergence.md).
 
 ## Netwerklogboek (netlog)
 
