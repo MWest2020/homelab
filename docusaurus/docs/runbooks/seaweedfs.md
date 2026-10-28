@@ -38,7 +38,9 @@ unlock
 `fs.configure` makes new writes under the bucket land with `001`;
 `volume.configure.replication` changes the existing volumes and
 `volume.fix.replication` copies them. Copying only adds; the originals are not
-touched. Check afterwards with `volume.list` that each wordsworth volume shows
+touched. The copy runs inside the all-in-one pod: with a 1 GiB limit it was
+OOM-killed on 2026-10-28 (the pod restarted; no data was lost, verified by
+object count, bytes and ETags), so its limit is 2 GiB. Check afterwards with `volume.list` that each wordsworth volume shows
 on both data nodes, and that the bucket's object count and bytes match what
 they were before.
 
