@@ -50,11 +50,13 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
           resources:
+            # 1Gi was OOM-killed copying volumes to the second volume server
+            # (volume.fix.replication, 2026-10-28, wordsworth#193).
             requests:
               cpu: 50m
-              memory: 128Mi
+              memory: 512Mi
             limits:
-              memory: 1Gi
+              memory: 2Gi
           volumeMounts:
             - name: data
               mountPath: /data
