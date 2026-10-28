@@ -1,0 +1,68 @@
+# Second SeaweedFS volume server, on a different node than the all-in-one pod
+# (required anti-affinity), with its own local-path volume. The wordsworth
+# collection is replicated 001 (one copy on another server), so every
+# wordsworth volume lives on two nodes. Replication itself is set in the
+# master/filer, not here: see docusaurus/docs/runbooks/seaweedfs.md.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: seaweedfs-volume
+spec:
+  serviceName: seaweedfs-volume
+  replicas: 1
+  selector:
+    matchLabels:
+      app: seaweedfs-volume
+  template:
+    metadata:
+      labels:
+        app: seaweedfs-volume
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: seaweedfs
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - { key: kubernetes.io/hostname, operator: In, values: [node-02] }
+      containers:
+        - name: volume
+          image: chrislusf/seaweedfs:4.39
+          args:
+            - volume
+            - -mserver=seaweedfs-master.seaweedfs.svc.cluster.local:9333
+            - -dir=/data
+            - -port=8080
+            - -max=10
+            - -ip=$(POD_IP)
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef: { fieldPath: status.podIP }
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: grpc, containerPort: 18080 }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 1Gi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 20Gi
