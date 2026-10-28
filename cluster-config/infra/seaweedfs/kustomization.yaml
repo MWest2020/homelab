@@ -5,3 +5,5 @@ resources:
   - pvc.yaml
   - deployment.yaml
   - service.yaml
+  - master-service.yaml
+  - volume-statefulset.yaml

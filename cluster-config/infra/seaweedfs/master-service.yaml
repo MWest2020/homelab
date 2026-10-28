@@ -1,0 +1,15 @@
+# The master's ports, so volume servers on other nodes can join it.
+# The all-in-one pod (deployment.yaml) is master + filer + S3 + the first
+# volume server; volume-statefulset.yaml adds a second volume server on
+# another node (wordsworth#193: storage that survives a node).
+apiVersion: v1
+kind: Service
+metadata:
+  name: seaweedfs-master
+spec:
+  type: ClusterIP
+  selector:
+    app: seaweedfs
+  ports:
+    - { name: master-http, port: 9333, targetPort: 9333 }
+    - { name: master-grpc, port: 19333, targetPort: 19333 }
