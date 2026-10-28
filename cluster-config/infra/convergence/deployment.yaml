@@ -23,7 +23,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: server
-          image: ghcr.io/mwest2020/convergence-server:sha-cd9e3c6@sha256:cd7e32db4845095f17cd0da86f9e4ec568201040ea2e344a8fee1de6e858a55d
+          image: ghcr.io/mwest2020/convergence-server:sha-6319106@sha256:607123483bfc199dc36e59ec5fdf653e5dc978df99b0b066808ec51b49e3d8eb
           imagePullPolicy: IfNotPresent
           env:
             - { name: PORT, value: "8787" }
@@ -41,7 +41,7 @@ spec:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 256Mi }
         - name: web
-          image: ghcr.io/mwest2020/convergence-web:sha-cd9e3c6@sha256:71788afd5732d8ca8a873bb620ffd34f71bcc0a89c070f9e0d813ab0a6e21d9f
+          image: ghcr.io/mwest2020/convergence-web:sha-6319106@sha256:2d6c13f2588f1379b04331e25ca4abb51606379809e8f05329bd9796cd93f8fd
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
