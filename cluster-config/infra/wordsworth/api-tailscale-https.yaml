@@ -14,6 +14,9 @@ metadata:
   name: wordsworth-api-https
   annotations:
     tailscale.com/hostname: "wordsworth-api"
+    # Served by the HA ProxyGroup (proxygroup.yaml) as svc:wordsworth-api,
+    # not by a dedicated single-pod proxy (wordsworth#192, step 2).
+    tailscale.com/proxy-group: "wordsworth-ingress"
 spec:
   ingressClassName: tailscale
   defaultBackend:
