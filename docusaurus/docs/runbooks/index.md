@@ -155,6 +155,17 @@ kubectl -n wordsworth port-forward svc/wordsworth-api 8000:8000 &
 curl -s localhost:8000/health
 ```
 
+**De tailnet-ingang is redundant** (wordsworth#192): `https://wordsworth-api.<tailnet>.ts.net`
+wordt bediend door de `ProxyGroup` `wordsworth-ingress` (type ingress, twee replicas op
+twee nodes via de `ProxyClass` `wordsworth-ha`) als Tailscale Service
+`svc:wordsworth-api`. De tailnet-policy keurt die service automatisch goed voor
+`tag:k8s` (`autoApprovers.services`, door Mark). Controle:
+
+```bash
+kubectl get proxygroup wordsworth-ingress            # Ready
+kubectl -n tailscale get pods -l app.kubernetes.io/name=wordsworth-ingress-pg -o wide   # twee nodes
+```
+
 **Config-wijziging die de API moet zien?** De pods lezen `wordsworth-config` via
 `envFrom`, en dat pikt alleen een herstart op. Wijzig daarom in dezelfde commit de
 pod-annotatie `wordsworth/config` in `api.yaml`, zodat Argo CD de pods uitrolt.

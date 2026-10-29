@@ -1,0 +1,33 @@
+# Highly available tailnet ingress for the Wordsworth API (wordsworth#192,
+# hoge-beschikbaarheid 3.3). One ProxyGroup of type ingress, two replicas on
+# two different nodes, serving the Tailscale Service svc:wordsworth-api.
+# Mark approved the service for tag:k8s in the tailnet policy (autoApprovers,
+# 2026-10-29), so its addresses reach the group's pods without a manual click.
+# Cluster-scoped resources (ProxyClass, ProxyGroup); tailscale-operator v1.102.2.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: wordsworth-ha
+spec:
+  statefulSet:
+    pod:
+      labels:
+        app.kubernetes.io/name: wordsworth-ingress-pg
+      affinity:
+        podAntiAffinity:
+          # Required, not preferred: two replicas on one node are one node's
+          # worth of availability.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: wordsworth-ingress-pg
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: wordsworth-ingress
+spec:
+  type: ingress
+  replicas: 2
+  proxyClass: wordsworth-ha

@@ -9,4 +9,5 @@ resources:
   - oauth2-proxy.yaml
   - api-tailscale.yaml
   - api-tailscale-https.yaml
+  - proxygroup.yaml
   - tunnel.yaml
