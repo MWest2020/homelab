@@ -158,8 +158,7 @@ curl -s localhost:8000/health
 **De tailnet-ingang is redundant** (wordsworth#192): `https://wordsworth-api.<tailnet>.ts.net`
 wordt bediend door de `ProxyGroup` `wordsworth-ingress` (type ingress, twee replicas op
 twee nodes via de `ProxyClass` `wordsworth-ha`) als Tailscale Service
-`svc:wordsworth-api` (de Ingress `wordsworth-api-https` draagt de annotatie
-`tailscale.com/proxy-group: wordsworth-ingress`). De tailnet-policy keurt die service automatisch goed voor
+`svc:wordsworth-api`. De tailnet-policy keurt die service automatisch goed voor
 `tag:k8s` (`autoApprovers.services`, door Mark). Controle:
 
 ```bash
