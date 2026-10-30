@@ -1,0 +1,19 @@
+# Roadmap, as data. Drafted 2026-10-30 by the odin coding session from this
+# repository's own docs and merged work, for the overview at westerweel.work/nu/.
+# Mark reviews and corrects it; until then it is a proposal. An item is "done"
+# only with evidence (a PR, issue or doc); everything else is "open".
+# Schema: project, goal, current (a phase id), phases [id, name, summary], and
+# done_means for the current phase [item, status done|open, evidence].
+project: homelab
+goal: "Infrastructure as code for a three-node Kubernetes homelab, run through GitOps, that the other projects can rely on."
+current: ha
+phases:
+  - {id: gitops, name: "Cluster and GitOps", summary: "three nodes, ArgoCD, certificates, tunnels"}
+  - {id: ha, name: "High availability", summary: "losing one node loses no data and no service"}
+  - {id: hardened, name: "Hardened", summary: "backups proven, secrets rotated, monitoring that pages"}
+done_means:
+  - {item: "Object storage on two nodes with replication", status: done, evidence: "https://github.com/MWest2020/homelab/pull/27"}
+  - {item: "Object Lock (COMPLIANCE) proven live", status: done, evidence: "https://github.com/MWest2020/wordsworth/issues/193"}
+  - {item: "Storage survives a node: filer metadata on Postgres, node drain test", status: open, evidence: "https://github.com/MWest2020/wordsworth/issues/193"}
+  - {item: "Tailnet ingress on two nodes", status: open, evidence: "https://github.com/MWest2020/wordsworth/issues/192"}
+  - {item: "Free disk headroom on node-01 (now about 82% full)", status: open, evidence: "https://github.com/MWest2020/homelab/blob/main/docusaurus/docs/runbooks/seaweedfs.md"}
