@@ -1,0 +1,29 @@
+# Rehearsal-only support: a throwaway Postgres standing in for CNPG, and dummy
+# S3 identities. Namespace seaweedfs-rehearsal; delete the namespace after.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: rehearsal-pg, namespace: seaweedfs-rehearsal}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: rehearsal-pg}}
+  template:
+    metadata: {labels: {app: rehearsal-pg}}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - {name: POSTGRES_USER, value: seaweedfs}
+            - {name: POSTGRES_DB, value: seaweedfs}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: seaweedfs-db, key: password}}
+          resources: {limits: {memory: 512Mi}}
+          volumeMounts: [{name: pg, mountPath: /var/lib/postgresql/data}]
+      volumes: [{name: pg, emptyDir: {sizeLimit: 1Gi}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: rehearsal-pg, namespace: seaweedfs-rehearsal}
+spec:
+  selector: {app: rehearsal-pg}
+  ports: [{port: 5432, targetPort: 5432}]
