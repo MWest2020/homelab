@@ -1,0 +1,12 @@
+# Declarative database for the SeaweedFS filers (the S3 metadata of
+# wordsworth's bucket) on the existing homelab-pg cluster. The role
+# `seaweedfs` is in cluster.yaml (managed.roles). wordsworth#193 task 1.2.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: seaweedfs
+spec:
+  name: seaweedfs
+  owner: seaweedfs
+  cluster:
+    name: homelab-pg

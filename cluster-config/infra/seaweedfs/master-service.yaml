@@ -1,7 +1,8 @@
-# The master's ports, so volume servers on other nodes can join it.
-# The all-in-one pod (deployment.yaml) is master + filer + S3 + the first
-# volume server; volume-statefulset.yaml adds a second volume server on
-# another node (wordsworth#193: storage that survives a node).
+# The masters (master-statefulset.yaml). `seaweedfs-master` is the stable
+# address for tools (weed shell); `seaweedfs-master-peers` is headless and gives
+# each master its own DNS name for Raft and for the volume servers and filers,
+# which list all three. publishNotReadyAddresses: the peers must find each
+# other before any of them is ready.
 apiVersion: v1
 kind: Service
 metadata:
@@ -9,7 +10,20 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app: seaweedfs
+    app: seaweedfs-master
+  ports:
+    - { name: master-http, port: 9333, targetPort: 9333 }
+    - { name: master-grpc, port: 19333, targetPort: 19333 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seaweedfs-master-peers
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: seaweedfs-master
   ports:
     - { name: master-http, port: 9333, targetPort: 9333 }
     - { name: master-grpc, port: 19333, targetPort: 19333 }

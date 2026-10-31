@@ -3,7 +3,10 @@ kind: Kustomization
 namespace: seaweedfs
 resources:
   - pvc.yaml
-  - deployment.yaml
+  - master-statefulset.yaml
+  - volume-data-deployment.yaml
+  - filer-config.yaml
+  - filer-deployment.yaml
   - service.yaml
   - master-service.yaml
   - volume-statefulset.yaml

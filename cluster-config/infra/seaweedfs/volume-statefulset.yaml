@@ -1,15 +1,17 @@
-# Second SeaweedFS volume server, on a different node than the all-in-one pod
-# (required anti-affinity), with its own local-path volume. The wordsworth
-# collection is replicated 001 (one copy on another server), so every
-# wordsworth volume lives on two nodes. Replication itself is set in the
-# master/filer, not here: see docusaurus/docs/runbooks/seaweedfs.md.
+# Two more SeaweedFS volume servers, each on its own node (required
+# anti-affinity against every volume server), with their own local-path
+# volumes. With seaweedfs-volume-data that is one per worker node. Every volume
+# is replicated 001 (a copy on another server), and with three servers a node
+# can go away and new volumes still find two servers to grow on, so writes keep
+# working. Replication of the existing volumes is master and filer state, not a
+# manifest: see docusaurus/docs/runbooks/seaweedfs.md.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: seaweedfs-volume
 spec:
   serviceName: seaweedfs-volume
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: seaweedfs-volume
@@ -17,6 +19,7 @@ spec:
     metadata:
       labels:
         app: seaweedfs-volume
+        seaweedfs/role: volume
     spec:
       affinity:
         podAntiAffinity:
@@ -24,22 +27,18 @@ spec:
             - topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
-                  app: seaweedfs
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - { key: kubernetes.io/hostname, operator: In, values: [node-02] }
+                  seaweedfs/role: volume
       containers:
         - name: volume
           image: chrislusf/seaweedfs:4.39
           args:
             - volume
-            - -mserver=seaweedfs-master.seaweedfs.svc.cluster.local:9333
+            - -mserver=seaweedfs-master-0.seaweedfs-master-peers:9333,seaweedfs-master-1.seaweedfs-master-peers:9333,seaweedfs-master-2.seaweedfs-master-peers:9333
             - -dir=/data
             - -port=8080
             - -max=10
+            # Stop writing before the node's OS disk fills.
+            - -minFreeSpace=10
             - -ip=$(POD_IP)
           env:
             - name: POD_IP

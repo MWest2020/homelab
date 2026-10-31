@@ -1,0 +1,45 @@
+# The filers' store: Postgres (postgres2) on the CNPG cluster homelab-pg,
+# database `seaweedfs` owned by role `seaweedfs` (cnpg-database/). The password
+# comes from the env var WEED_POSTGRES2_PASSWORD (filer-deployment.yaml).
+# postgres2 keeps each bucket in its own table, created on first use.
+#
+# `name ... COLLATE "C"`: S3 lists keys in byte order. With the database's
+# default collation (en_US.utf8) the filer warns and falls back to a slower
+# sort; "C" on the column makes the order right and the index usable. Seen in
+# the restore test on 2026-10-31 (runbook seaweedfs-ha-migration.md).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seaweedfs-filer-config
+data:
+  filer.toml: |
+    [postgres2]
+    enabled = true
+    createTable = """
+      CREATE TABLE IF NOT EXISTS "%s" (
+        dirhash   BIGINT,
+        name      VARCHAR(65535) COLLATE "C",
+        directory VARCHAR(65535),
+        meta      bytea,
+        PRIMARY KEY (dirhash, name)
+      );
+    """
+    hostname = "homelab-pg-rw.cnpg-database.svc.cluster.local"
+    port = 5432
+    username = "seaweedfs"
+    password = ""
+    database = "seaweedfs"
+    schema = ""
+    sslmode = "require"
+    connection_max_idle = 10
+    connection_max_open = 50
+    connection_max_lifetime_seconds = 300
+    pgbouncer_compatible = false
+    enableUpsert = true
+    upsertQuery = """
+      INSERT INTO "%[1]s" (dirhash, name, directory, meta)
+        VALUES($1, $2, $3, $4)
+        ON CONFLICT (dirhash, name) DO UPDATE SET
+          directory=EXCLUDED.directory,
+          meta=EXCLUDED.meta
+    """
