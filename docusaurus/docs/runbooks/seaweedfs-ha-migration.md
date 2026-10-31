@@ -197,10 +197,19 @@ for ns in cnpg-database seaweedfs; do
   kubectl -n $ns create secret generic seaweedfs-db --type=kubernetes.io/basic-auth \
     --from-literal=username=seaweedfs --from-literal=password="$PW"
 done; unset PW
-kubectl apply -k ~/homelab/cluster-config/infra/cnpg-database
+kubectl apply -n cnpg-database --validate=warn -k ~/homelab/cluster-config/infra/cnpg-database
 kubectl -n cnpg-database get cluster homelab-pg -o jsonpath='{.status.managedRolesStatus.byStatus.reconciled}'   # contains seaweedfs
 kubectl -n cnpg-database get database seaweedfs                                                           # APPLIED true
 ```
+
+Both flags matter (found with a server-side dry-run on 2026-10-31):
+
+- `-n cnpg-database`: the kustomization has no namespace (ArgoCD supplies it).
+  Without the flag, the Database resources land in `default`.
+- `--validate=warn`: `cluster.yaml` has `storage.storageClassName`, a field
+  CNPG doesn't know (CNPG calls it `storageClass`). ArgoCD tolerates it; a
+  strict `kubectl apply` refuses the whole Cluster. The fix is a separate
+  change, not part of this window.
 
 ### 4. Cutover
 
