@@ -1,0 +1,81 @@
+# Throwaway restore test of 2026-10-31 (runbook seaweedfs-ha-migration.md,
+# condition 3): a filer on the target store type (postgres2), its own
+# master/volume, emptyDir only. Delete the namespace after. The target
+# filer.toml adds COLLATE "C" (cluster-config/infra/seaweedfs/filer-config.yaml).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: seaweedfs-restore-test
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filer-toml
+  namespace: seaweedfs-restore-test
+data:
+  filer.toml: |
+    [postgres2]
+    enabled = true
+    createTable = """
+      CREATE TABLE IF NOT EXISTS "%s" (
+        dirhash   BIGINT,
+        name      VARCHAR(65535),
+        directory VARCHAR(65535),
+        meta      bytea,
+        PRIMARY KEY (dirhash, name)
+      );
+    """
+    hostname = "127.0.0.1"
+    port = 5432
+    username = "postgres"
+    password = "throwaway"
+    database = "seaweedfs"
+    schema = ""
+    sslmode = "disable"
+    connection_max_idle = 10
+    connection_max_open = 50
+    connection_max_lifetime_seconds = 300
+    pgbouncer_compatible = false
+    enableUpsert = true
+    upsertQuery = """
+      INSERT INTO "%[1]s" (dirhash, name, directory, meta)
+        VALUES($1, $2, $3, $4)
+        ON CONFLICT (dirhash, name) DO UPDATE SET
+          directory=EXCLUDED.directory,
+          meta=EXCLUDED.meta
+    """
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restore
+  namespace: seaweedfs-restore-test
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - {key: kubernetes.io/hostname, operator: In, values: [node-02, node-03]}
+  containers:
+    - name: postgres
+      image: postgres:16-alpine
+      env:
+        - {name: POSTGRES_PASSWORD, value: throwaway}
+        - {name: POSTGRES_DB, value: seaweedfs}
+      resources: {limits: {memory: 512Mi}}
+      volumeMounts: [{name: pg, mountPath: /var/lib/postgresql/data}]
+    - name: weed
+      image: chrislusf/seaweedfs:4.39
+      command: [sh, -c]
+      args:
+        - until nc -z 127.0.0.1 5432; do sleep 1; done; sleep 3;
+          exec weed server -filer -dir=/data -ip=127.0.0.1 -volume.max=1 -master.volumeSizeLimitMB=64
+      resources: {limits: {memory: 512Mi}}
+      volumeMounts:
+        - {name: data, mountPath: /data}
+        - {name: toml, mountPath: /etc/seaweedfs}
+  volumes:
+    - {name: pg, emptyDir: {sizeLimit: 1Gi}}
+    - {name: data, emptyDir: {sizeLimit: 1Gi}}
+    - {name: toml, configMap: {name: filer-toml}}
