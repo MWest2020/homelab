@@ -1,0 +1,76 @@
+# Three SeaweedFS masters in Raft, one per worker node (required anti-affinity).
+# Two of three keep a leader, so losing any one node (node-01 included) leaves
+# volume lookups and assignments working. wordsworth#193 task 1.2; migration:
+# docusaurus/docs/runbooks/seaweedfs-ha-migration.md.
+#
+# The peer names are relative (<pod>.seaweedfs-master-peers): each master's
+# -ip:port must match one entry of -peers exactly, and relative names keep the
+# manifests namespace-free (the rehearsal ran them in another namespace).
+# A fresh master learns the highest volume id and file key from the volume
+# servers' heartbeats, so no master state is carried over from the all-in-one.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: seaweedfs-master
+spec:
+  serviceName: seaweedfs-master-peers
+  replicas: 3
+  # Raft needs its peers up together; OrderedReady would wait for master-0.
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: seaweedfs-master
+  template:
+    metadata:
+      labels:
+        app: seaweedfs-master
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: seaweedfs-master
+      containers:
+        - name: master
+          image: chrislusf/seaweedfs:4.39
+          args:
+            - master
+            - -mdir=/data
+            - -port=9333
+            - -ip=$(POD_NAME).seaweedfs-master-peers
+            - -ip.bind=0.0.0.0
+            - -peers=seaweedfs-master-0.seaweedfs-master-peers:9333,seaweedfs-master-1.seaweedfs-master-peers:9333,seaweedfs-master-2.seaweedfs-master-peers:9333
+            - -volumeSizeLimitMB=1024
+            # Every new volume gets a copy on a second server, not only the
+            # wordsworth collection (the filer's metadata log too).
+            - -defaultReplication=001
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+            # One volume per growth instead of seven/six (wordsworth#201).
+            - { name: WEED_MASTER_VOLUME_GROWTH_COPY_1, value: "1" }
+            - { name: WEED_MASTER_VOLUME_GROWTH_COPY_2, value: "1" }
+          ports:
+            - { name: master-http, containerPort: 9333 }
+            - { name: master-grpc, containerPort: 19333 }
+          readinessProbe:
+            tcpSocket: { port: 9333 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi

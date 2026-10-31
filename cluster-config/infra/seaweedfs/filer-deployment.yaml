@@ -1,0 +1,75 @@
+# Two SeaweedFS filers with the S3 gateway, stateless: the metadata (which S3
+# key is which file) lives in Postgres on the CNPG cluster homelab-pg
+# (filer-config.yaml), so a filer can start on any node and losing one leaves
+# the other serving. Before wordsworth#193 task 1.2 this was a leveldb inside
+# the all-in-one pod on node-01.
+# Secrets, out-of-band, never in Git: seaweedfs-s3-config (key s3_config.json,
+# the S3 identities) and seaweedfs-db (the Postgres role's password; the same
+# secret as in the cnpg-database namespace, see cnpg-database/cluster.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seaweedfs-filer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: seaweedfs-filer
+  template:
+    metadata:
+      labels:
+        app: seaweedfs-filer
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: seaweedfs-filer
+      containers:
+        - name: filer
+          image: chrislusf/seaweedfs:4.39
+          args:
+            - filer
+            - -master=seaweedfs-master-0.seaweedfs-master-peers:9333,seaweedfs-master-1.seaweedfs-master-peers:9333,seaweedfs-master-2.seaweedfs-master-peers:9333
+            - -ip=$(POD_IP)
+            - -port=8888
+            - -s3
+            - -s3.port=8333
+            - -s3.config=/etc/seaweedfs-s3/s3_config.json
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef: { fieldPath: status.podIP }
+            # Overrides postgres2.password in filer.toml.
+            - name: WEED_POSTGRES2_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: seaweedfs-db, key: password }
+          ports:
+            - { name: filer-http, containerPort: 8888 }
+            - { name: filer-grpc, containerPort: 18888 }
+            - { name: s3, containerPort: 8333 }
+          readinessProbe:
+            tcpSocket: { port: 8333 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8333 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          volumeMounts:
+            - { name: filer-config, mountPath: /etc/seaweedfs, readOnly: true }
+            - { name: s3-config, mountPath: /etc/seaweedfs-s3, readOnly: true }
+      volumes:
+        - name: filer-config
+          configMap:
+            name: seaweedfs-filer-config
+        - name: s3-config
+          secret:
+            secretName: seaweedfs-s3-config
