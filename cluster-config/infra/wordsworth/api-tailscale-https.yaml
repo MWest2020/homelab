@@ -14,6 +14,12 @@ metadata:
   name: wordsworth-api-https
   annotations:
     tailscale.com/hostname: "wordsworth-api"
+    # Served by the HA ProxyGroup (proxygroup.yaml) as svc:wordsworth-api on
+    # two nodes, not by a dedicated single-pod proxy (wordsworth#192, 3.3.4).
+    # The cert is shared through the Secret wordsworth-api.<tailnet>.ts.net in
+    # the tailscale namespace. Rolling back: drop this annotation AND delete
+    # that Secret, or the plain reconciler fails on it (incident 2026-10-29).
+    tailscale.com/proxy-group: "wordsworth-ingress"
 spec:
   ingressClassName: tailscale
   defaultBackend:
