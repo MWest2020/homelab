@@ -29,6 +29,11 @@ spec:
             - -s3.config=/etc/seaweedfs/s3_config.json
             - -dir=/data
             - -master.volumeSizeLimitMB=1024
+            # 20 slots instead of the default: "10 of 10 full" stopped the HA
+            # migration of 2026-10-31 while the disk was nearly empty (volumes
+            # are not preallocated; a slot costs no disk until data lands).
+            # wordsworth#193.
+            - -volume.max=20
           env:
             # Eén volume per groei in plaats van zeven (master.toml
             # [master.volume_growth] copy_1, standaard 7). Deze server heeft maar
@@ -36,6 +41,10 @@ spec:
             # (/topics, collectie '') de andere 7, en een volgende groei van
             # wordsworth had 7 vrije slots tegelijk nodig gehad. wordsworth#201.
             - { name: WEED_MASTER_VOLUME_GROWTH_COPY_1, value: "1" }
+            # Same for replication 001 (two copies): grow two volumes at a time,
+            # not the default six, so one growth never needs six free slots on
+            # two servers at once. wordsworth#193.
+            - { name: WEED_MASTER_VOLUME_GROWTH_COPY_2, value: "2" }
           ports:
             - name: s3
               containerPort: 8333

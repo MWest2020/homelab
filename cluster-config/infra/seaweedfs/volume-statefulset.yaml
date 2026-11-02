@@ -39,7 +39,8 @@ spec:
             - -mserver=seaweedfs-master.seaweedfs.svc.cluster.local:9333
             - -dir=/data
             - -port=8080
-            - -max=10
+            # 20 slots: see deployment.yaml (wordsworth#193).
+            - -max=20
             - -ip=$(POD_IP)
           env:
             - name: POD_IP
