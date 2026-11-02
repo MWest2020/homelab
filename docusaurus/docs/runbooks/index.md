@@ -153,10 +153,12 @@ kubectl -n cnpg-database get cluster homelab-pg   # 3 instances, Cluster in heal
 # API-health (in-cluster of via de tailnet-hostname)
 kubectl -n wordsworth port-forward svc/wordsworth-api 8000:8000 &
 curl -s localhost:8000/health
+curl -s https://wordsworth-api.<tailnet>.ts.net/health   # vanaf een tailnet-machine
 ```
 
 **De tailnet-ingang is redundant** (wordsworth#192): `https://wordsworth-api.<tailnet>.ts.net`
-wordt bediend door de `ProxyGroup` `wordsworth-ingress` (type ingress, twee replicas op
+is sinds 2026-11-01 de enige tailnet-ingang (ook voor de CLI; de http-`:8000`-LoadBalancer
+is weg) en wordt bediend door de `ProxyGroup` `wordsworth-ingress` (type ingress, twee replicas op
 twee nodes via de `ProxyClass` `wordsworth-ha`) als Tailscale Service
 `svc:wordsworth-api` (de Ingress `wordsworth-api-https` draagt de annotatie
 `tailscale.com/proxy-group: wordsworth-ingress`). De tailnet-policy keurt die service automatisch goed voor
