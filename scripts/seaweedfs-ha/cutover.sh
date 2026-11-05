@@ -4,7 +4,7 @@
 # seaweedfs-ha-migration.md, step by step; each step stops on failure.
 #   cutover.sh <namespace> <rendered-target.yaml> <step>
 # steps: baseline | backup | stop-old | apply-new | wait-masters |
-#        wait-volumes | load | verify | readall | writetest
+#        wait-volumes | load | verify | readall | writetest | slots
 # Runs on jumpy; writes its evidence into ./evidence-<namespace>/.
 set -euo pipefail
 NS=$1; TARGET=$2; STEP=$3
@@ -18,7 +18,34 @@ walk_to() { # walk_to <pod-or-deploy> <outfile>
   kubectl -n "$NS" port-forward "$1" $port:8888 >/dev/null 2>&1 & local pf=$!
   sleep 4; python3 "$WALK" http://127.0.0.1:$port | sort > "$2"; kill $pf
 }
+# slots: per volume server its free slots, and per node: how many OTHER servers
+# keep >= 2 free slots if that node is lost. A 001 growth needs a free slot on
+# two servers; on 2026-10-31 node-02 was full (10/10) and with node-01 gone
+# writes failed. Stops when any node leaves fewer than 2 such servers.
+slots_check() {
+  local m=deploy/seaweedfs ms=localhost:9333
+  kubectl -n "$NS" get sts seaweedfs-master >/dev/null 2>&1 && { m=seaweedfs-master-0; ms=seaweedfs-master:9333; }
+  kubectl -n "$NS" get pods -o jsonpath='{range .items[*]}{.status.podIP} {.spec.nodeName}{"\n"}{end}' > "$E/podips.txt"
+  shell "$m" "volume.list" "$ms" | grep -oE "DataNode [0-9.]+:[0-9]+ hdd\(volume:[0-9]+/[0-9]+ active:[0-9]+ free:[0-9]+" \
+    | sed -E 's/DataNode ([0-9.]+):[0-9]+ hdd\(volume:([0-9]+)\/([0-9]+) active:[0-9]+ free:([0-9]+)/\1 \2 \3 \4/' | sort -u > "$E/slots-raw.txt"
+  python3 - "$E/slots-raw.txt" "$E/podips.txt" <<'PY'
+import sys
+ip2node = dict(l.split() for l in open(sys.argv[2]) if len(l.split()) == 2)
+srv = []
+for l in open(sys.argv[1]):
+    ip, used, mx, free = l.split(); srv.append((ip2node.get(ip, ip), int(used), int(mx), int(free)))
+for n, u, m, f in srv: print(f"server on {n}: {u}/{m} used, {f} free")
+bad = []
+for node in sorted({n for n, *_ in srv}):
+    ok = sum(1 for n, u, m, f in srv if n != node and f >= 2)
+    print(f"lose {node}: {ok} other server(s) with >= 2 free slots")
+    if ok < 2: bad.append(node)
+if bad: print("STOP: too few free slots if " + ", ".join(bad) + " is lost"); sys.exit(1)
+print("slots: OK")
+PY
+}
 case $STEP in
+slots) slots_check ;;
 baseline)
   walk_to deploy/seaweedfs "$E/before-chunks.tsv"
   vols deploy/seaweedfs > "$E/before-volumes.txt"
