@@ -5,3 +5,4 @@ resources:
   - config.yaml
   - service.yaml
   - statefulset.yaml
+  - snapshot.yaml
