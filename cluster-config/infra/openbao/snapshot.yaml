@@ -1,0 +1,111 @@
+# Daily OpenBao raft snapshot, off the OpenBao node. OpenBao keeps its raft data
+# on one local-path PVC on node-01; lose that disk and the Transit KEKs are gone,
+# and with them every wrapped key in wordsworth's `document_keys`. This is the
+# other half of the deploy precondition of wordsworth's `originals-ingest-switch`.
+# Runbook: docusaurus/docs/runbooks/key-backups.md.
+#
+# Where it goes: the SeaweedFS bucket `wordsworth-key-backups` (replication 001,
+# so a copy lives off node-01). Kept 30 days. A snapshot is encrypted with
+# OpenBao's barrier key: it opens only with the unseal key, which stays in the
+# out-of-band Secret `openbao-keys` and is never written next to the snapshot.
+#
+# Out-of-band Secret `openbao-snapshot` (never in git):
+#   BAO_TOKEN              periodic token (768h), policy `openbao-snapshot`:
+#                          read on sys/storage/raft/snapshot, nothing else.
+#                          Each run renews it, so it doesn't lapse like the
+#                          transit token did on 2026-09-23.
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY   the SeaweedFS S3 identity.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openbao-snapshot
+spec:
+  schedule: "27 3 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels: { app: openbao, job: snapshot }
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          volumes:
+            - name: out
+              emptyDir: { sizeLimit: 256Mi }
+            - name: tmp
+              emptyDir: { sizeLimit: 64Mi }
+          initContainers:
+            - name: snapshot
+              image: openbao/openbao:2.2.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  bao token renew >/dev/null
+                  f=/out/openbao-$(date -u +%Y%m%dT%H%M%SZ).snap
+                  bao operator raft snapshot save "$f"
+                  sha256sum "$f" | cut -d' ' -f1 > "$f.sha256"
+                  echo "snapshot: $(wc -c < "$f") bytes, sha256 $(cat "$f.sha256")"
+              env:
+                - name: BAO_ADDR
+                  value: http://openbao.openbao.svc.cluster.local:8200
+                - name: BAO_TOKEN
+                  valueFrom: { secretKeyRef: { name: openbao-snapshot, key: BAO_TOKEN } }
+                - name: HOME
+                  value: /tmp
+              volumeMounts:
+                - { name: out, mountPath: /out }
+                - { name: tmp, mountPath: /tmp }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          containers:
+            - name: upload
+              image: amazon/aws-cli:2.31.18
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  S3="aws --endpoint-url $S3_ENDPOINT s3"
+                  B=s3://wordsworth-key-backups
+                  # Both CronJobs share the bucket; whichever runs first creates it.
+                  $S3 ls "$B" >/dev/null 2>&1 || $S3 mb "$B" 2>/dev/null || $S3 ls "$B" >/dev/null
+                  $S3 cp --recursive /out "$B/openbao/" --only-show-errors
+                  cutoff=$(date -u -d '30 days ago' +%Y%m%d)
+                  $S3 ls "$B/openbao/" | awk '{print $4}' | while read -r k; do
+                    d=$(printf '%s' "$k" | sed -n 's/^openbao-\([0-9]\{8\}\).*/\1/p')
+                    [ -n "$d" ] && [ "$d" -lt "$cutoff" ] && $S3 rm "$B/openbao/$k" --only-show-errors || true
+                  done
+                  echo "uploaded: $(ls /out | tr '\n' ' ')"
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: openbao-snapshot, key: AWS_ACCESS_KEY_ID } }
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: openbao-snapshot, key: AWS_SECRET_ACCESS_KEY } }
+                - name: AWS_DEFAULT_REGION
+                  value: us-east-1
+                - name: S3_ENDPOINT
+                  value: http://seaweedfs.seaweedfs.svc.cluster.local:8333
+                - name: HOME
+                  value: /tmp
+              volumeMounts:
+                - { name: out, mountPath: /out, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }

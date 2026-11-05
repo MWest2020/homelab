@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-05 — key backups: document_keys en OpenBao
+
+### Wat & waarom
+- Twee CronJobs: `wordsworth-keys-backup` (dump van `document_keys`) en
+  `openbao-snapshot` (raft-snapshot met een token dat alleen snapshots mag lezen).
+  Beide naar de SeaweedFS-bucket `wordsworth-key-backups` (replicatie 001), 30
+  dagen bewaard. Dit is de deploy-voorwaarde van wordsworth `originals-ingest-switch`.
+- Restore-test `scripts/key-backups/restore-test.sh`: op 2026-11-05 groen
+  (sha256 ok, kolommen gelijk, KEK `wordsworth` v1 in de snapshot, unwrap MATCH).
+  Runbook: `docusaurus/docs/runbooks/key-backups.md`.
+
 ## 2026-09-21 — wanderer naar v0.5.0 (vloot, x/n, regeluitleg)
 
 ### Wat & waarom

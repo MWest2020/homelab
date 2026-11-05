@@ -6,6 +6,7 @@ resources:
   - init-job.yaml
   - api.yaml
   - openbao-renew.yaml
+  - keys-backup.yaml
   - oauth2-proxy.yaml
   - api-tailscale-https.yaml
   - proxygroup.yaml
