@@ -104,12 +104,15 @@ Argo CD-apps, geordend met sync-waves zodat operators en storage vóór hun afne
   bovendien per caller-label: alleen `console` en `cli` mogen de volledige
   de-identified tekst lezen (`WORDSWORTH_CORPUS_READ_LABELS`) en reveal-grants
   uitgeven of intrekken (`WORDSWORTH_GRANT_ISSUER_LABELS`).
-- **Toegang via de tailnet**: via de Tailscale-operator, op twee manieren naast de
-  gewone ClusterIP-Service: een http-`:8000`-LoadBalancer
-  (`loadBalancerClass: tailscale`) voor de CLI, en een **tailnet-private HTTPS-Ingress**
-  (MagicDNS-cert, bewust zónder Funnel-annotatie) voor de browser-based **Wordsworth
-  Console** (GitHub Pages) — https is daar nodig omdat de browser een http-API als
-  mixed content blokkeert. CORS staat opt-in open voor alleen die Console-origin.
+- **Toegang via de tailnet**: naast de gewone ClusterIP-Service is er één ingang, een
+  **tailnet-private HTTPS-Ingress** (`https://wordsworth-api.<tailnet>.ts.net`,
+  MagicDNS-cert, bewust zónder Funnel-annotatie). De HA-`ProxyGroup`
+  `wordsworth-ingress` bedient hem, met twee pods op twee nodes. De CLI
+  (`wordsworthctl`), de installer en de browser-based **Wordsworth Console** (GitHub
+  Pages) gebruiken hem alle drie. https is nodig omdat de browser een http-API als
+  mixed content blokkeert. CORS staat opt-in open voor alleen die Console-origin. De
+  oude http-`:8000`-LoadBalancer voor de CLI is op 2026-11-01 verwijderd (zie
+  [Archief](../archief/)).
 - **Publieke demo-console** (sinds 2026-09-17): `wordsworth.westerweel.work` via een
   Cloudflare Tunnel (2 cloudflared-replica's, zelfde instellingen als netnl) naar
   **oauth2-proxy** (`wordsworth-auth`, 2 replica's). De proxy doet de OIDC-login bij

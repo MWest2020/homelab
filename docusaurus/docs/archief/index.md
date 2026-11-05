@@ -85,6 +85,17 @@ nieuwe model staat onder [Architectuur](../architectuur/), het waarom onder
   gelijktijdige `/ask`-calls op 2026-09-26 met een OOM-kill van beide pods aantoonden.
   Nu 7Gi, gemeten.
 
+## Wordsworth-CLI via http :8000 (tot 2026-11-01)
+
+De CLI (`wordsworthctl`) sprak de API aan via een aparte Tailscale-LoadBalancer:
+Service `wordsworth-api-ts` (`loadBalancerClass: tailscale`, MagicDNS-naam `wordsworth`,
+plain http op poort 8000, manifest `api-tailscale.yaml`). Die stond naast de
+HTTPS-Ingress voor de Console. Sinds de HTTPS-Ingress op de HA-`ProxyGroup`
+`wordsworth-ingress` draait (wordsworth#192, taak 3.3.4) en de CLI, docs en installer
+naar `https://wordsworth-api.<tailnet>.ts.net` wijzen, was hij overbodig. Op
+**2026-11-01** is hij verwijderd (taak 3.3.5). Het waarom staat onder
+[Beslissingen](../beslissingen/).
+
 ## Nextcloud-tenants op Docker (laptop-node)
 
 Naast het K8s-cluster draaien Nextcloud-tenants als Docker-compose-stacks op VM's op de

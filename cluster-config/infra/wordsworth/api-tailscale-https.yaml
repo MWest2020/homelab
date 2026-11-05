@@ -6,14 +6,21 @@
 #
 # TAILNET-ONLY. There is deliberately NO `tailscale.com/funnel` annotation, so
 # this is never exposed to the public internet — it is sovereign PII infra and
-# stays inside the tailnet. This is additive: the http :8000 LoadBalancer
-# (api-tailscale.yaml) stays as the CLI (wordsworthctl) endpoint.
+# stays inside the tailnet. Since 2026-11-01 this is also the CLI endpoint: the
+# old http :8000 LoadBalancer (api-tailscale.yaml, `wordsworth`/100.100.181.23)
+# is gone (wordsworth #192, task 3.3.5).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: wordsworth-api-https
   annotations:
     tailscale.com/hostname: "wordsworth-api"
+    # Served by the HA ProxyGroup (proxygroup.yaml) as svc:wordsworth-api on
+    # two nodes, not by a dedicated single-pod proxy (wordsworth#192, 3.3.4).
+    # The cert is shared through the Secret wordsworth-api.<tailnet>.ts.net in
+    # the tailscale namespace. Rolling back: drop this annotation AND delete
+    # that Secret, or the plain reconciler fails on it (incident 2026-10-29).
+    tailscale.com/proxy-group: "wordsworth-ingress"
 spec:
   ingressClassName: tailscale
   defaultBackend:

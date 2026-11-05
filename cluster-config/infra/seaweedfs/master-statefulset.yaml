@@ -52,7 +52,9 @@ spec:
                 fieldRef: { fieldPath: metadata.name }
             # One volume per growth instead of seven/six (wordsworth#201).
             - { name: WEED_MASTER_VOLUME_GROWTH_COPY_1, value: "1" }
-            - { name: WEED_MASTER_VOLUME_GROWTH_COPY_2, value: "1" }
+            # As in production since homelab#38: grow two 001 volumes at a time
+            # (default six), so one growth never needs six free slots on two servers.
+            - { name: WEED_MASTER_VOLUME_GROWTH_COPY_2, value: "2" }
           ports:
             - { name: master-http, containerPort: 9333 }
             - { name: master-grpc, containerPort: 19333 }

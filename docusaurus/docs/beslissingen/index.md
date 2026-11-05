@@ -86,17 +86,24 @@ documenten die nooit naar een derde partij gaan.
 
 ## Tailnet-intern exposen i.p.v. publiek via de Gateway
 
-De Wordsworth-API is bereikbaar via de Tailscale-operator (`loadBalancerClass:
-tailscale`), niet via de publieke Gateway. Een RAG-API over eigen documenten heeft geen
-publieke surface nodig; tailnet-membership ís de authenticatie. De OAuth-credentials van
-de operator leven in een out-of-band Secret — nooit in Git.
+De Wordsworth-API is bereikbaar via de Tailscale-operator, niet via de publieke
+Gateway. Een RAG-API over eigen documenten heeft geen publieke surface nodig;
+tailnet-membership ís de authenticatie. De OAuth-credentials van de operator leven in
+een out-of-band Secret — nooit in Git.
 
-Voor de browser-based **Wordsworth Console** (GitHub Pages) kwam daar een
+Voor de browser-based **Wordsworth Console** (GitHub Pages) kwam er naast de oorspronkelijke
+http-LoadBalancer (`loadBalancerClass: tailscale`) een
 **tailnet-private HTTPS-Ingress** bij (MagicDNS-cert): een https-pagina mag geen
 http-API aanroepen (mixed content). Bewust **zonder** `tailscale.com/funnel`-annotatie
 — dit is soevereine PII-infra en blijft binnen de tailnet; CORS staat alleen open voor
 de Console-origin. Tailnet-membership blijft de buitenste schil; daarbinnen is
 caller-auth (API-keys) opt-in aangezet als tweede laag.
+
+**Eén ingang in plaats van twee** (2026-11-01, wordsworth#192): toen de HTTPS-Ingress
+redundant draaide op een `ProxyGroup` over twee nodes, stapten de CLI en de installer
+over op dezelfde https-hostname en verviel de http-`:8000`-LoadBalancer. Dat betekent
+één endpoint om te beveiligen en te monitoren, en de CLI krijgt dezelfde
+TLS en dezelfde redundantie als de Console.
 
 ## Reversibel pseudonimiseren met eigen key store (OpenBao) i.p.v. onomkeerbaar redigeren
 

@@ -36,7 +36,10 @@ spec:
             - -mserver=seaweedfs-master-0.seaweedfs-master-peers:9333,seaweedfs-master-1.seaweedfs-master-peers:9333,seaweedfs-master-2.seaweedfs-master-peers:9333
             - -dir=/data
             - -port=8080
-            - -max=10
+            # 20 slots (wordsworth#193): "10 of 10 full" stopped the 2026-10-31
+            # HA migration while the disk was nearly empty; volumes are not
+            # preallocated, a slot costs no disk until data lands.
+            - -max=20
             # Stop writing before the node's OS disk fills.
             - -minFreeSpace=10
             - -ip=$(POD_IP)
