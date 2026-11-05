@@ -54,6 +54,14 @@ spec:
         login: true
         passwordSecret:
           name: keycloak-db
+      # SeaweedFS filer store (wordsworth#193 task 1.2). Password in the
+      # out-of-band Secret `seaweedfs-db` (basic-auth: username, password),
+      # with a copy of the same secret in the seaweedfs namespace.
+      - name: seaweedfs
+        ensure: present
+        login: true
+        passwordSecret:
+          name: seaweedfs-db
 
   monitoring:
     enablePodMonitor: false # geen Prometheus-operator/PodMonitor-CRD aanwezig
