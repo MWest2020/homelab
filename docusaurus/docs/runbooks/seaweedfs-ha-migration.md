@@ -112,7 +112,34 @@ See [Stop criteria](#stop-criteria), [Rollback](#rollback) and
 
 ### 5. The date
 
-Saturday 31 October 2026, start about 23:45 CET (see Window).
+Saturday 31 October 2026 was the first attempt; it rolled back at the drill
+(see "31 October: what stopped it"). Next window: **Saturday 7 November 2026,
+start about 23:45 CET, hard stop 02:30.**
+
+## 31 October: what stopped it, and what changed
+
+The cutover was clean, but in the node-01 drill **writes failed**: the
+node-02 volume server was full (10 of max 10 volumes) and every writable 001
+volume had a copy on node-01, so no two servers had a free slot for a new
+volume. Rollback A; wordsworth was down **737 s**. Details: wordsworth#193.
+
+Changed since:
+
+- **Slots** (homelab#38): `-volume.max=20` / `-max=20` on every volume
+  server, and `WEED_MASTER_VOLUME_GROWTH_COPY_2=2`, so a 001 growth takes two
+  volumes, not six. Empty and test volumes were removed (wordsworth#193,
+  2 Nov). PR #32 carries the same settings into the HA shape.
+- **A slot check**: `cutover.sh slots` lists every volume server's free slots
+  and, per node, how many *other* servers keep at least 2 free if that node is
+  lost. It stops below 2. In today's shape (2 servers) that can never hold;
+  after the cutover (3 servers) it must.
+- **The rehearsal** first grows its volumes to production's count
+  (`rehearsal/grow.sh`), and the write test *during* the drill stops the
+  rehearsal when it fails. On 31 October the rehearsal had few volumes and
+  could not show the slot problem.
+- **Interruption target**: the API is down from step 1 to step 6. Expect
+  about 12 minutes, as on 31 October up to the drill. Above 30 minutes
+  without having reached the drill: Rollback A.
 
 ## Rehearsal (2026-10-31)
 
@@ -144,6 +171,36 @@ degrade in this run. The degraded reads of the first run were seen through
 S3. So the filer restart stays in the drill, and the S3 probe as wordsworth
 after resume (step 6) is the proof that counts.
 
+## Rehearsal (2026-11-05), with production-like slots
+
+Same setup as above, rendered with `rehearsal/render.sh` from main and PR #32
+(both with 20 slots and growth 2), then `rehearsal/grow.sh 7` so the
+wordsworth collection has production's 7 volumes with 001 before the
+cutover. `rehearse.sh` stops at the first failure, including the write test
+during the drill.
+
+| Step | Result |
+|---|---|
+| grow, baseline | 7 wordsworth volumes (001), 40 files, 42.4 MB |
+| cutover | Raft leader at once; all 7 baseline volumes back with the same copies; both filers identical; `readall` 40/40; `writetest` OK |
+| `slots` | 8/20, 10/20, 1/20 used; losing any one node leaves 2 servers with free slots |
+| drill (node with the old data volume) | new leader within 60 s; **`writetest` OK with the node cut off** (the 31 October stop point); `readall` 40/40; same after the filer restart |
+| heal | `readall` 40/40, `writetest` OK, `slots` OK; S3 check 40/40 |
+| Rollback A | applied in 34 s; old filer **identical** to the baseline |
+
+In a first run the same day, `grow.sh` failed (the master's HTTP API is not on
+localhost; fixed) and the rehearsal ran on few volumes; it was green too,
+except one S3 read right after heal (39/40). Three repeats a minute later gave
+40/40: the replaced filer was still starting. In the window, the S3 probe
+counts once both filers are Ready; a single bad read right after heal is
+repeated, not acted on.
+
+Restore test, again on 2026-11-05 (read-only on the live system):
+`fs.meta.save` of 441 records (15 directories, 426 files), sealed, loaded into
+a throwaway postgres2 filer with `COLLATE "C"`: **423 files, 1,805,025,235
+bytes, identical** to the live walk (sha256 `e9411b0a…`, the same as on 31
+October). No collation warning.
+
 ## Procedure
 
 Everything runs on jumpy, from a checkout of the PR branch:
@@ -171,6 +228,13 @@ All must hold, otherwise don't start:
   `kubectl -n wordsworth cp s3probe.py <api-pod>:/tmp/ && kubectl -n wordsworth exec <api-pod> -- python /tmp/s3probe.py all`.
   It must say `bad=0`. Write down `objects=` and `bytes=`.
 - No factory build running for wordsworth or homelab.
+- `./cutover.sh seaweedfs /dev/null slots` prints each volume server's
+  occupancy. In today's shape it ends with `STOP` (2 servers can't survive a
+  node loss; that is what the window fixes). Just check that every server has
+  at least 4 free slots.
+- `cnpg-database` may show OutOfSync: a known cosmetic diff
+  (`storageClassName`, CNPG defaults on the keycloak role). Not a stop, as long
+  as its last sync succeeded.
 
 ### 1. Freeze (23:45)
 
@@ -191,12 +255,18 @@ $C backup       # fs.meta.save, copied off the pod, sealed; prints sha256
 
 ### 3. Postgres role and database
 
+The role, the `Database seaweedfs` and the secret `seaweedfs-db` in both
+namespaces exist since 31 October (kept on purpose). Create the secrets only
+if they are missing:
+
 ```
-PW=$(openssl rand -hex 24)
-for ns in cnpg-database seaweedfs; do
-  kubectl -n $ns create secret generic seaweedfs-db --type=kubernetes.io/basic-auth \
-    --from-literal=username=seaweedfs --from-literal=password="$PW"
-done; unset PW
+if ! kubectl -n seaweedfs get secret seaweedfs-db >/dev/null 2>&1; then
+  PW=$(openssl rand -hex 24)
+  for ns in cnpg-database seaweedfs; do
+    kubectl -n $ns create secret generic seaweedfs-db --type=kubernetes.io/basic-auth \
+      --from-literal=username=seaweedfs --from-literal=password="$PW"
+  done; unset PW
+fi
 kubectl apply -n cnpg-database --validate=warn -k ~/homelab/cluster-config/infra/cnpg-database
 kubectl -n cnpg-database get cluster homelab-pg -o jsonpath='{.status.managedRolesStatus.byStatus.reconciled}'   # contains seaweedfs
 kubectl -n cnpg-database get database seaweedfs                                                           # APPLIED true
@@ -222,6 +292,7 @@ $C load           # sealed backup into the Postgres store
 $C verify         # both filers identical to the baseline; filer.conf identical
 $C readall        # every file read through a filer: md5/size
 $C writetest      # write, read back, delete outside the buckets
+$C slots          # 3 servers: losing any one node leaves >= 2 with free slots
 ```
 
 Then give the filer log volume (collection `''`, replication 000, today only
@@ -239,7 +310,7 @@ kubectl -n seaweedfs exec seaweedfs-master-0 -- sh -c 'printf "lock\nvolume.conf
 # after 60 s: a leader on the other two masters
 for m in $(kubectl -n seaweedfs get pod -l app=seaweedfs-master -o jsonpath='{.items[*].metadata.name}'); do
   kubectl -n seaweedfs exec $m -- wget -qO- -T 5 http://localhost:9333/cluster/status; echo; done
-$C writetest
+$C writetest      # the 31 October stop point: with node-01 gone, writes must work
 kubectl -n seaweedfs rollout restart deploy/seaweedfs-filer && kubectl -n seaweedfs rollout status deploy/seaweedfs-filer
 $C readall; $C writetest
 ./drill.sh seaweedfs node-01 heal
@@ -255,7 +326,7 @@ ArgoCD, `homelab-pg-3`) keeps running, which a `kubectl drain` would not allow.
 ### 6. Resume
 
 ```
-kubectl -n wordsworth scale deploy/wordsworth-api --replicas=1
+kubectl -n wordsworth scale deploy/wordsworth-api --replicas=2   # as before the window
 kubectl -n wordsworth exec <api-pod> -- python /tmp/s3probe.py all   # bad=0, same objects= and bytes= as go/no-go
 ```
 
@@ -284,9 +355,10 @@ Writes are resumed from here; after this point, rollback is B, not A.
 | `wait-volumes` | volume list differs from the baseline after 2 min | Rollback A |
 | `load` / `verify` | load error, or any filer differs, or filer.conf differs | Rollback A |
 | `readall` / `writetest` | any `bad`, or `FAIL` | Rollback A |
+| `slots` (after cutover) | `STOP`: losing some node leaves fewer than 2 servers with free slots | Rollback A |
 | drill | no leader on the other two masters within 2 min, or after the filer restart `readall`/`writetest` not clean | heal; Rollback A |
 | resume | probe `bad>0` or objects/bytes differ from go/no-go | api to 0, Rollback A |
-| clock | not at step 6 by 02:30 CET | Rollback A |
+| clock | not at step 6 by 02:30 CET, or 30 min after freeze without having reached the drill | Rollback A |
 
 ## Rollback
 
@@ -309,7 +381,7 @@ Then:
 1. Check that the old filer is identical to the baseline: walk it with
    `walk.py` (as in `cutover.sh baseline`) and `diff` against
    `evidence-seaweedfs/before-chunks.tsv`.
-2. Restore auto-sync (step 7, without merging), scale the API to 1, run the
+2. Restore auto-sync (step 7, without merging), scale the API to 2, run the
    probe, and start the factory.
 3. The role, database and secret in CNPG can stay; they are unused.
 4. The second new volume server's PVC (`data-seaweedfs-volume-1`, node-03)
