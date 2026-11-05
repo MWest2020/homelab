@@ -1,7 +1,7 @@
-# Throwaway restore test of 2026-10-31 (runbook seaweedfs-ha-migration.md,
+# Throwaway restore test (first run 2026-10-31, again 2026-11-05) (runbook seaweedfs-ha-migration.md,
 # condition 3): a filer on the target store type (postgres2), its own
 # master/volume, emptyDir only. Delete the namespace after. The target
-# filer.toml adds COLLATE "C" (cluster-config/infra/seaweedfs/filer-config.yaml).
+# filer.toml uses COLLATE "C" like the target (cluster-config/infra/seaweedfs/filer-config.yaml).
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -19,7 +19,7 @@ data:
     createTable = """
       CREATE TABLE IF NOT EXISTS "%s" (
         dirhash   BIGINT,
-        name      VARCHAR(65535),
+        name      VARCHAR(65535) COLLATE "C",
         directory VARCHAR(65535),
         meta      bytea,
         PRIMARY KEY (dirhash, name)

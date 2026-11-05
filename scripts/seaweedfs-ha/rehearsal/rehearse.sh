@@ -17,7 +17,8 @@ kubectl -n $N create secret generic seaweedfs-db --type=kubernetes.io/basic-auth
 kubectl apply -f old.rendered.yaml -f support.yaml >/dev/null
 kubectl -n $N rollout status deploy/seaweedfs --timeout=240s >/dev/null && kubectl -n $N rollout status sts/seaweedfs-volume --timeout=240s >/dev/null
 step seed; ./seed.sh
-for s in baseline backup stop-old apply-new wait-masters wait-volumes load verify readall writetest; do
+step grow; ./grow.sh 7 || { echo "REHEARSAL STOP at grow"; exit 1; }
+for s in baseline backup stop-old apply-new wait-masters wait-volumes load verify readall writetest slots; do
   step $s; $C $s > step.out 2>&1; rc=$?
   grep -vE "^(Waiting|partitioned|deployment \"|statefulset|service/|configmap/|persistentvolumeclaim/|deployment.apps/|statefulset.apps/)" step.out
   [ $rc -eq 0 ] || { echo "REHEARSAL STOP at $s (exit $rc)"; exit 1; }
@@ -26,10 +27,11 @@ NODE=$(kubectl -n $N get pod -l app=seaweedfs-volume-data -o jsonpath='{.items[0
 step "drill on $NODE (node with the old data volume)"; ./drill.sh $N $NODE isolate
 sleep 60
 for m in 0 1 2; do echo "master-$m: $(kubectl -n $N exec seaweedfs-master-$m -- wget -qO- -T 5 http://localhost:9333/cluster/status 2>/dev/null | grep -oE '"(IsLeader|Leader)":[^,]*' | tr '\n' ' ')"; done
-step "drill readall/writetest before filer restart"; $C readall; $C writetest
+fail() { echo "REHEARSAL STOP: $*"; exit 1; }
+step "drill readall/writetest before filer restart (the 31 Oct stop point)"; $C readall || fail "drill readall"; $C writetest || fail "drill writetest"
 step "filer restart"; kubectl -n $N rollout restart deploy/seaweedfs-filer >/dev/null; kubectl -n $N rollout status deploy/seaweedfs-filer --timeout=180s >/dev/null; sleep 10
-step "drill readall/writetest after filer restart"; $C readall; $C writetest
+step "drill readall/writetest after filer restart"; $C readall || fail "drill readall after restart"; $C writetest || fail "drill writetest after restart"
 step heal; ./drill.sh $N $NODE heal; sleep 45
 for m in 0 1 2; do echo "master-$m: $(kubectl -n $N exec seaweedfs-master-$m -- wget -qO- -T 5 http://localhost:9333/cluster/status 2>/dev/null | grep -oE '"(IsLeader|Leader)":[^,]*' | tr '\n' ' ')"; done
-step "after heal"; $C readall; $C writetest; ./check.sh after-heal
+step "after heal"; $C readall || fail "readall after heal"; $C writetest || fail "writetest after heal"; $C slots || fail "slots after heal"; ./check.sh after-heal
 step done
