@@ -337,12 +337,28 @@ Writes are resumed from here; after this point, rollback is B, not A.
 1. In PR #32, set the roadmap item "Storage survives a node" in
    `docs/reference/roadmap.yml` to `done`, with the #193 comment that reports
    the migration as evidence. Then merge PR #32.
-2. Restore auto-sync:
+2. Make ArgoCD see the merge **before** restoring auto-sync. Hard-refresh the
+   apps (`kubectl -n argocd annotate application seaweedfs cnpg-database wordsworth argocd.argoproj.io/refresh=hard --overwrite`)
+   and wait until `status.sync.revision` of seaweedfs is the merge commit.
+   Then restore auto-sync:
    `kubectl apply -f apps/infrastructure/seaweedfs.yaml -f apps/infrastructure/cnpg-database.yaml -f apps/infrastructure/wordsworth.yaml`
-   (on main).
+   (on main). On 8 November this was done straight after the merge. ArgoCD
+   still had the pre-merge revision cached and, with selfHeal, brought the
+   all-in-one back for about 2 minutes (Service `seaweedfs` pointing at the old
+   filer). No writes happened in that window; the API was frozen again, a hard
+   refresh fixed it, and every check was re-run green.
 3. ArgoCD prunes the scaled-down `seaweedfs` Deployment; the PVC stays. Wait
    until all three apps are Synced and Healthy.
 4. Start the factory again: `systemctl --user start ratatoskr-agents`.
+
+## 8 November: the result
+
+Done. Interruption 788 s up to the first resume, plus about 6 minutes of a second freeze because of the ArgoCD
+point above. The node-01 drill: the `writetest` right after the cut-off
+**failed** until the filers were restarted; after the restart it was clean
+three times, with node-01 still gone. That matches the known limit in
+condition 1: after losing a node, restart the filers, also for writes.
+Details: wordsworth#193.
 
 ## Stop criteria
 
