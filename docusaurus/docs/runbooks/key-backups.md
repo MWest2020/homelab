@@ -117,6 +117,24 @@ rows, and after every KEK rotation.
   snapshot. Unseal with the key from `openbao-keys`. Production's root token
   and the wordsworth transit token are back as they were.
 
+## Other secrets in OpenBao KV
+
+Since 2026-11-07 OpenBao also has a KV v2 engine at `kv/`. It holds secrets
+that are not cluster config but must not get lost, and the nightly
+`openbao-snapshot` covers them too.
+
+| Path | What | Lost? |
+|---|---|---|
+| `kv/bubbels/play-upload` | Bubbels' Google Play upload key: `keystore_b64` (PKCS12, alias `upload`), `store_password`, `key_alias`, `key_password`. Working copy on the agent host in `~/.config/bubbels/`. Upload certificate SHA-256 `8A:B3:BF:98:4E:80:A4:34:DB:E1:1F:D8:39:04:3F:7A:39:56:2C:76:13:27:5B:F6:2D:97:A6:D2:3E:44:02:02` | Not fatal: Google holds the app signing key (Play App Signing); the account owner requests an upload key reset in Play Console |
+
+Read a value (from jumpy; the token is not printed):
+
+```sh
+R=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root_token}' | base64 -d)
+kubectl -n openbao exec -i openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=$R \
+  bao kv get -field=key_alias kv/bubbels/play-upload </dev/null
+```
+
 ## Not covered
 
 - **Off-cluster:** both copies are inside the cluster. A total cluster loss
