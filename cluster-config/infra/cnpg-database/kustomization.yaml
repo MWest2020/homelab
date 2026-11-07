@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - cluster.yaml
   - database-keycloak.yaml
+  - database-seaweedfs.yaml
