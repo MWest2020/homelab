@@ -1,0 +1,15 @@
+---
+# Daily base backup of homelab-pg at 03:37 UTC, after the key backups (03:17,
+# 03:27). Six-field cron (CNPG counts seconds). WAL is archived continuously in
+# between (cluster.yaml spec.backup). Runbook: docusaurus/docs/runbooks/cnpg-backup.md.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: homelab-pg-daily
+  namespace: cnpg-database
+spec:
+  schedule: "0 37 3 * * *"
+  backupOwnerReference: self
+  method: barmanObjectStore
+  cluster:
+    name: homelab-pg
