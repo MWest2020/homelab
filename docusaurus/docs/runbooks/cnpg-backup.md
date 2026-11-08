@@ -30,8 +30,9 @@ unlock
 ```
 
 Mechanism: CNPG's in-tree `barmanObjectStore`. CNPG 1.29.1 still supports it
-and the `-system-` PostgreSQL image carries barman-cloud. It is deprecated:
-move to the Barman Cloud plugin before an operator upgrade removes it.
+and the `-system-` PostgreSQL image carries barman-cloud 3.19.1. **It is removed
+in CloudNativePG 1.30.0** (the operator warns on every apply): do not upgrade
+the operator to 1.30 before moving to the Barman Cloud plugin.
 
 ## Secret (out of band, never in git)
 
@@ -82,6 +83,27 @@ EOF
 3. Compare per database: the table count, and `count(*)` per table in `app`,
    against the live cluster.
 4. Delete the namespace.
+
+**First base backup after enabling archiving:** wait until a WAL file has
+really reached the bucket (`fs.ls /buckets/homelab-pg-backups/homelab-pg/wals/`)
+before the first backup. On 2026-11-08 the first on-demand backup started at
+WAL `…D9`, which had still been "archived" by CNPG's no-op archiver before
+`spec.backup` took effect. That backup cannot be restored ("WAL not found");
+the second one, started at `…DC`, can. Retention removes the broken one after
+30 days.
+
+### Result 2026-11-08
+
+| Step | Result |
+|---|---|
+| WAL archiving | `ContinuousArchiving=True`; WAL `…DA` onwards in the bucket |
+| on-demand backup `20261108T093406` | completed in 11 s, WAL `…DC`–`…DD` |
+| recovery into `cnpg-restore-test` (1 instance, 2Gi) | ready in 41 s |
+| `app` | 17 tables, 90,233 rows, **identical per table** (incl. `audit_records` 8,767, `document_keys` 0) |
+| `keycloak` | 89 tables, 2 users, same as live |
+| `seaweedfs` | 5 tables; `filemeta` 44 vs 45 live: the newest backup object, written after the last archived WAL |
+
+The throwaway namespace was deleted afterwards.
 
 ## Restore for real
 
