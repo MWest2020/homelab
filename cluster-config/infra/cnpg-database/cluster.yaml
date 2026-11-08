@@ -63,5 +63,30 @@ spec:
         passwordSecret:
           name: seaweedfs-db
 
+  # Backup of the whole cluster (app, keycloak, seaweedfs databases): WAL
+  # archiving plus a daily base backup (scheduledbackup.yaml) with barman-cloud
+  # to the SeaweedFS bucket homelab-pg-backups (replication 001). Credentials in
+  # the out-of-band Secret homelab-pg-backup-s3 (ACCESS_KEY_ID,
+  # ACCESS_SECRET_KEY), never in Git. In-tree barmanObjectStore: supported by
+  # CNPG 1.29 and this -system- image; move to the Barman Cloud plugin before
+  # an upgrade removes it. Runbook: docusaurus/docs/runbooks/cnpg-backup.md.
+  backup:
+    retentionPolicy: "30d"
+    barmanObjectStore:
+      destinationPath: s3://homelab-pg-backups/
+      endpointURL: http://seaweedfs.seaweedfs.svc.cluster.local:8333
+      s3Credentials:
+        accessKeyId:
+          name: homelab-pg-backup-s3
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: homelab-pg-backup-s3
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+        maxParallel: 2
+      data:
+        compression: gzip
+
   monitoring:
     enablePodMonitor: false # geen Prometheus-operator/PodMonitor-CRD aanwezig
