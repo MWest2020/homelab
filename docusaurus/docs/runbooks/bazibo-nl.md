@@ -20,7 +20,7 @@ own domain. Nothing here runs on the homelab cluster; this page says where it do
 | TLS | Let's Encrypt via Plesk **SSL It!**: `bazibo.nl`, `www.bazibo.nl`, `mail.bazibo.nl` | renews itself 30 days before expiry (first one valid to 2027-02-07) |
 | Redirects | HTTP → HTTPS (301), `www` → `bazibo.nl` (301, "Voorkeursdomein") | Plesk hosting settings |
 | Mail | MX `primary/fallback.yourfilter.nl` → Plesk; **hallo@bazibo.nl** is a forwarder (no mailbox) to mark@westerweel.work | tested 2026-11-09 |
-| DKIM | signing on in Plesk (selector `default`) | the TXT records still have to be published in Premium DNS (below) |
+| DKIM / DMARC | signing on in Plesk (selector `default`); `_dmarc` and `_domainkey` published 2026-11-09 | `default._domainkey` still to publish (below) |
 | Second copy of the site | GitHub Pages `https://mwest2020.github.io/bazibo/` (CI in the repo) | independent of Yourhosting |
 
 The provider's placeholder page is kept in `httpdocs/_yourhosting-default/` (no longer served).
@@ -32,21 +32,33 @@ The provider's placeholder page is kept in `httpdocs/_yourhosting-default/` (no 
 | `kv/westerweel/bazibo-ftp` | hosting system user: FTP(S) **and** the Plesk login |
 | `kv/westerweel/bazibo-mail` | the `hallo@bazibo.nl` mail account (forwarder) |
 | `kv/westerweel/soverin` | Mark's Soverin mailbox (IMAP), where the forwarded mail lands; read-only use |
+| `kv/westerweel/yourhosting` | *Mijn Yourhosting* (registrar + Premium DNS): username, customer number, password |
 
 Read one from jumpy the same way as in [key-backups](key-backups.md), e.g.
-`bao kv get -field=username kv/westerweel/bazibo-ftp`. *Mijn Yourhosting* (DNS) is Mark's
-own login and is not stored here.
+`bao kv get -field=username kv/westerweel/bazibo-ftp`. *Mijn Yourhosting* (DNS) is at
+https://account.yourhosting.nl/ → Domeinnamen → bazibo.nl → DNS beheer → "Voeg record toe"
+(type, name without `.bazibo.nl`, value without quotes, TTL, "Wijzigingen opslaan").
 
-## DNS records still to publish (Mijn Yourhosting → bazibo.nl → DNS)
+## Mail authentication records (Mijn Yourhosting → bazibo.nl → DNS)
+
+Published 2026-11-09 (TTL 3600), checked with `dig TXT <name>.bazibo.nl @ns50.premiumdns-yourhosting.net`:
+
+```
+_dmarc.bazibo.nl.              TXT  "v=DMARC1; p=none; rua=mailto:hallo@bazibo.nl"
+_domainkey.bazibo.nl.          TXT  "o=-"
+```
+
+Still to publish (the agent's save was refused by its safety check; Mark adds it by hand):
 
 ```
 default._domainkey.bazibo.nl.  TXT  "v=DKIM1; p=<key shown in Plesk: Mail-instellingen › bazibo.nl › Het instellen van externe DNS>"
-_domainkey.bazibo.nl.          TXT  "o=-"
-_dmarc.bazibo.nl.              TXT  "v=DMARC1; p=none; rua=mailto:hallo@bazibo.nl"
 ```
 
+After adding it, check that the key in DNS equals the one in Plesk (join the quoted chunks
+of the `dig` answer; DNS splits long TXT values into 255-character strings).
+
 SPF is already right (`v=spf1 include:_spf.yourfilter.nl mx a ~all`; `a` covers the Plesk
-server). Move DMARC to `p=quarantine` after a few weeks of clean reports.
+server). Move DMARC to `p=quarantine` after about three weeks of clean aggregate reports (they arrive at hallo@bazibo.nl, so in Mark's mailbox); edit the `_dmarc` record in place.
 
 ## Checks
 
