@@ -676,3 +676,7 @@ Een mislukte melding laat de agent **nooit** falen: documentatie bijwerken is he
 werk, melden is het verslag ervan. Staat ratatoskr niet op de host, dan meldt hij
 niets en draait hij gewoon door. Instelbaar met `DOCS_AGENT_PING`,
 `DOCS_AGENT_IDENT` en `DOCS_AGENT_CHAN`.
+
+## Buiten het cluster
+
+- [bazibo.nl (site en mail)](bazibo-nl.md): Yourhosting Plesk, Git-deploy, Let's Encrypt, doorstuuradres.
