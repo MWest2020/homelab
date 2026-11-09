@@ -19,7 +19,7 @@ own domain. Nothing here runs on the homelab cluster; this page says where it do
 | Deploy | GitHub webhook (push) on `MWest2020/bazibo` → Plesk pulls `main` and publishes automatically | hook id 709372838; deliveries visible with `gh api repos/MWest2020/bazibo/hooks/709372838/deliveries` |
 | TLS | Let's Encrypt via Plesk **SSL It!**: `bazibo.nl`, `www.bazibo.nl`, `mail.bazibo.nl` | renews itself 30 days before expiry (first one valid to 2027-02-07) |
 | Redirects | HTTP → HTTPS (301), `www` → `bazibo.nl` (301, "Voorkeursdomein") | Plesk hosting settings |
-| Mail | MX `primary/fallback.yourfilter.nl` → Plesk; **hallo@bazibo.nl** is a forwarder (no mailbox) to mark@westerweel.work | tested 2026-11-09 |
+| Mail | MX `primary/fallback.yourfilter.nl` → Plesk; **hallo@bazibo.nl** is a forwarder (no mailbox) to mark@westerweel.work, with alias **hello@bazibo.nl** (Plesk: Mail → hallo@bazibo.nl → E-mailaliassen, added 2026-11-09) | tested 2026-11-09 |
 | DKIM / DMARC | signing on in Plesk (selector `default`); `_dmarc` and `_domainkey` published 2026-11-09 | `default._domainkey` still to publish (below) |
 | Second copy of the site | GitHub Pages `https://mwest2020.github.io/bazibo/` (CI in the repo) | independent of Yourhosting |
 
