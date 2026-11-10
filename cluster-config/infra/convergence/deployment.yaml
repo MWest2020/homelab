@@ -1,7 +1,9 @@
 # convergence — the game's site (/) and 2D demo (/play/) with its
 # server-authoritative game server, devnet only (MWest2020/convergence,
 # docs/how-to/deploy.md). One pod: nginx (web) proxies /ws to the game server
-# on 127.0.0.1:8787, so site, demo and WebSocket share one origin.
+# on 127.0.0.1:8787, so site, demo and WebSocket share one origin. Since
+# 2026-11-10 also the RPG-JS spike (rpg container, :8790): nginx proxies
+# /play-rpg/ and /parties/ to it.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,7 +43,7 @@ spec:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 256Mi }
         - name: web
-          image: ghcr.io/mwest2020/convergence-web:sha-6ad35d6@sha256:e62566ebd288da85194ace7ca6d688e7c305d02b780ea6e597e772c7f28bbaea
+          image: ghcr.io/mwest2020/convergence-web:sha-067d06e@sha256:76ac904ad00e53e2ee7ffaf774b9b246fb1a2dee72f374f1b1b4e6b26be59337
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -58,6 +60,29 @@ spec:
           resources:
             requests: { cpu: 20m, memory: 32Mi }
             limits: { memory: 128Mi }
+        - name: rpg
+          image: ghcr.io/mwest2020/convergence-rpg:sha-067d06e@sha256:e782e1ebf7c159aa1925d6f75054befa4cbd7f001fcafdcdbab48a2afbdb8db4
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: PORT, value: "8790" }
+            - { name: HOME, value: /tmp }
+          ports:
+            - containerPort: 8790
+          securityContext:
+            runAsUser: 1000   # the image's USER node
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: rpg-tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8790 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { memory: 384Mi }
       volumes:
         - name: tmp
+          emptyDir: {}
+        - name: rpg-tmp
           emptyDir: {}
