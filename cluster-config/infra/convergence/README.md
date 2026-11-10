@@ -1,8 +1,9 @@
 # convergence
 
-The game's site, 2D demo and game server (MWest2020/convergence), devnet only.
+The game's site, 2D demo and game server (MWest2020/convergence), devnet only,
+plus the RPG-JS spike at `/play-rpg/` (the `rpg` container, since 2026-11-10).
 Images and their build: `docs/how-to/deploy.md` in that repository. A new
-build goes live by updating both digests in `deployment.yaml`.
+build goes live by updating the digests (server, web, rpg) in `deployment.yaml`.
 
 - Public: https://convergence.westerweel.work (Cloudflare tunnel `convergence`,
   `tunnel.yaml`). The Funnel name https://convergence.tail8f7877.ts.net is
