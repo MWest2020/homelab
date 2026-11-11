@@ -1,16 +1,16 @@
-# convergence — the game's site (/) and 2D demo (/play/) with its
-# server-authoritative game server, devnet only (MWest2020/convergence,
-# docs/how-to/deploy.md). One pod: nginx (web) proxies /ws to the game server
-# on 127.0.0.1:8787, so site, demo and WebSocket share one origin. Since
-# 2026-11-10 also the RPG-JS spike (rpg container, :8790): nginx proxies
-# /play-rpg/ and /parties/ to it.
+# convergence — the game's site (/) and the RPG demo (/play-rpg/), devnet only
+# (MWest2020/convergence, docs/how-to/deploy.md). One pod, two containers:
+# nginx (web, :8080) serves the site and proxies /play-rpg/, /parties/ and
+# /healthz to the RPG-JS game server (rpg, :8790), so site, demo and WebSocket
+# share one origin. The first demo's game server (server, :8787, /play/ and
+# /ws) was retired on 2026-11-11; /play redirects to /play-rpg/ in nginx.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: convergence
   labels: { app: convergence }
 spec:
-  replicas: 1               # the game state lives in the server process; one
+  replicas: 1               # the game state lives in the rpg process; one
   strategy: { type: Recreate }   # world, one pod
   selector:
     matchLabels: { app: convergence }
@@ -24,24 +24,6 @@ spec:
         runAsNonRoot: true
         seccompProfile: { type: RuntimeDefault }
       containers:
-        - name: server
-          image: ghcr.io/mwest2020/convergence-server:sha-6ad35d6@sha256:a89b04bd3519ea714df513b37e6ed7af7d4481b4f68a47b8b517bb26676cece4
-          imagePullPolicy: IfNotPresent
-          env:
-            - { name: PORT, value: "8787" }
-          ports:
-            - containerPort: 8787
-          securityContext:
-            runAsUser: 1000   # the image's USER node, numeric for runAsNonRoot
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: { drop: ["ALL"] }
-          readinessProbe:
-            httpGet: { path: /healthz, port: 8787 }
-            periodSeconds: 10
-          resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits: { memory: 256Mi }
         - name: web
           image: ghcr.io/mwest2020/convergence-web:sha-067d06e@sha256:76ac904ad00e53e2ee7ffaf774b9b246fb1a2dee72f374f1b1b4e6b26be59337
           imagePullPolicy: IfNotPresent

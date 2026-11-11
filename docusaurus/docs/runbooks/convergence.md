@@ -5,7 +5,7 @@ sidebar_position: 7
 
 # Convergence
 
-The game's site, 2D demo and server-authoritative game server
+The game's site and its RPG demo with the server-authoritative game server
 (MWest2020/convergence), **devnet only**. Argo CD app `convergence`
 (sync-wave 7, after the tailscale-operator), manifests in
 `cluster-config/infra/convergence/`.
@@ -14,11 +14,17 @@ The game's site, 2D demo and server-authoritative game server
 
 One pod, two containers, both pinned by digest:
 
-- `server`: the game server, WebSocket `/ws` on `127.0.0.1:8787`. The game
-  state lives in the process, so one replica and `Recreate`.
-- `web`: nginx on `:8080`; the site at `/`, the demo at `/play/`, and `/ws`
-  and `/healthz` proxied to the server. Site, demo and WebSocket share one
+- `web`: nginx on `:8080`; the site at `/`, and `/play-rpg/`, `/parties/`
+  (HTTP and WebSocket) and `/healthz` proxied to the rpg container. `/play`
+  and `/play/` redirect to `/play-rpg/`. Site, demo and WebSocket share one
   origin.
+- `rpg`: the RPG-JS game server on `127.0.0.1:8790` (the demo's client under
+  `/play-rpg/`, its transport under `/parties`, `/healthz`). The game state
+  lives in the process, so one replica and `Recreate`. It needs a writable
+  `/tmp` (`HOME=/tmp`, an `emptyDir`).
+
+The first demo's `server` container (`/ws`, `:8787`, the game at `/play/`) was
+retired on 2026-11-11.
 
 Both containers run non-root with a read-only root filesystem and all
 capabilities dropped; nginx gets an `emptyDir` on `/tmp` for its pid file.
@@ -37,7 +43,7 @@ capabilities dropped; nginx gets an `emptyDir` on `/tmp` for its pid file.
 ## Deploy a new build
 
 The convergence repository's `image` workflow pushes
-`ghcr.io/mwest2020/convergence-{server,web}:sha-<commit>` on main. Update both
+`ghcr.io/mwest2020/convergence-{web,rpg}:sha-<commit>` on main. Update both
 digests in `deployment.yaml`; Argo CD rolls the pod. Because of `Recreate`, a
 rollout is a short outage and resets the game world.
 
@@ -47,6 +53,8 @@ rollout is a short outage and resets the game world.
 kubectl -n convergence get pods                      # convergence 2/2, convergence-tunnel ×2
 kubectl -n convergence logs -l app=convergence-tunnel --tail=20
 curl -sI https://convergence.westerweel.work/        # 200 from nginx
+curl -s  https://convergence.westerweel.work/healthz # "ok" from the rpg container, through nginx
+curl -sI https://convergence.westerweel.work/play    # 301 to /play-rpg/
 ```
 
 The tunnel uses the same construction as netnl's: two cloudflared replicas
