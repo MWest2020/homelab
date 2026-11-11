@@ -61,7 +61,7 @@ spec:
             requests: { cpu: 20m, memory: 32Mi }
             limits: { memory: 128Mi }
         - name: rpg
-          image: ghcr.io/mwest2020/convergence-rpg:sha-067d06e@sha256:e782e1ebf7c159aa1925d6f75054befa4cbd7f001fcafdcdbab48a2afbdb8db4
+          image: ghcr.io/mwest2020/convergence-rpg:sha-3268ec5@sha256:084bc4970c4c90b3fe65dcfbf19fcdc76c8d51b6bbf9a09427e08b1bb788059f
           imagePullPolicy: IfNotPresent
           env:
             - { name: PORT, value: "8790" }
