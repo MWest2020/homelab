@@ -188,13 +188,15 @@ digest-gepind.
 
 ## Convergence: de game (devnet)
 
-De site, 2D-demo en server-authoritative gameserver van `MWest2020/convergence`,
+De site en de RPG-demo met server-authoritative gameserver van `MWest2020/convergence`,
 **alleen devnet**.
 Argo CD-app `convergence` (sync-wave 7), beide images digest-gepind.
 
-- **Eén pod, twee containers**: nginx (`:8080`) serveert de site (`/`) en de demo
-  (`/play/`) en proxyt `/ws` naar de gameserver op `127.0.0.1:8787` — één origin voor
-  alles. De spelwereld leeft in het serverproces, dus **één replica, `Recreate`**.
+- **Eén pod, twee containers**: nginx (`:8080`) serveert de site (`/`) en proxyt de
+  demo (`/play-rpg/`, `/parties/`) en `/healthz` naar de RPG-JS-gameserver op
+  `127.0.0.1:8790` — één origin voor alles. De eerste demo (`/play/`, `/ws`, `:8787`) is
+  op 2026-11-11 uitgezet; `/play` verwijst door. De spelwereld leeft in het
+  serverproces, dus **één replica, `Recreate`**.
 - **Publiek** via `convergence.westerweel.work`: een Cloudflare Tunnel met dezelfde
   constructie als netnl (2 cloudflared-replica's, TCP i.p.v. QUIC). Een Funnel-Ingress
   staat klaar, maar is niet publiek zolang de tailnet-ACL het `funnel`-attribuut niet

@@ -1,9 +1,12 @@
 # convergence
 
-The game's site, 2D demo and game server (MWest2020/convergence), devnet only,
-plus the RPG-JS spike at `/play-rpg/` (the `rpg` container, since 2026-11-10).
-Images and their build: `docs/how-to/deploy.md` in that repository. A new
-build goes live by updating the digests (server, web, rpg) in `deployment.yaml`.
+The game's site and the RPG demo at `/play-rpg/` (MWest2020/convergence), devnet
+only: two containers, `web` (nginx, the site, the proxy) and `rpg` (the RPG-JS
+game server). The first demo's `server` container (`/play/`, `/ws`) was retired
+on 2026-11-11; `/play` redirects to `/play-rpg/`. Images and their build:
+`docs/how-to/deploy.md` in that repository. A new build goes live by updating
+the digests (web, rpg) in `deployment.yaml`. Health: `/healthz` on the public
+host is answered by the rpg container through nginx.
 
 - Public: https://convergence.westerweel.work (Cloudflare tunnel `convergence`,
   `tunnel.yaml`). The Funnel name https://convergence.tail8f7877.ts.net is
