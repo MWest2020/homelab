@@ -21,7 +21,9 @@ One pod, two containers, both pinned by digest:
 - `rpg`: the RPG-JS game server on `127.0.0.1:8790` (the demo's client under
   `/play-rpg/`, its transport under `/parties`, `/healthz`). The game state
   lives in the process, so one replica and `Recreate`. It needs a writable
-  `/tmp` (`HOME=/tmp`, an `emptyDir`).
+  `/tmp` (`HOME=/tmp`, an `emptyDir`). A liveness probe on `/healthz`
+  (every 20 s, three misses) restarts the container when the process dies or
+  hangs; a restart starts the game world fresh.
 
 The first demo's `server` container (`/ws`, `:8787`, the game at `/play/`) was
 retired on 2026-11-11.

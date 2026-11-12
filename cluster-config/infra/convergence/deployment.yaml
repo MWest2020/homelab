@@ -60,6 +60,13 @@ spec:
           readinessProbe:
             httpGet: { path: /healthz, port: 8790 }
             periodSeconds: 10
+          # The game server is one Node process: when it dies or hangs the
+          # kubelet restarts the container (the game world starts fresh).
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8790 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
           resources:
             requests: { cpu: 50m, memory: 96Mi }
             limits: { memory: 384Mi }
