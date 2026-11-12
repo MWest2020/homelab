@@ -25,7 +25,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: web
-          image: ghcr.io/mwest2020/convergence-web:sha-e477d5a@sha256:1d41e14019643bea56ba850bf6883312617e604dfeee5121b377854ec0af1ccc
+          image: ghcr.io/mwest2020/convergence-web:sha-5177c37@sha256:f80a12bc415226e3894804e81a127ed69f5809abc029c3d45ac309183e5a1efd
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
