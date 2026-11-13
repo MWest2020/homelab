@@ -10,6 +10,17 @@ configs:
   params:
     # TLS is handled by the Gateway; Argo CD serves plain HTTP internally
     server.insecure: "true"
+  # A scoped API account for the coding agent on agent-lxc (Mark 2026-11-13), so
+  # deploy status, refresh and sync do not depend on the jump host. It may only
+  # read and sync applications: no delete, no exec, no settings. Token in
+  # OpenBao kv/homelab/argocd-agent.
+  cm:
+    accounts.agent: apiKey
+  rbac:
+    policy.csv: |
+      p, role:agent-sync, applications, get, */*, allow
+      p, role:agent-sync, applications, sync, */*, allow
+      g, agent, role:agent-sync
 
 server:
   ingress:

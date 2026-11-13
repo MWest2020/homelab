@@ -69,3 +69,18 @@ and compare every image of the app with its Deployment's.
 fresh node. Pin `image:tag@sha256:<digest>`. For a Deployment with
 node anti-affinity and as many replicas as nodes, roll with
 `maxSurge: 0, maxUnavailable: 1`: a surge pod would be unschedulable.
+
+## The agent's API account (without the jump host)
+
+Argo CD has a scoped account `agent` (`kubernetes/infrastructure/argocd/values.yaml`,
+`configs.cm` and `configs.rbac`). It may only **get** and **sync** applications: no
+delete, no exec, no settings. The coding agent on agent-lxc uses it to read deploy
+status and to refresh or sync without going through `ssh jumpy kubectl`.
+
+- Reach: `argocd.westerweel.work` resolves only on the LAN; from agent-lxc use the
+  gateway address, e.g. `curl --resolve argocd.westerweel.work:443:192.168.178.220 …`.
+- Token: generated once with `argocd account generate-token --account agent`, kept
+  in OpenBao at `kv/homelab/argocd-agent` and on agent-lxc in a chmod-600 file;
+  never in git. Rotate by generating a new one and deleting the old token id.
+- Calls: `GET /api/v1/applications/<app>` (status), `?refresh=hard` (refresh),
+  `POST /api/v1/applications/<app>/sync` (sync), with `Authorization: Bearer <token>`.
