@@ -25,7 +25,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: web
-          image: ghcr.io/mwest2020/convergence-web:sha-30a2d79@sha256:894cfbbf62eb8a64b1fa76abf2a54057857e5ae7f69556ec8532be5e7e267b95
+          image: ghcr.io/mwest2020/convergence-web:sha-0c15fd2@sha256:2e22bb64632fbe7820018024addf9b1776f275c806106f16744d348b5fd79f8c
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -43,11 +43,13 @@ spec:
             requests: { cpu: 20m, memory: 32Mi }
             limits: { memory: 128Mi }
         - name: rpg
-          image: ghcr.io/mwest2020/convergence-rpg:sha-30a2d79@sha256:7eeb2b7dc19eeb8a52a0b1dc6dca0e2ebb3f68e08da8a1b8ebc432f05b48c968
+          image: ghcr.io/mwest2020/convergence-rpg:sha-0c15fd2@sha256:32325623e3b34591efcf8ba9373263aea4edc266fc1ea391b45deba6d4ed73b8
           imagePullPolicy: IfNotPresent
           env:
             - { name: PORT, value: "8790" }
             - { name: HOME, value: /tmp }
+            # Sites a wallet sign-in may name (convergence#159); unset in production = sign-in off.
+            - { name: CV_SITE_HOST, value: "convergence.westerweel.work,convergence.tail8f7877.ts.net" }
           ports:
             - containerPort: 8790
           securityContext:
