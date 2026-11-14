@@ -40,7 +40,7 @@ app `jarvis` (sync-wave 7, after the tailscale-operator), manifests in
   (`/state/jarvis`) and Claude Code's home (`/state/home`, with the session
   transcripts `--resume` needs). A restart keeps every project's conversation.
 - **Memory:** about 1.8 GB resident (torch, faster-whisper base, Kokoro);
-  requests 2.5Gi, limit 3Gi. Prefers node-03, then node-02. The `local-path`
+  requests 3Gi, limit 4Gi (measured 2026-11-14: 2.3 GiB at rest, peak 2.8 GiB). Prefers node-03, then node-02. The `local-path`
   volume pins the pod to the node where it first landed.
 - **Probes:** TCP on 8787. The server only listens once both speech models
   are loaded; the startup probe allows ten minutes.

@@ -47,7 +47,7 @@ spec:
           image: ghcr.io/mwest2020/jarvis-bridge:sha-a663a26@sha256:1d81d958fd91b98637dd46b8979b034929a3e6757009f7520f4018095f367f87
           imagePullPolicy: IfNotPresent
           # state/ must exist before the bridge mounts it as a sub-path.
-          command: ["sh", "-c", "mkdir -p /data/state/home /data/state/jarvis && exec jarvis-sync-projects"]
+          command: ["sh", "-c", "mkdir -p -m 700 /data/state /data/state/home /data/state/jarvis && chmod 700 /data/state /data/state/home /data/state/jarvis && exec jarvis-sync-projects"]
           env:
             - { name: JARVIS_SYNC_DIR, value: /data/repos }
             - name: JARVIS_SYNC_REPOS
@@ -118,8 +118,8 @@ spec:
             periodSeconds: 30
             failureThreshold: 4
           resources:
-            requests: { cpu: 500m, memory: 2.5Gi }
-            limits: { cpu: "2", memory: 3Gi }
+            requests: { cpu: 500m, memory: 3Gi }
+            limits: { cpu: "2", memory: 4Gi }
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: jarvis-data }
