@@ -23,5 +23,19 @@ host is answered by the rpg container through nginx.
     | kubectl apply -n convergence -f -
   ```
 
+- Out-of-band: `convergence-devnet-authority` (key `authority`, the game's
+  Solana **devnet** authority as a JSON array of 64 numbers; public key
+  `HV8MjgB8b725dE3urVFxtKQmED6QQdmknDwJqhzgnShB`), read by the rpg container
+  as `CV_AUTHORITY_KEY`. Backup in OpenBao `kv/convergence/devnet-authority`
+  (fields `authority`, `pubkey`, `cluster`, `shard_mint`). Recreate from jumpy,
+  nothing printed:
+
+  ```
+  R=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root_token}' | base64 -d)
+  kubectl -n openbao exec -i openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=$R \
+    bao kv get -field=authority kv/convergence/devnet-authority </dev/null \
+    | kubectl -n convergence create secret generic convergence-devnet-authority --from-file=authority=/dev/stdin
+  ```
+
 The Argo CD Application itself was applied once by hand (no root app runs;
 see the runbooks index), on 2026-10-24.

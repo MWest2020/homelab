@@ -71,3 +71,25 @@ copied from `agents` (command in `cluster-config/infra/convergence/README.md`;
 jumpy has no `jq`, so it uses python3).
 Without it the pod stays in `ImagePullBackOff`. The tunnel token is the
 out-of-band Secret `convergence-tunnel`.
+
+## Devnet (shards on chain)
+
+Since 2026-11-14 the rpg container settles the shard ledger on **Solana
+devnet** (convergence#161, decision 0005 there). Never mainnet: the server
+asks the RPC for its genesis hash and refuses any cluster that is not devnet.
+
+| What | Value |
+|---|---|
+| `CV_CHAIN` | `devnet` (plain env) |
+| `CV_SHARD_MINT` | `ETxmwLYgu8tRNeDNodgDUj5SzCoAqmqsovY46aEhXPuX` (plain env; made by `npm run devnet:setup` on 2026-11-14) |
+| `CV_AUTHORITY_KEY` | Secret `convergence-devnet-authority`, key `authority` (out-of-band) |
+| Authority (public) | `HV8MjgB8b725dE3urVFxtKQmED6QQdmknDwJqhzgnShB`, funded by Mark at faucet.solana.com |
+| Backup | OpenBao `kv/convergence/devnet-authority` (see [key backups](./key-backups.md)); working copy on the agent host in `~/.config/convergence/` |
+
+Check: the rpg log says `chain: devnet, authority ..., mint ...`; the wallet
+panel on `/play-rpg/` shows the devnet badge. Balance and history:
+`https://explorer.solana.com/address/HV8MjgB8b725dE3urVFxtKQmED6QQdmknDwJqhzgnShB?cluster=devnet`.
+When the authority runs out of SOL, sends fail with "insufficient funds" and
+the game goes on in memory; a person funds it again at faucet.solana.com
+(the devnet RPC faucet is closed). To turn devnet off, drop `CV_CHAIN`.
+Recreating the Secret: `cluster-config/infra/convergence/README.md`.
