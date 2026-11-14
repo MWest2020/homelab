@@ -1,0 +1,19 @@
+# TAILNET-ONLY: http://jarvis.<tailnet>.ts.net:8787 for the phone (HTTP
+# Shortcuts, plain HTTP inside the WireGuard tunnel, as on a workstation).
+# Deliberately NO `tailscale.com/funnel` annotation: never public.
+# A LoadBalancer and not an Ingress (keycloak, wanderer): the phone talks plain
+# HTTP to port 8787, no browser and no TLS needed, and the bridge's token check
+# stays the application-level gate (MWest2020/jarvis, run-bridge-in-cluster D2).
+apiVersion: v1
+kind: Service
+metadata:
+  name: jarvis
+  labels: { app: jarvis }
+  annotations:
+    tailscale.com/hostname: "jarvis"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector: { app: jarvis }
+  ports:
+    - { name: http, port: 8787, targetPort: 8787, protocol: TCP }

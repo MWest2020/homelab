@@ -1,0 +1,19 @@
+# The bridge listens on its pod IP (JARVIS_BEHIND_TAILSCALE_PROXY=1), which the
+# whole cluster network could otherwise reach. Only the Tailscale operator's
+# proxy (namespace tailscale) may connect; kubelet probes come from the node
+# and Cilium admits those by default. Egress stays open: GitHub (project sync)
+# and the Anthropic API (Claude Code).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jarvis-tailscale-only
+spec:
+  podSelector:
+    matchLabels: { app: jarvis }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tailscale }
+      ports:
+        - { protocol: TCP, port: 8787 }

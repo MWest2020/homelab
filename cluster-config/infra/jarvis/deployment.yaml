@@ -1,0 +1,123 @@
+# jarvis — the voice bridge from Mark's phone to headless Claude Code
+# (MWest2020/jarvis, docs/how-to/run-in-cluster.md). One pod: an init container
+# clones/refreshes the projects read-only, the bridge holds faster-whisper and
+# Kokoro (about 1.8 GB resident) and runs `claude -p` with Read/Glob/Grep only.
+# Mark, 2026-11-14: "Dit moet 1 van de nodes worden."
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis
+  labels: { app: jarvis }
+spec:
+  replicas: 1                     # session file and volume are local; one bridge
+  strategy: { type: Recreate }    # RWO volume: the old pod must let go first
+  selector:
+    matchLabels: { app: jarvis }
+  template:
+    metadata:
+      labels: { app: jarvis }
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull   # private package; out-of-band, see README.md
+      # node-03 has the most memory headroom (about 12 GB of requests free on
+      # 2026-11-14), node-02 next. Preferred, not required: the local-path
+      # volume pins the pod to wherever it first lands anyway.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - { key: kubernetes.io/hostname, operator: In, values: [node-03] }
+            - weight: 50
+              preference:
+                matchExpressions:
+                  - { key: kubernetes.io/hostname, operator: In, values: [node-02] }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001          # the image's user jarvis
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: sync-projects
+          image: ghcr.io/mwest2020/jarvis-bridge:IMAGE_TAG@sha256:IMAGE_DIGEST
+          imagePullPolicy: IfNotPresent
+          # state/ must exist before the bridge mounts it as a sub-path.
+          command: ["sh", "-c", "mkdir -p /data/state/home /data/state/jarvis && exec jarvis-sync-projects"]
+          env:
+            - { name: JARVIS_SYNC_DIR, value: /data/repos }
+            - name: JARVIS_SYNC_REPOS
+              value: >-
+                MWest2020/wordsworth MWest2020/bazibo MWest2020/jarvis
+                MWest2020/convergence MWest2020/ratatoskr MWest2020/homelab
+            - { name: HOME, value: /tmp }
+            # The PAT lives in this container only, never in the bridge's
+            # environment (Claude Code's Read tool could read it there).
+            - name: GIT_PAT
+              valueFrom:
+                secretKeyRef: { name: pat-node-01, key: GIT_PAT }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 512Mi }
+      containers:
+        - name: bridge
+          image: ghcr.io/mwest2020/jarvis-bridge:IMAGE_TAG@sha256:IMAGE_DIGEST
+          imagePullPolicy: IfNotPresent
+          env:
+            # Listen on the pod IP behind the Tailscale proxy (run-bridge-in-
+            # cluster D1); service.yaml + networkpolicy.yaml keep it tailnet-only.
+            - { name: JARVIS_BEHIND_TAILSCALE_PROXY, value: "1" }
+            - name: JARVIS_BIND_HOST
+              valueFrom:
+                fieldRef: { fieldPath: status.podIP }
+            - { name: JARVIS_PORT, value: "8787" }
+            - name: JARVIS_PROJECTS
+              value: >-
+                wordsworth=/work/wordsworth,bazibo=/work/bazibo,jarvis=/work/jarvis,convergence=/work/convergence,ratatoskr=/work/ratatoskr,homelab=/work/homelab
+            - { name: JARVIS_STATE_DIR, value: /state/jarvis }
+            - { name: HOME, value: /state/home }
+            - name: JARVIS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: jarvis-token, key: token }
+            - name: CLAUDE_CODE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: claude-oauth-token, key: token }
+          ports:
+            - { name: http, containerPort: 8787 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /work, subPath: repos, readOnly: true }
+            - { name: data, mountPath: /state, subPath: state }
+            - { name: tmp, mountPath: /tmp }
+          # No health route: the server only listens once both speech models
+          # are loaded, so an open port means ready. The startup probe allows
+          # ten minutes for that load on a busy node.
+          startupProbe:
+            tcpSocket: { port: 8787 }
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: { port: 8787 }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8787 }
+            periodSeconds: 30
+            failureThreshold: 4
+          resources:
+            requests: { cpu: 500m, memory: 2.5Gi }
+            limits: { cpu: "2", memory: 3Gi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: jarvis-data }
+        - name: tmp
+          emptyDir: {}
