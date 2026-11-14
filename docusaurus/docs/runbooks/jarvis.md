@@ -21,8 +21,15 @@ app `jarvis` (sync-wave 7, after the tailscale-operator), manifests in
 - **Only the proxy gets in:** the bridge listens on its pod IP
   (`JARVIS_BEHIND_TAILSCALE_PROXY=1`, `JARVIS_BIND_HOST` from the Downward
   API), and the NetworkPolicy `jarvis-tailscale-only` admits port 8787 only
-  from namespace `tailscale` (the operator's proxy pod). Kubelet probes come
-  from the node.
+  from the operator's proxy pod for this Service (namespace `tailscale` plus
+  the labels `tailscale.com/parent-resource=jarvis`, `-ns=jarvis`,
+  `-type=svc`). The namespace alone would also admit the public Funnel
+  proxies of convergence and netnl. Egress: DNS and 443 only. Kubelet probes
+  come from the node. The pod mounts no service-account token and gets no
+  Service env vars.
+- **Claude Code** runs every turn with `--restricted` and `Read(//proc/**)`
+  denied, so its file tools stay in the project directory and out of the
+  process environments (where the tokens are).
 - **One pod, one replica, `Recreate`.** The init container `sync-projects`
   shallow-clones or refreshes wordsworth, bazibo, jarvis, convergence,
   ratatoskr and homelab into the volume (`repos/`) at every start, with
@@ -76,12 +83,20 @@ docker buildx imagetools inspect ghcr.io/mwest2020/jarvis-bridge:<sha>
 kubectl -n jarvis get pods -o wide
 kubectl -n jarvis logs deploy/jarvis -c sync-projects      # "sync: <repo> refreshed to <sha>"
 kubectl -n jarvis logs deploy/jarvis -c bridge | head       # the BEHIND_TAILSCALE_PROXY warning, then "listening"
+kubectl -n tailscale get pods -l tailscale.com/parent-resource=jarvis   # the proxy the NetworkPolicy admits
 # From a tailnet machine: no token must give 401
 curl -s -o /dev/null -w '%{http_code}\n' -X POST 'http://jarvis.tail8f7877.ts.net:8787/turn?project=jarvis'
 ```
 
-The full replies and transcripts are in `/state/jarvis/bridge.log` in the pod
-(only a summary is ever spoken).
+`kubectl logs` shows request lines, summaries and errors only. The transcripts
+and full replies are in `/state/jarvis/bridge.log` in the pod (rotated at
+10 MB, three old files); only a summary is ever spoken. Both redact the
+phone's token and the Claude credentials.
+
+If the proxy is ever recreated with other labels (an operator upgrade, a
+ProxyGroup), the tailnet gets timeouts: compare
+`kubectl -n tailscale get pods --show-labels` with the podSelector in
+`networkpolicy.yaml`.
 
 ## Projects
 

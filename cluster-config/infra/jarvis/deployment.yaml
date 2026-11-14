@@ -19,6 +19,10 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-pull   # private package; out-of-band, see README.md
+      # No Kubernetes API token and no env vars for other Services: the bridge
+      # needs neither, and Claude Code's tools should not find them.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
       # node-03 has the most memory headroom (about 12 GB of requests free on
       # 2026-11-14), node-02 next. Preferred, not required: the local-path
       # volume pins the pod to wherever it first lands anyway.
