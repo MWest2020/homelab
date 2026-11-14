@@ -50,6 +50,14 @@ spec:
             - { name: HOME, value: /tmp }
             # Sites a wallet sign-in may name (convergence#159); unset in production = sign-in off.
             - { name: CV_SITE_HOST, value: "convergence.westerweel.work,convergence.tail8f7877.ts.net" }
+            # Shards settle on Solana DEVNET (convergence#161, decision 0005). The
+            # server refuses any cluster whose genesis hash is not devnet's.
+            # Authority (public): HV8MjgB8b725dE3urVFxtKQmED6QQdmknDwJqhzgnShB
+            - { name: CV_CHAIN, value: devnet }
+            - { name: CV_SHARD_MINT, value: ETxmwLYgu8tRNeDNodgDUj5SzCoAqmqsovY46aEhXPuX }
+            - name: CV_AUTHORITY_KEY   # out-of-band Secret; backup in OpenBao kv/convergence/devnet-authority
+              valueFrom:
+                secretKeyRef: { name: convergence-devnet-authority, key: authority }
           ports:
             - containerPort: 8790
           securityContext:
