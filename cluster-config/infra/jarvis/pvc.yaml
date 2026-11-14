@@ -1,0 +1,14 @@
+# One volume for the bridge: repos/ (shallow, read-only copies of the projects,
+# refreshed by the init container at every start) and state/ (session file,
+# bridge log, Claude Code's home with the session transcripts --resume needs).
+# local-path is node-local: the pod stays on the node where this first binds.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jarvis-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

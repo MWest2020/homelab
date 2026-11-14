@@ -1,0 +1,38 @@
+# The bridge listens on its pod IP (JARVIS_BEHIND_TAILSCALE_PROXY=1), which the
+# whole cluster network could otherwise reach.
+#
+# Ingress: only the Tailscale operator's proxy for THIS Service. Namespace
+# tailscale also holds the public Funnel proxies (convergence, netnl), so the
+# namespace alone is too wide. The operator labels each proxy pod with the
+# Service it serves (parent-resource / -ns / -type), known before the first
+# deploy. Tested 2026-11-14 with a throwaway Service: its own proxy got through
+# (200 over the tailnet), the convergence proxy timed out. Kubelet probes come
+# from the node and Cilium admits those by default.
+#
+# Egress: DNS and HTTPS only (GitHub for the project sync, the Anthropic API for
+# Claude Code).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jarvis-tailscale-only
+spec:
+  podSelector:
+    matchLabels: { app: jarvis }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tailscale }
+          podSelector:
+            matchLabels:
+              tailscale.com/parent-resource: jarvis
+              tailscale.com/parent-resource-ns: jarvis
+              tailscale.com/parent-resource-type: svc
+      ports:
+        - { protocol: TCP, port: 8787 }
+  egress:
+    - ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - ports:
+        - { protocol: TCP, port: 443 }
