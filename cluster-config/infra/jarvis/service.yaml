@@ -14,6 +14,10 @@ metadata:
 spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
+  # The operator's proxy goes to the ClusterIP; no NodePort on the LAN. (The
+  # NetworkPolicy already drops NodePort traffic, tested 2026-11-14; this keeps
+  # the port from existing at all.)
+  allocateLoadBalancerNodePorts: false
   selector: { app: jarvis }
   ports:
     - { name: http, port: 8787, targetPort: 8787, protocol: TCP }

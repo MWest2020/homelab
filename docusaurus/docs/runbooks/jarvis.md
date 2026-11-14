@@ -15,7 +15,8 @@ app `jarvis` (sync-wave 7, after the tailscale-operator), manifests in
 - **Entry:** `http://jarvis.tail8f7877.ts.net:8787/turn?project=<name>`, with
   `Authorization: Bearer <token>` (the token Mark's phone has). A Service of
   type `LoadBalancer`, `loadBalancerClass: tailscale`, hostname `jarvis`, **no
-  Funnel annotation**. Plain HTTP inside the tailnet, as the phone's HTTP
+  Funnel annotation**, and `allocateLoadBalancerNodePorts: false` (no
+  NodePort on the LAN). Plain HTTP inside the tailnet, as the phone's HTTP
   Shortcuts button expects.
 - **Only the proxy gets in:** the bridge listens on its pod IP
   (`JARVIS_BEHIND_TAILSCALE_PROXY=1`, `JARVIS_BIND_HOST` from the Downward
