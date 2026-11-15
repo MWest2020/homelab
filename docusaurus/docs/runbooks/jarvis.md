@@ -31,11 +31,15 @@ app `jarvis` (sync-wave 7, after the tailscale-operator), manifests in
   denied, so its file tools stay in the project directory and out of the
   process environments (where the tokens are).
 - **One pod, one replica, `Recreate`.** The init container `sync-projects`
-  shallow-clones or refreshes wordsworth, bazibo, jarvis, convergence,
-  ratatoskr and homelab into the volume (`repos/`) at every start, with
-  `GIT_PAT`. The PAT is only in the init container. The bridge mounts
-  `repos/` read-only at `/work`, and Claude Code runs with `Read`, `Glob`,
-  `Grep` only.
+  shallow-clones or refreshes **every repository MWest2020 owns** that the PAT
+  can read (`JARVIS_SYNC_REPOS=*`, `JARVIS_SYNC_OWNER=MWest2020`) into the
+  volume (`repos/`) at every start. The list comes from
+  `GET /user/repos?affiliation=owner`, filtered on the owner's login, so an
+  organisation's repositories are never cloned. Archived repos, forks and repos
+  over 500 MB are skipped, each with a log line. The PAT is only in the init
+  container. The bridge mounts `repos/` read-only at `/work` and serves every
+  checkout there (`JARVIS_PROJECTS=*`, `JARVIS_PROJECTS_ROOT=/work`); Claude
+  Code runs with `Read`, `Glob`, `Grep` only.
 - **State** (`state/` on the same volume): the bridge's session file and log
   (`/state/jarvis`) and Claude Code's home (`/state/home`, with the session
   transcripts `--resume` needs). A restart keeps every project's conversation.
@@ -81,7 +85,7 @@ docker buildx imagetools inspect ghcr.io/mwest2020/jarvis-bridge:<sha>
 
 ```bash
 kubectl -n jarvis get pods -o wide
-kubectl -n jarvis logs deploy/jarvis -c sync-projects      # "sync: <repo> refreshed to <sha>"
+kubectl -n jarvis logs deploy/jarvis -c sync-projects      # "sync: <repo> refreshed to <sha>", skips, "N repositories available"
 kubectl -n jarvis logs deploy/jarvis -c bridge | head       # the BEHIND_TAILSCALE_PROXY warning, then "listening"
 kubectl -n tailscale get pods -l tailscale.com/parent-resource=jarvis   # the proxy the NetworkPolicy admits
 # From a tailnet machine: no token must give 401
@@ -100,6 +104,28 @@ ProxyGroup), the tailnet gets timeouts: compare
 
 ## Projects
 
-The list is in two places in `deployment.yaml`: `JARVIS_SYNC_REPOS` (init
-container, `owner/name`) and `JARVIS_PROJECTS` (bridge, `name=/work/name`).
-Change both together. A repo that can't be cloned fails the init container.
+Every MWest2020 repository the PAT `pat-node-01` can read, except archived
+ones, forks and repos over `JARVIS_SYNC_MAX_KB` (500 MB). On 2026-11-15 that
+was 61 repos, 484 MB by the API's `size`, 411 MB of checked-out files; none
+over the size limit. The phone gets the list from `GET /projects`.
+
+- **Keep a repo off the phone:** add its name to `JARVIS_SYNC_EXCLUDE`
+  (space-separated) in `deployment.yaml`. The next start removes its copy.
+- **What happened at the last start:**
+  `kubectl -n jarvis logs deploy/jarvis -c sync-projects`: one line per
+  synced repo, one per skip (archived, fork, excluded, too large), then
+  `N repositories available`.
+- **Failures:** a repo that can't be refreshed keeps its old copy; a first
+  clone that fails is logged and skipped; the init container fails only when no
+  repo is available at all. If the GitHub API can't be reached, the copies
+  already on the volume are refreshed and kept. Egress stays DNS and 443.
+- **The first start** after switching to all repos clones everything, a few
+  minutes; later starts only fetch.
+- **Disk:** a shallow copy takes about twice its checked-out tree, so ~0.9 GB
+  now. The PVC says 5Gi, but `local-path` doesn't enforce that and can't
+  resize a PVC: the limit is the free disk on the node that holds the volume
+  (`df -h /work` in the pod; 17 GB free on 2026-11-15). If that runs low, move
+  to a new PVC (new name, same mounts). The copies are disposable and the init
+  container re-clones them; copy `state/` across to keep the sessions.
+- **Check the list over the tailnet** (with the phone's token):
+  `curl -H "Authorization: Bearer $JARVIS_TOKEN" http://jarvis.tail8f7877.ts.net:8787/projects`

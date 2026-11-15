@@ -2,6 +2,11 @@
 # refreshed by the init container at every start) and state/ (session file,
 # bridge log, Claude Code's home with the session transcripts --resume needs).
 # local-path is node-local: the pod stays on the node where this first binds.
+#
+# Size: every MWest2020 repo (2026-11-15: 61 repos, 411 MB of checked-out trees)
+# takes about twice its tree as a shallow copy, so ~0.9 GB, plus state (KBs).
+# 5Gi leaves room. local-path does not enforce the size and cannot resize a
+# PVC; the node's free disk is what counts (runbook, "Projects").
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
