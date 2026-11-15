@@ -44,7 +44,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       initContainers:
         - name: sync-projects
-          image: ghcr.io/mwest2020/jarvis-bridge:sha-a663a26@sha256:1d81d958fd91b98637dd46b8979b034929a3e6757009f7520f4018095f367f87
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-48dceb2@sha256:8718e4d0e1305f3363c468cdd5d8e03c8fbf77a62f74f4137f1944a48fd3af5d
           imagePullPolicy: IfNotPresent
           # state/ must exist before the bridge mounts it as a sub-path.
           command: ["sh", "-c", "mkdir -p -m 700 /data/state /data/state/home /data/state/jarvis && chmod 700 /data/state /data/state/home /data/state/jarvis && exec jarvis-sync-projects"]
@@ -72,7 +72,7 @@ spec:
             limits: { memory: 512Mi }
       containers:
         - name: bridge
-          image: ghcr.io/mwest2020/jarvis-bridge:sha-a663a26@sha256:1d81d958fd91b98637dd46b8979b034929a3e6757009f7520f4018095f367f87
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-48dceb2@sha256:8718e4d0e1305f3363c468cdd5d8e03c8fbf77a62f74f4137f1944a48fd3af5d
           imagePullPolicy: IfNotPresent
           env:
             # Listen on the pod IP behind the Tailscale proxy (run-bridge-in-
