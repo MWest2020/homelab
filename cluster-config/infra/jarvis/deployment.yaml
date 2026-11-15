@@ -50,10 +50,18 @@ spec:
           command: ["sh", "-c", "mkdir -p -m 700 /data/state /data/state/home /data/state/jarvis && chmod 700 /data/state /data/state/home /data/state/jarvis && exec jarvis-sync-projects"]
           env:
             - { name: JARVIS_SYNC_DIR, value: /data/repos }
-            - name: JARVIS_SYNC_REPOS
-              value: >-
-                MWest2020/wordsworth MWest2020/bazibo MWest2020/jarvis
-                MWest2020/convergence MWest2020/ratatoskr MWest2020/homelab
+            # Every repository MWest2020 owns that the PAT can read (Mark,
+            # 2026-11-15: "jarvis mag alle projecten"), listed through
+            # GET /user/repos?affiliation=owner and filtered on owner.login, so
+            # never an organisation's. Archived repos, forks and repos over
+            # 500 MB are skipped and logged (jarvis add-project-list). On
+            # 2026-11-15: 61 repos, 484 MB by the API, ~0.9 GB on disk.
+            - { name: JARVIS_SYNC_REPOS, value: "*" }
+            - { name: JARVIS_SYNC_OWNER, value: MWest2020 }
+            - { name: JARVIS_SYNC_MAX_KB, value: "512000" }
+            # Names (or owner/name) to keep off the phone, space-separated.
+            # Default: none (waiting-on-mark, see the runbook).
+            - { name: JARVIS_SYNC_EXCLUDE, value: "" }
             - { name: HOME, value: /tmp }
             # The PAT lives in this container only, never in the bridge's
             # environment (Claude Code's Read tool could read it there).
@@ -69,7 +77,8 @@ spec:
             - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
-            limits: { memory: 512Mi }
+            # git index-pack of the larger shallow clones (a 237 MB tree).
+            limits: { memory: 1Gi }
       containers:
         - name: bridge
           image: ghcr.io/mwest2020/jarvis-bridge:sha-48dceb2@sha256:8718e4d0e1305f3363c468cdd5d8e03c8fbf77a62f74f4137f1944a48fd3af5d
@@ -82,9 +91,10 @@ spec:
               valueFrom:
                 fieldRef: { fieldPath: status.podIP }
             - { name: JARVIS_PORT, value: "8787" }
-            - name: JARVIS_PROJECTS
-              value: >-
-                wordsworth=/work/wordsworth,bazibo=/work/bazibo,jarvis=/work/jarvis,convergence=/work/convergence,ratatoskr=/work/ratatoskr,homelab=/work/homelab
+            # Every checkout the init container left under /work is a project;
+            # GET /projects lists them for the phone.
+            - { name: JARVIS_PROJECTS, value: "*" }
+            - { name: JARVIS_PROJECTS_ROOT, value: /work }
             - { name: JARVIS_STATE_DIR, value: /state/jarvis }
             - { name: HOME, value: /state/home }
             - name: JARVIS_TOKEN
