@@ -19,7 +19,7 @@ spec:
     # NB: local-path ondersteunt geen online volume-expansion → opschalen gaat via een
     # rolling PVC-replace van de CNPG-instances, niet via een simpele size-edit.
     size: 30Gi
-    storageClassName: local-path # expliciet; local-path is óók de default-SC
+    storageClass: local-path # expliciet; local-path is óók de default-SC
 
   # Echte 3-node-HA: spreiden op hostname (de nodes hebben GEEN zone-labels, dus
   # topology.kubernetes.io/zone zou een no-op zijn). 'preferred' i.p.v. 'required' zodat
