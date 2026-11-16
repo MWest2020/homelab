@@ -44,7 +44,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       initContainers:
         - name: sync-projects
-          image: ghcr.io/mwest2020/jarvis-bridge:sha-2f951ec@sha256:2ed374c73ee291c930f17b4cd8470340af6e82f657ea21f027c54fb19a6a228d
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-e10ca4c@sha256:b84030d9846f5897d3a24896e48cfd41f6963470ed2d122841009f3e2f0bda05
           imagePullPolicy: IfNotPresent
           # state/ must exist before the bridge mounts it as a sub-path.
           command: ["sh", "-c", "mkdir -p -m 700 /data/state /data/state/home /data/state/jarvis && chmod 700 /data/state /data/state/home /data/state/jarvis && exec jarvis-sync-projects"]
@@ -75,13 +75,29 @@ spec:
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: tmp, mountPath: /tmp }
+            - { name: agent-key, mountPath: /agent, readOnly: true }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             # git index-pack of the larger shallow clones (a 237 MB tree).
             limits: { memory: 1Gi }
+        # Full mode (jarvis-full-agent D32): the bridge's ssh key and the agent
+        # host's pinned host key, copied 0400 and owned by uid 10001 into a
+        # memory emptyDir only the bridge mounts. Secret jarvis-agent-key is
+        # out-of-band (README.md); its volume is mounted in this container only.
+        - name: agent-key
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-e10ca4c@sha256:b84030d9846f5897d3a24896e48cfd41f6963470ed2d122841009f3e2f0bda05
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "install -m 0400 /secret/key /secret/known_hosts /agent/"]
+          volumeMounts:
+            - { name: agent-secret, mountPath: /secret, readOnly: true }
+            - { name: agent-key, mountPath: /agent }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
       containers:
         - name: bridge
-          image: ghcr.io/mwest2020/jarvis-bridge:sha-2f951ec@sha256:2ed374c73ee291c930f17b4cd8470340af6e82f657ea21f027c54fb19a6a228d
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-e10ca4c@sha256:b84030d9846f5897d3a24896e48cfd41f6963470ed2d122841009f3e2f0bda05
           imagePullPolicy: IfNotPresent
           env:
             # Listen on the pod IP behind the Tailscale proxy (run-bridge-in-
@@ -100,6 +116,17 @@ spec:
             - name: JARVIS_TOKEN
               valueFrom:
                 secretKeyRef: { name: jarvis-token, key: token }
+            # Agent mode (jarvis-full-agent). readonly until the agent host's
+            # checks (task 1.17) pass; then full. The bridge reaches agent-lxc
+            # over the LAN (pod -> 192.168.178.58:22, seen there as node-03,
+            # 192.168.178.207, which the key's from= names; Mark accepted this
+            # in jarvis #42). The pod stays on node-03 through its local-path PVC.
+            - { name: JARVIS_AGENT_MODE, value: readonly }
+            - { name: JARVIS_AGENT_HOST, value: "192.168.178.58" }
+            - { name: JARVIS_AGENT_PORT, value: "22" }
+            - { name: JARVIS_AGENT_USER, value: agent }
+            - { name: JARVIS_AGENT_KEY_FILE, value: /agent/key }
+            - { name: JARVIS_AGENT_KNOWN_HOSTS_FILE, value: /agent/known_hosts }
             - name: CLAUDE_CODE_OAUTH_TOKEN
               valueFrom:
                 secretKeyRef: { name: claude-oauth-token, key: token }
@@ -141,3 +168,10 @@ spec:
           persistentVolumeClaim: { claimName: jarvis-data }
         - name: tmp
           emptyDir: {}
+        # 0444 inside this pod: only the agent-key init container mounts it,
+        # and copies it 0400 for uid 10001 (no fsGroup, which would chown the
+        # whole repos volume on every start).
+        - name: agent-secret
+          secret: { secretName: jarvis-agent-key, defaultMode: 0444 }
+        - name: agent-key
+          emptyDir: { medium: Memory, sizeLimit: 1Mi }
