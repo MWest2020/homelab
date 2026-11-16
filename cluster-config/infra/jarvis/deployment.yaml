@@ -127,9 +127,15 @@ spec:
             tcpSocket: { port: 8787 }
             periodSeconds: 30
             failureThreshold: 4
+          # Kokoro TTS and whisper are CPU-bound and were throttled at 2 CPUs
+          # (642 of 1008 periods during two turns, 2026-11-16): TTS ran at
+          # real time, 10-15 s a turn. node-03 has 4 vCPUs with 40% requested.
+          # Memory reached 3.3 GB after a few turns and a second process
+          # OOM-killed the container at 4Gi; 6Gi gives headroom while the
+          # growth is investigated.
           resources:
-            requests: { cpu: 500m, memory: 3Gi }
-            limits: { cpu: "2", memory: 4Gi }
+            requests: { cpu: "1", memory: 3Gi }
+            limits: { cpu: "4", memory: 6Gi }
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: jarvis-data }
