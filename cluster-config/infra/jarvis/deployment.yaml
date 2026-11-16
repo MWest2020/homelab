@@ -115,12 +115,12 @@ spec:
             - name: JARVIS_TOKEN
               valueFrom:
                 secretKeyRef: { name: jarvis-token, key: token }
-            # Agent mode (jarvis-full-agent). readonly until the agent host's
+            # Agent mode (jarvis-full-agent). full since 2026-11-16, after the agent host's
             # checks (task 1.17) pass; then full. The bridge reaches agent-lxc
             # over the LAN (pod -> 192.168.178.58:22, seen there as node-03,
             # 192.168.178.207, which the key's from= names; Mark accepted this
             # in jarvis #42). The pod stays on node-03 through its local-path PVC.
-            - { name: JARVIS_AGENT_MODE, value: readonly }
+            - { name: JARVIS_AGENT_MODE, value: full }
             - { name: JARVIS_AGENT_HOST, value: "192.168.178.58" }
             - { name: JARVIS_AGENT_PORT, value: "22" }
             - { name: JARVIS_AGENT_USER, value: agent }
