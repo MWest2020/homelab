@@ -9,8 +9,8 @@
 # (200 over the tailnet), the convergence proxy timed out. Kubelet probes come
 # from the node and Cilium admits those by default.
 #
-# Egress: DNS and HTTPS only (GitHub for the project sync, the Anthropic API for
-# Claude Code).
+# Egress: DNS and HTTPS (GitHub for the project sync, the Anthropic API for
+# Claude Code), and ssh to the agent host only (full mode, jarvis-full-agent).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -36,3 +36,8 @@ spec:
         - { protocol: TCP, port: 53 }
     - ports:
         - { protocol: TCP, port: 443 }
+    # Full mode (jarvis-full-agent D32): ssh to the agent host, one address only.
+    - to:
+        - ipBlock: { cidr: "192.168.178.58/32" }
+      ports:
+        - { protocol: TCP, port: 22 }
