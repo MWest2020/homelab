@@ -75,7 +75,6 @@ spec:
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: tmp, mountPath: /tmp }
-            - { name: agent-key, mountPath: /agent, readOnly: true }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             # git index-pack of the larger shallow clones (a 237 MB tree).
@@ -140,6 +139,7 @@ spec:
             - { name: data, mountPath: /work, subPath: repos, readOnly: true }
             - { name: data, mountPath: /state, subPath: state }
             - { name: tmp, mountPath: /tmp }
+            - { name: agent-key, mountPath: /agent, readOnly: true }
           # No health route: the server only listens once both speech models
           # are loaded, so an open port means ready. The startup probe allows
           # ten minutes for that load on a busy node.
