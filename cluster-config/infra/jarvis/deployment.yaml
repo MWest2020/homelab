@@ -44,7 +44,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       initContainers:
         - name: sync-projects
-          image: ghcr.io/mwest2020/jarvis-bridge:sha-1351804@sha256:f38d75f67ce1c6ca16f64b6da2cd4905ca687e42efbc8f6c2a141a9769e27665
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-64bce59@sha256:a642c33a863b4a9157147020f84c8c3e28a1df1b1673a5052c38a014d7e99472
           imagePullPolicy: IfNotPresent
           # state/ must exist before the bridge mounts it as a sub-path.
           command: ["sh", "-c", "mkdir -p -m 700 /data/state /data/state/home /data/state/jarvis && chmod 700 /data/state /data/state/home /data/state/jarvis && exec jarvis-sync-projects"]
@@ -84,7 +84,7 @@ spec:
         # memory emptyDir only the bridge mounts. Secret jarvis-agent-key is
         # out-of-band (README.md); its volume is mounted in this container only.
         - name: agent-key
-          image: ghcr.io/mwest2020/jarvis-bridge:sha-1351804@sha256:f38d75f67ce1c6ca16f64b6da2cd4905ca687e42efbc8f6c2a141a9769e27665
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-64bce59@sha256:a642c33a863b4a9157147020f84c8c3e28a1df1b1673a5052c38a014d7e99472
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c", "install -m 0400 /secret/key /secret/known_hosts /agent/"]
           volumeMounts:
@@ -96,7 +96,7 @@ spec:
             capabilities: { drop: ["ALL"] }
       containers:
         - name: bridge
-          image: ghcr.io/mwest2020/jarvis-bridge:sha-1351804@sha256:f38d75f67ce1c6ca16f64b6da2cd4905ca687e42efbc8f6c2a141a9769e27665
+          image: ghcr.io/mwest2020/jarvis-bridge:sha-64bce59@sha256:a642c33a863b4a9157147020f84c8c3e28a1df1b1673a5052c38a014d7e99472
           imagePullPolicy: IfNotPresent
           env:
             # Listen on the pod IP behind the Tailscale proxy (run-bridge-in-
