@@ -4,6 +4,8 @@
 # only with evidence (a PR, issue or doc); everything else is "open".
 # Schema: project, goal, current (a phase id), phases [id, name, summary], and
 # done_means for the current phase [item, status done|open, evidence].
+# Optional `nl:` (goal, phase, next): the Dutch text for westerweel.work/nu/,
+# written in the first person, without issue numbers, names or client names.
 project: homelab
 goal: "Infrastructure as code for a three-node Kubernetes homelab, run through GitOps, that the other projects can rely on."
 current: ha
@@ -17,3 +19,8 @@ done_means:
   - {item: "Storage survives a node: filer metadata on Postgres, node drain test", status: done, evidence: "https://github.com/MWest2020/wordsworth/issues/193#issuecomment-6714219091"}
   - {item: "Tailnet ingress on two nodes (ProxyGroup wordsworth-ingress, node-02 and node-03, since 2026-11-01)", status: done, evidence: "https://github.com/MWest2020/wordsworth/issues/192#issuecomment-6558731533"}
   - {item: "Free disk headroom on node-01 (now about 82% full)", status: open, evidence: "https://github.com/MWest2020/homelab/blob/main/docusaurus/docs/runbooks/seaweedfs.md"}
+nl:
+  goal: "Infrastructuur als code voor een Kubernetes-homelab met drie nodes, beheerd via GitOps, waar de andere projecten op kunnen bouwen."
+  phase: "Hoge beschikbaarheid"
+  next:
+    - "Meer vrije schijfruimte op node-01 (nu ongeveer 82% vol)"
