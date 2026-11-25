@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect request logs for the weekly security report (Plesk + cluster)
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=SECREPORT_DIR=%h/homelab/tools/security-report
+EnvironmentFile=-%h/.config/security-report/env
+ExecStart=/bin/sh -c 'd="$SECREPORT_DIR"; [ -x "$d/run.sh" ] || d="$HOME/homelab/tools/security-report"; exec "$d/run.sh" collect'
+TimeoutStartSec=20m
+MemoryMax=512M
+Nice=15

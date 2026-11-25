@@ -1,0 +1,18 @@
+[Unit]
+Description=Weekly security report (bot traffic + self-scan) for Mark's public surface
+Documentation=https://homelab.westerweel.work/runbooks/security-report
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Where the tool lives: SECREPORT_DIR from ~/.config/security-report/env if that
+# checkout exists, else ~/homelab/tools/security-report (pulled weekly).
+Environment=SECREPORT_DIR=%h/homelab/tools/security-report
+EnvironmentFile=-%h/.config/security-report/env
+ExecStart=/bin/sh -c 'd="$SECREPORT_DIR"; [ -x "$d/run.sh" ] || d="$HOME/homelab/tools/security-report"; exec "$d/run.sh" report'
+TimeoutStartSec=6h
+# Belt and braces: every scanner also gets its own 1500M scope.
+MemoryMax=2G
+MemorySwapMax=0
+Nice=10
+IOSchedulingClass=idle
