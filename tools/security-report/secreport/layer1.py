@@ -197,21 +197,26 @@ def tls_light(host: str) -> dict:
 # ------------------------------------------------------------------ ZAP baseline (passive)
 
 def zap(workdir: Path) -> dict:
-    zap_sh = TOOLS / "zap/zap.sh"
-    if not zap_sh.exists():
+    if not (TOOLS / "zap").exists():
         return {"status": "skipped", "reason": "ZAP niet geïnstalleerd (install-scanners.sh)"}
     from zapv2 import ZAPv2
 
     home = workdir / "zap-home"
     home.mkdir(parents=True, exist_ok=True)
-    (home / ".ZAP_JVM.properties").write_text("-Xmx768m\n")
+    jar = next(iter(sorted((TOOLS / "zap").glob("zap-*.jar"))), None)
+    if jar is None:
+        return {"status": "skipped", "reason": "zap-*.jar niet gevonden"}
     key = secrets.token_hex(16)
     port = 8091
     log = open(workdir / "zap.log", "w")
-    proc = subprocess.Popen(capped([str(zap_sh), "-daemon", "-host", "127.0.0.1", "-port", str(port), "-dir", str(home),
-                                    "-config", f"api.key={key}", "-config", "api.addrs.addr.name=127.0.0.1",
-                                    "-config", "api.addrs.addr.regex=false", "-silent"]),
-                            stdout=log, stderr=subprocess.STDOUT, env={**os.environ, "JAVA_TOOL_OPTIONS": "-Xmx768m"})
+    # java directly, not zap.sh: zap.sh picks its own -Xmx (a quarter of RAM),
+    # which would break the 1500M scope. ZAP listens on 127.0.0.1 only, so the
+    # API may accept any Host header (the Python client sends "zap").
+    proc = subprocess.Popen(capped(["java", "-Xmx768m", "-jar", str(jar), "-daemon", "-host", "127.0.0.1",
+                                    "-port", str(port), "-dir", str(home), "-config", f"api.key={key}",
+                                    "-config", "api.addrs.addr.name=.*", "-config", "api.addrs.addr.regex=true",
+                                    "-silent"]),
+                            cwd=str(TOOLS / "zap"), stdout=log, stderr=subprocess.STDOUT)
     z = ZAPv2(apikey=key, proxies={"http": f"http://127.0.0.1:{port}", "https": f"http://127.0.0.1:{port}"})
     try:
         for _ in range(180):
@@ -268,6 +273,7 @@ def zap(workdir: Path) -> dict:
             proc.wait(timeout=60)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=30)
         log.close()
 
 
