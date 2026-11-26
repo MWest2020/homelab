@@ -63,8 +63,13 @@ Not "safe tags" alone; three filters, all must pass (`secreport/layer1.py`):
 
 `tests/test_nuclei_safe.py` runs `nuclei -tl` with exactly the scan's
 arguments and fails if any loaded template breaks rule 3 or comes from an
-excluded directory. On 2026-11-26: 1,652 http + 27 ssl templates; the file check
-dropped another 23.
+excluded directory, and also fails if the core GET-only checks `git-config` and
+`deprecated-tls` are no longer selected (so coverage cannot vanish silently). The
+tags `vuln` and `unauth` are not excluded: they mark most read-only exposure
+checks, and rules 1 and 3 already keep the scan safe. nuclei counts `ssl/`
+templates as protocol `tcp`, so the ssl run (only `ssl/`, only our own TLS ends)
+does not exclude `tcp`; the http run does. On 2026-11-26: 3,135 http + 38 ssl
+templates; the file check dropped another 88.
 
 Our own requests carry the user-agent `westerweel-selfscan/1.0 (…)`; logs
 without a user-agent leave out the scan's time window

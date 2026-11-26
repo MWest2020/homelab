@@ -297,8 +297,8 @@ def zap(workdir: Path) -> dict:
 
 NUCLEI_TAGS = "exposure,misconfig,config,ssl,cors,disclosure,keys,token,panel,redirect,takeover,headers"
 NUCLEI_EXCLUDE_TAGS = ("intrusive,instrusive,dos,fuzz,fuzzing,bruteforce,brute-force,default-login,oast,oob,rce,sqli,"
-                       "xss,lfi,ssrf,file-upload,deserialization,injection,cve,vuln,bypass,auth-bypass,backdoor,"
-                       "unauth,register,signup,graphql")
+                       "xss,lfi,ssrf,file-upload,deserialization,injection,cve,bypass,auth-bypass,backdoor,"
+                       "register,signup,graphql")
 NUCLEI_EXCLUDE_DIRS = ("http/vulnerabilities", "http/cves", "http/cnvd", "http/iot")
 NUCLEI_EXCLUDE_TYPES = "headless,code,javascript,workflow,file,tcp,dns,whois,websocket"
 
@@ -320,10 +320,15 @@ def unsafe_reason(template: Path) -> str | None:
     return None
 
 
-def nuclei_filter_args(templates: Path) -> list[str]:
+def nuclei_filter_args(templates: Path, ssl: bool = False) -> list[str]:
     # The directory exclusion is done by not passing those directories (see
     # template_dirs); nuclei's -et on a directory costs ~30 s per directory.
-    return ["-tags", NUCLEI_TAGS, "-etags", NUCLEI_EXCLUDE_TAGS, "-ept", NUCLEI_EXCLUDE_TYPES]
+    # nuclei counts ssl/ templates as protocol "tcp", so the ssl run may not
+    # exclude tcp (it only ever gets ssl/ templates, see select_templates).
+    types = NUCLEI_EXCLUDE_TYPES
+    if ssl:
+        types = ",".join(t for t in types.split(",") if t != "tcp")
+    return ["-tags", NUCLEI_TAGS, "-etags", NUCLEI_EXCLUDE_TAGS, "-ept", types]
 
 
 def template_dirs(templates: Path) -> list[Path]:
@@ -337,20 +342,24 @@ def _excluded_dir(t: Path, templates: Path) -> bool:
     return any(str(t).startswith(f"{templates / d}/") for d in NUCLEI_EXCLUDE_DIRS)
 
 
-def list_templates(binary: Path, templates: Path, template_args: list[str], home: Path) -> list[Path]:
-    p = subprocess.run([str(binary), "-duc", "-silent", "-nc", "-tl", *template_args, *nuclei_filter_args(templates)],
+def list_templates(binary: Path, templates: Path, template_args: list[str], home: Path,
+                   ssl: bool = False) -> list[Path]:
+    p = subprocess.run([str(binary), "-duc", "-silent", "-nc", "-tl", *template_args,
+                        *nuclei_filter_args(templates, ssl=ssl)],
                        capture_output=True, text=True, timeout=600, env={**os.environ, "HOME": str(home)},
                        stdin=subprocess.DEVNULL)   # nuclei reads targets from a stdin that isn't a tty
     return [Path(ln.strip()) for ln in p.stdout.splitlines() if ln.strip().endswith((".yaml", ".yml"))]
 
 
 def select_templates(binary: Path, templates: Path, home: Path) -> dict[str, list[Path]]:
-    args = [a for d in template_dirs(templates) for a in ("-t", str(d))]
-    listed = list_templates(binary, templates, args, home)
-    safe = [t for t in listed if t.exists() and not _excluded_dir(t, templates) and unsafe_reason(t) is None]
-    return {"http": [t for t in safe if f"{templates}/http/" in str(t)],
-            "ssl": [t for t in safe if f"{templates}/ssl/" in str(t)],
-            "dropped": len(listed) - len(safe)}
+    http_args = [a for d in template_dirs(templates) if d.name != "ssl" for a in ("-t", str(d))]
+    listed_http = list_templates(binary, templates, http_args, home)
+    listed_ssl = list_templates(binary, templates, ["-t", str(templates / "ssl")], home, ssl=True)
+    def ok(t: Path) -> bool:
+        return t.exists() and not _excluded_dir(t, templates) and unsafe_reason(t) is None
+    http = [t for t in listed_http if ok(t) and f"{templates}/http/" in str(t)]
+    ssl = [t for t in listed_ssl if ok(t) and f"{templates}/ssl/" in str(t)]
+    return {"http": http, "ssl": ssl, "dropped": len(listed_http) + len(listed_ssl) - len(http) - len(ssl)}
 
 
 def nuclei(workdir: Path) -> dict:
@@ -377,7 +386,7 @@ def nuclei(workdir: Path) -> dict:
         part = workdir / f"nuclei-{name}.jsonl"
         part.unlink(missing_ok=True)
         cmd = capped([str(binary), "-duc", "-ni", "-silent", "-nc", "-jsonl", "-o", str(part), "-l", str(tg),
-                      "-t", str(tl), *nuclei_filter_args(templates),
+                      "-t", str(tl), *nuclei_filter_args(templates, ssl=(name == "ssl")),
                       "-rl", str(NUCLEI_RATE), "-c", str(NUCLEI_CONCURRENCY), "-bs", str(NUCLEI_CONCURRENCY),
                       "-timeout", "10", "-retries", "1", "-H", f"User-Agent: {USER_AGENT}",
                       "-ud", str(templates), "-disable-update-check"], f"nuclei-{name}")
