@@ -43,7 +43,7 @@ report checks that every week and says when it changes. The list itself is in
 | Bot traffic, edge | Cloudflare GraphQL `httpRequestsAdaptiveGroups` + `firewallEventsAdaptive`, plus the tunnel inventory | read-only token `~/.config/cloudflare/read.env`; skipped cleanly when missing. Free plan: sampled counts, no `clientAsn` (IP → ASN locally) |
 | Bot traffic, origin | Plesk `logs/` over FTPS (IPv4 only, at most one attempt a day, see backoff below); oauth2-proxy, wanderer, netnl, convergence and Keycloak events via `ssh jumpy kubectl logs` | collected every 3 hours into `~/.local/state/security-report/logs/`; each cluster source separately, so one failure doesn't cost the rest |
 | Layer 1 (passive) | security headers + five exposure probes, sslyze, ZAP baseline (spider 1 min, links only: form posting and processing off; passive rules; the active scanner never starts), nuclei with filtered templates (below) | one at a time, each in a scope `secreport-<name>-…` with `MemoryMax=1500M MemorySwapMax=0` |
-| Layer 2 (active, non-destructive) | `secreport/layer2.py`: admin paths, encoded-path traversal to the Keycloak admin API, master realm reachability, brute-force config, edge rate limit, client registration, open redirects (Keycloak and oauth2-proxy), proxy bypass, header spoofing, CORS, direct API access, X-Forwarded-For trust; as the **test user** (below): IDOR on documents and reveal without a grant; plus the private checks (below) | GET/OPTIONS, plus: at most a handful of password grants for nonexistent `selfscan-*` users, **one unauthenticated `POST /documents/<dummy id>/reveal`** that oauth2-proxy must stop, and as the test user four POSTs that must get 403 and can't write even without a gate (reveal and reveal.pdf with an unknown grant, reveal with an expired grant of someone else, issuing a grant with a malformed document id). Keycloak config is read with kcadm, never written |
+| Layer 2 (active, non-destructive) | `secreport/layer2.py`: admin paths, encoded-path traversal to the Keycloak admin API, master realm reachability, brute-force config, edge rate limit, client registration, open redirects (Keycloak and oauth2-proxy), proxy bypass, header spoofing, CORS, direct API access, X-Forwarded-For trust; as the **test user** (below): IDOR on documents and reveal without a grant; plus the private checks (below) | GET/OPTIONS, plus: at most a handful of password grants for nonexistent `selfscan-*` users, **one unauthenticated `POST /documents/<dummy id>/reveal`** that oauth2-proxy must stop, and as the test user four POSTs that must get 403 and can't write even without a gate (reveal and reveal.pdf with an unknown grant, reveal with a revoked or expired grant of someone else (never a live one: if recipient binding regressed, that would be a real, audited reveal), issuing a grant with a malformed document id). Keycloak config is read with kcadm, never written |
 
 ### nuclei: which templates
 
@@ -116,7 +116,12 @@ so it has one; the tool enrolled it on its first login and keeps the secret.
   `SELFSCAN_TOTP_SECRET`.
 - `layer2.selfscan_session()` logs in through oauth2-proxy exactly like a
   browser (form login, then a TOTP code), and checks that Wordsworth itself
-  recognises the caller before testing anything. TOTP codes are single-use in
+  recognises the caller before testing anything. Each form is submitted at
+  most once: an error on a Keycloak form, or the same form coming back, stops
+  the login (one failed attempt, never a lockout). It refuses an env file that
+  isn't 0600 and ours, and rewrites it atomically.
+- A check only counts Wordsworth's own 403 (its JSON `detail`) as a refusal;
+  a 404 or a 403 from something in front of it is reported, not `held`. TOTP codes are single-use in
   this realm; the helper waits for the next 30-second step if needed.
 - The real document id and grant id the checks aim at are read from
   Wordsworth's database in a read-only transaction at run time, never stored.

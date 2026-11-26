@@ -3,9 +3,12 @@
 Rules (Mark, 2026-11-25): no DoS or load, never delete or modify data, no
 brute force beyond a handful of tries, test accounts only. In practice:
 
-- GET/HEAD/OPTIONS only, except the token endpoint (a handful of password
-  grants for a username that does not exist, all named `selfscan-*`) and one
-  unauthenticated POST to /reveal that the proxy must stop before the app.
+- GET/HEAD/OPTIONS, except: the token endpoint (seven password grants in
+  all, for usernames that do not exist, all named `selfscan-*`); one
+  unauthenticated POST to /reveal that the proxy must stop before the app;
+  one browser login as the test user (homelab#85, at most one submit per
+  form, never retried); and as that user four POSTs chosen so that they
+  can't write even if the gate they test were missing (see ww_reveal).
 - Keycloak config is READ via kcadm inside the pod; nothing is written.
 - Results: `held` (the control stopped us), `broken` (we got through: a
   finding), `exposed` (reachable, by design or not; context in the note),
@@ -67,6 +70,17 @@ def kc_admin_direct(c) -> Check:
 ADMIN_API_401 = "HTTP 401 Unauthorized"   # Keycloak's admin REST API without a token
 
 
+def _public_ok(c, ch: Check) -> bool:
+    """Positive control: the public realm answers. Without it, "everything is
+    404" would also be what a broken proxy looks like."""
+    r = _get(c, IAM, "/realms/westerweel/.well-known/openid-configuration")
+    ch.private.append(f"control: GET /realms/westerweel/.well-known/openid-configuration → {r.status_code}")
+    if r.status_code != 200:
+        ch.summary = f"Niet getest: de publieke realm zelf antwoordt {r.status_code} (proxy of Keycloak stuk?)."
+        return False
+    return True
+
+
 def _encoded_traversals() -> list[str]:
     """Every allowed public prefix, climbed back to the admin API with the
     spellings of `..` and `/` that a path filter and Keycloak may read
@@ -89,6 +103,8 @@ def kc_path_filter(c, cfg=None) -> Check:
     answers 404 to all of them."""
     ch = Check("kc-tunnel-path-filter", "iam",
                "Publiek alleen OIDC van realm westerweel: geen gecodeerd pad bereikt /admin")
+    if not _public_ok(c, ch):
+        return ch
     reached, not404 = [], []
     paths = _encoded_traversals()
     for p in paths:
@@ -122,13 +138,15 @@ def kc_master_public(c, cfg: dict | None = None) -> Check:
     """Regression for homelab#84: the master realm (administrators) is not
     public. One password grant for a nonexistent user, like before."""
     ch = Check("kc-master-realm-public", "iam", "Master-realm (beheerders) niet publiek bereikbaar")
+    if not _public_ok(c, ch):
+        return ch
     wk = _get(c, IAM, "/realms/master/.well-known/openid-configuration")
     time.sleep(0.4)
     tok = c.post(f"{IAM}/realms/master/protocol/openid-connect/token",
                  data={"grant_type": "password", "client_id": "admin-cli",
                        "username": "selfscan-nonexistent-user", "password": "selfscan-wrong"})
-    ch.private = [f"GET /realms/master/.well-known/openid-configuration → {wk.status_code}",
-                  f"POST /realms/master/protocol/openid-connect/token (nonexistent user) → {tok.status_code}"]
+    ch.private += [f"GET /realms/master/.well-known/openid-configuration → {wk.status_code}",
+                   f"POST /realms/master/protocol/openid-connect/token (nonexistent user) → {tok.status_code}"]
     if cfg:
         m = next((r for r in cfg["realms"] if r["realm"] == "master"), {})
         ch.private.append(f"kcadm: master bruteForceProtected={m.get('bruteForceProtected')}")
@@ -211,7 +229,7 @@ def kc_bruteforce(cfg: dict | None) -> Check:
 def kc_edge_rate_limit(c) -> Check:
     """Five wrong password grants for a user that does not exist, 1/s. Shows
     whether anything at the edge throttles; Keycloak itself only locks real
-    users. Five is the 'handful' Mark allows."""
+    users. Five of the run's seven nonexistent-user grants (the 'handful')."""
     ch = Check("kc-edge-rate-limit", "iam", "Rate-limit op het token-endpoint aan de rand (Cloudflare)")
     codes = []
     for i in range(5):
@@ -408,13 +426,33 @@ def _form(html_text: str) -> tuple[str, dict[str, str]]:
     return h.unescape(m.group(1)), hidden
 
 
+def _check_env_file() -> None:
+    """Same rule as the private checks: ours, and no group/other bits."""
+    import os
+    st = SELFSCAN_ENV.stat()
+    if st.st_uid != os.getuid() or st.st_mode & 0o077:
+        raise PermissionError(f"{SELFSCAN_ENV} must be owned by this user with mode 0600 "
+                              f"(is {oct(st.st_mode & 0o777)}); not using it")
+
+
 def _save_env(key: str, value: str) -> None:
+    """Add or replace one line, atomically: temp file (0600) in the same
+    directory, fsync, rename. A crash never leaves a half-written file."""
+    import os
+    import tempfile
+    _check_env_file()
     lines = [ln for ln in SELFSCAN_ENV.read_text().splitlines() if not ln.startswith(f"{key}=")]
     lines.append(f"{key}={value}")
-    import os
-    fd = os.open(SELFSCAN_ENV, os.O_WRONLY | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write("\n".join(lines) + "\n")
+    fd, tmp = tempfile.mkstemp(dir=SELFSCAN_ENV.parent, prefix=".selfscan.", text=True)  # mode 0600
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(lines) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, SELFSCAN_ENV)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def selfscan_session() -> httpx.Client:
@@ -422,10 +460,16 @@ def selfscan_session() -> httpx.Client:
     Handles the one-time TOTP enrolment (realm policy: 2FA for everyone) and
     stores the secret next to the password."""
     from .util import read_env
+    if not SELFSCAN_ENV.exists():
+        raise FileNotFoundError(f"{SELFSCAN_ENV} missing")
+    _check_env_file()
     env = read_env(SELFSCAN_ENV)
     if not env.get("SELFSCAN_PASSWORD"):
         raise FileNotFoundError(f"{SELFSCAN_ENV} missing or without SELFSCAN_PASSWORD")
     s = client()
+    submitted: set[str] = set()   # one submit per form kind, never a retry: a
+    #                               wrong password or code must not turn into
+    #                               a run of failed logins and a lockout
     r = _get(s, WW, "/oauth2/start?rd=%2F")
     for _ in range(15):
         if r.status_code in (301, 302, 303, 307):
@@ -441,15 +485,23 @@ def selfscan_session() -> httpx.Client:
         if r.status_code != 200:
             raise RuntimeError(f"login: unexpected {r.status_code} at {urllib.parse.urlparse(str(r.url)).path}")
         page = r.text
+        if re.search(r'class="[^"]*(input-error|alert-error|pf-m-danger|kc-feedback-text)', page) \
+                or 'aria-invalid="true"' in page:
+            raise RuntimeError("Keycloak shows an error on its form (wrong password or code?); not retrying")
+        kind = ("password" if 'name="password"' in page else "totp-setup" if 'name="totpSecret"' in page
+                else "otp" if 'name="otp"' in page else "?")
+        if kind in submitted:
+            raise RuntimeError(f"Keycloak asks for the {kind} form again; not retrying")
+        submitted.add(kind)
         action, data = _form(page)
-        if 'name="password"' in page:
+        if kind == "password":
             data |= {"username": env["SELFSCAN_USER"], "password": env["SELFSCAN_PASSWORD"]}
-        elif 'name="totpSecret"' in page:
+        elif kind == "totp-setup":
             secret = data["totpSecret"]
             _save_env("SELFSCAN_TOTP_SECRET", secret)
             env["SELFSCAN_TOTP_SECRET"] = secret
             data |= {"totp": _fresh_totp(secret), "userLabel": "selfscan"}
-        elif 'name="otp"' in page:
+        elif kind == "otp":
             if not env.get("SELFSCAN_TOTP_SECRET"):
                 raise RuntimeError("Keycloak asks for a TOTP code but SELFSCAN_TOTP_SECRET is not set")
             data |= {"otp": _fresh_totp(env["SELFSCAN_TOTP_SECRET"])}
@@ -464,8 +516,11 @@ def selfscan_session() -> httpx.Client:
 
 
 def _ww_sample_ids() -> dict:
-    """One real document id and one real (expired) grant id, read-only from
-    Wordsworth's database, so the checks below aim at things that exist."""
+    """One real document id and one real DEAD grant id (revoked or expired,
+    issued to someone else), read-only from Wordsworth's database, so the
+    checks below aim at things that exist. Deliberately never a live grant:
+    if recipient binding ever regressed, a live one would perform a real,
+    audited reveal for the test user."""
     import json
     py = ("import os,json\nfrom sqlalchemy import create_engine,text\n"
           "e=create_engine(os.environ['WORDSWORTH_DATABASE_URL'])\n"
@@ -473,8 +528,8 @@ def _ww_sample_ids() -> dict:
           " c.execute(text('SET TRANSACTION READ ONLY'))\n"
           " d=c.execute(text('select d.id from documents d join document_texts t on t.document_id=d.id "
           "order by d.id limit 1')).scalar()\n"
-          " g=c.execute(text('select grant_id,document_id from grants where document_id is not null "
-          "order by created_at desc limit 1')).first()\n"
+          " g=c.execute(text(\"select grant_id,document_id from grants where document_id is not null "
+          "and (status='revoked' or expires_at < now()) order by created_at desc limit 1\")).first()\n"
           " print(json.dumps({'doc':str(d) if d else None,'grant':g[0] if g else None,"
           "'grant_doc':str(g[1]) if g else None}))\n")
     r = jumpy("kubectl -n wordsworth exec -i deploy/wordsworth-api -- python -", input=py, timeout=60)
@@ -490,8 +545,16 @@ def _session_ok(s: httpx.Client) -> bool:
     return r.status_code == 303 and r.headers.get("location", "").endswith("/console")
 
 
-def _refused(r: httpx.Response) -> bool:
-    return r.status_code in (401, 403, 404)
+def _app_403(r: httpx.Response) -> bool:
+    """A refusal by Wordsworth itself (its JSON detail), not by something in
+    front of it (a WAF 403 would otherwise read as `held`)."""
+    if r.status_code != 403:
+        return False
+    try:
+        detail = str(r.json().get("detail", ""))
+    except ValueError:
+        return False
+    return "not authorized" in detail or "not applicable" in detail
 
 
 def ww_idor(s: httpx.Client | None, ids: dict | None, why: str = "") -> Check:
@@ -518,15 +581,17 @@ def ww_idor(s: httpx.Client | None, ids: dict | None, why: str = "") -> Check:
         r = _get(s, WW, p)
         shown = p.replace(doc, "<doc>").replace(ids.get("grant") or "\0", "<grant>")
         ch.private.append(f"GET {shown} (testgebruiker) → {r.status_code} {len(r.content)}B")
-        if not _refused(r):
+        if not _app_403(r):
             leaks.append(f"{shown}={r.status_code}")
     real = _get(s, WW, f"/documents/{doc}/anonymized").status_code
     fake = _get(s, WW, f"/documents/{ghost}/anonymized").status_code
     ch.private.append(f"bestaand versus niet-bestaand id → {real} / {fake}")
-    ch.result = "broken" if leaks else "held"
+    # Anything but Wordsworth's own 403 counts: a 200 is a leak, a 404 or a
+    # foreign 403 means this run didn't test what it says. Both are reported.
+    ch.result = "broken" if any("=200" in x for x in leaks) else ("exposed" if leaks else "held")
     ch.summary = (f"Alle {len(paths)} lees-routes (API en console) weigeren de testgebruiker ({real}); "
                   "een bestaand en een verzonnen document-id krijgen hetzelfde antwoord."
-                  if not leaks else f"Leesbaar zonder leesrecht: {leaks}")
+                  if not leaks else f"Niet door Wordsworth zelf geweigerd: {leaks}")
     if not leaks and real != fake:
         ch.result = "exposed"
         ch.summary = f"Geweigerd, maar bestaand ({real}) en verzonnen ({fake}) id verschillen: bestaan is af te leiden."
@@ -545,15 +610,15 @@ def ww_reveal(c: httpx.Client, s: httpx.Client | None, ids: dict | None, why: st
     ch.private = [f"POST /documents/<dummy>/reveal (geen sessie) → {r.status_code}"]
     bad = [] if _is_login_redirect(r) else [f"zonder sessie {r.status_code}"]
     if s is None or not ids or not ids.get("doc") or not _session_ok(s):
-        ch.result = "broken" if bad else "held"
-        ch.summary = ("Zonder sessie stopt de proxy het verzoek. Met sessie niet getest: "
+        ch.result = "broken" if bad else "skipped"
+        ch.summary = ("Zonder sessie stopt de proxy het verzoek; het deel met sessie liep niet: "
                       f"{why or 'sessie van de testgebruiker niet herkend'}." if not bad else f"Reveal bereikbaar: {bad}")
         return ch
     doc = ids["doc"]
     tries = [("reveal, verzonnen grant", f"/documents/{doc}/reveal", {"grant_id": "selfscan-no-such-grant"}),
              ("reveal.pdf, verzonnen grant", f"/documents/{doc}/reveal.pdf", {"grant_id": "selfscan-no-such-grant"})]
     if ids.get("grant") and ids.get("grant_doc"):
-        tries.append(("reveal, echte grant van een ander", f"/documents/{ids['grant_doc']}/reveal",
+        tries.append(("reveal, verlopen/ingetrokken grant van een ander", f"/documents/{ids['grant_doc']}/reveal",
                       {"grant_id": ids["grant"]}))
     tries.append(("grant uitgeven", "/grants", {"document_id": "selfscan-not-a-uuid", "recipient": "selfscan",
                                                 "allowed_types": ["PERSON"]}))
@@ -561,11 +626,12 @@ def ww_reveal(c: httpx.Client, s: httpx.Client | None, ids: dict | None, why: st
         time.sleep(0.4)
         r = s.post(f"{WW}{path}", json=body)
         ch.private.append(f"POST {label_} (testgebruiker) → {r.status_code} {r.text[:60]!r}")
-        if r.status_code != 403:
+        if not _app_403(r):
             bad.append(f"{label_}={r.status_code}")
     ch.result = "broken" if bad else "held"
     ch.summary = ("Zonder sessie stopt de proxy het verzoek. Als ingelogde gebruiker zonder grant-recht: "
-                  "reveal met een verzonnen of andermans grant en zelf een grant uitgeven geven allemaal 403."
+                  "reveal met een verzonnen of een verlopen/ingetrokken grant van een ander en zelf een grant "
+                  "uitgeven geven allemaal 403 van Wordsworth."
                   if not bad else f"Niet geweigerd: {bad}")
     return ch
 
