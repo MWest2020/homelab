@@ -1,0 +1,25 @@
+[Unit]
+Description=Weekly security report (bot traffic + self-scan) for Mark's public surface
+Documentation=https://homelab.westerweel.work/runbooks/security-report
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Where the tool lives: SECREPORT_DIR from ~/.config/security-report/env if that
+# checkout exists, else ~/homelab/tools/security-report (pulled weekly).
+Environment=SECREPORT_DIR=%h/homelab/tools/security-report
+EnvironmentFile=-%h/.config/security-report/env
+# Bring ~/homelab up to date first (fast-forward only; a dirty or diverged
+# checkout logs an error and the run uses what is there).
+ExecStartPre=-/usr/bin/git -C %h/homelab pull --ff-only -q
+ExecStart=/bin/sh -c 'd="$SECREPORT_DIR"; [ -x "$d/run.sh" ] || d="$HOME/homelab/tools/security-report"; exec "$d/run.sh" report'
+TimeoutStartSec=6h
+# Belt and braces: every scanner also gets its own 1500M scope.
+MemoryMax=2G
+MemorySwapMax=0
+Nice=10
+IOSchedulingClass=idle
+# Scanner scopes (systemd-run --scope) live outside this unit's cgroup, so
+# KillMode can't reach them: stop them explicitly, or a leftover ZAP keeps
+# port 8091 for the next run.
+ExecStopPost=-/usr/bin/systemctl --user stop 'secreport-*.scope'

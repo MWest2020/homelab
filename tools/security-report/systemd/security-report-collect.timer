@@ -1,0 +1,9 @@
+[Unit]
+Description=Collect request logs every 3 hours (oauth2-proxy logs rotate within a day)
+
+[Timer]
+OnCalendar=*-*-* 00/3:17
+Persistent=true
+
+[Install]
+WantedBy=timers.target
