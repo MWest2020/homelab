@@ -5,10 +5,22 @@ configMapGenerator:
   - name: keycloak-realm
     files:
       - realm-westerweel.json
-generatorOptions:
-  disableNameSuffixHash: true
+    options:
+      disableNameSuffixHash: true
+  # The proxy's config gets a hash suffix, so a change rolls the pods.
+  # (A per-generator `false` can't override a global `true`, hence no
+  # global generatorOptions.)
+  - name: keycloak-edge
+    files:
+      - edge-proxy.conf
+    options:
+      # Same wave as the Deployment that mounts it, or that wave never
+      # becomes healthy and the sync stalls before the Service switch.
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
 
 resources:
   - keycloak.yaml
   - tunnel.yaml
+  - edge-proxy.yaml
   - realm-sync-job.yaml

@@ -1,0 +1,129 @@
+# keycloak-edge — filtering reverse proxy between the public tunnel and
+# Keycloak (homelab#84, Mark 2026-11-26: "Mag alleen bereikbaar zijn via
+# tailscale").
+#
+# Why: the tunnel's path rules (^/realms/ ^/resources/ ^/js/, set in the
+# Cloudflare dashboard) are not a boundary. Cloudflare, cloudflared and
+# Keycloak don't read an encoded path the same way, so the admin API and the
+# master realm were reachable through iam.westerweel.work. The rules stay
+# as they are; this proxy is the boundary now, in git, under our control.
+#
+# How it is wired, without a dashboard change:
+#   - the tunnel's origin is `http://keycloak.keycloak.svc.cluster.local:8080`
+#     (remote config). The Service named `keycloak` now selects THESE pods.
+#   - Keycloak itself sits behind the Service `keycloak-server`. Only the
+#     proxy, the Tailscale admin ingress and the realm-sync Job may reach it
+#     (NetworkPolicy below), so a changed tunnel origin can't skip the proxy.
+#   - in-cluster callers of `keycloak:8080` (Wordsworth's JWKS fetch) go
+#     through the proxy too; they only use allow-listed realm paths.
+#
+# The allow-list and the path checks are in edge-proxy.conf.
+#
+# Sync waves: the proxy, its ConfigMap and `keycloak-server` come up first
+# (-1); the `keycloak` Service switches over in wave 0, once the proxy is
+# healthy; the tunnel restarts in wave 1 (tunnel.yaml), so no keep-alive
+# connection opened before the switch keeps going straight to Keycloak.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak-edge
+  labels: { app: keycloak, component: edge }
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: keycloak, component: edge }
+  template:
+    metadata:
+      labels: { app: keycloak, component: edge }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app: keycloak, component: edge }
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 8081, name: health }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8081 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8081 }
+            periodSeconds: 30
+          volumeMounts:
+            - { name: conf, mountPath: /etc/nginx/conf.d, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: "5m",   memory: "16Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }
+      volumes:
+        - name: conf
+          configMap:
+            name: keycloak-edge
+            items:
+              - { key: edge-proxy.conf, path: default.conf }
+        - name: tmp
+          emptyDir: {}
+---
+# Keycloak itself. Used by the proxy, the Tailscale admin ingress and the
+# realm-sync Job; nothing public points here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-server
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  selector: { app: keycloak, component: server }
+  ports:
+    - { port: 8080, targetPort: 8080 }
+---
+# Who may talk to Keycloak's pods. Kubelet probes (port 9000) come from the
+# node and Cilium admits those by default (see jarvis/networkpolicy.yaml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-server-ingress
+spec:
+  podSelector:
+    matchLabels: { app: keycloak, component: server }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: keycloak, component: edge }
+        - podSelector:
+            matchLabels: { app: keycloak, component: realm-sync }
+        # The Tailscale operator's proxy for the keycloak-ts Ingress only;
+        # namespace tailscale also holds the public Funnel proxies.
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tailscale }
+          podSelector:
+            matchLabels:
+              tailscale.com/parent-resource: keycloak-ts
+              tailscale.com/parent-resource-ns: keycloak
+              tailscale.com/parent-resource-type: ingress
+      ports:
+        - { protocol: TCP, port: 8080 }
+    # Keycloak to itself (Infinispan/JGroups binds to the pod IP).
+    - from:
+        - podSelector:
+            matchLabels: { app: keycloak, component: server }

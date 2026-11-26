@@ -9,10 +9,11 @@
 # database.yaml hiernaast.
 #
 # Publiek versus beheer:
-#   - de tunnel laat ALLEEN de OIDC-paden door (^/realms/, ^/resources/,
-#     ^/js/). Die heeft een bezoeker nodig om in te loggen.
+#   - publiek komt alleen door wat een OIDC-login in realm westerweel nodig
+#     heeft. Dat bewaakt de filterende proxy keycloak-edge (edge-proxy.yaml,
+#     homelab#84); de padregels van de tunnel bij Cloudflare zijn geen grens.
 #   - de beheerconsole (/admin) is NIET publiek: die bereik je over de
-#     tailnet (keycloak.<tailnet>.ts.net:8080). Een beheerconsole aan het
+#     tailnet (https://keycloak.<tailnet>.ts.net). Een beheerconsole aan het
 #     open internet hangen is precies het soort afhankelijkheid dat deze
 #     scanner bij anderen aanwijst.
 #
@@ -111,17 +112,27 @@ apiVersion: v1
 kind: Service
 metadata:
   name: keycloak
+  annotations:
+    # After the proxy is healthy (edge-proxy.yaml, wave -1).
+    argocd.argoproj.io/sync-wave: "0"
 spec:
+  # Dit is de naam waar de Cloudflare-tunnel naartoe wijst
+  # (keycloak.keycloak.svc.cluster.local:8080, remote config). Sinds
+  # homelab#84 selecteert hij de filterende proxy (component: edge), NIET
+  # Keycloak zelf; die staat achter `keycloak-server` (edge-proxy.yaml).
+  #
   # LET OP: óók op component selecteren. De cloudflared-pods van de tunnel
-  # dragen hetzelfde `app: keycloak`-label; zonder `component: server` gaat
-  # twee derde van het verkeer naar de tunnel-pod en krijg je een
-  # wegvallende verbinding in plaats van Keycloak.
-  selector: { app: keycloak, component: server }
+  # dragen hetzelfde `app: keycloak`-label; zonder component gaat een deel
+  # van het verkeer naar de tunnel-pods en krijg je wegvallende verbindingen.
+  selector: { app: keycloak, component: edge }
   ports:
     - { port: 8080, targetPort: 8080 }
 ---
 # Tailnet-intern (NIET publiek): de beheerconsole op
 # https://keycloak.<tailnet>.ts.net/admin
+#
+# Rechtstreeks naar Keycloak (`keycloak-server`), niet via de filterende
+# proxy: dit is de enige weg naar /admin en de master-realm.
 #
 # Dit is een Ingress en geen LoadBalancer-Service: de Tailscale-operator
 # zet er dan TLS met een MagicDNS-certificaat voor, en dat is wat een
@@ -138,7 +149,7 @@ spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: keycloak
+      name: keycloak-server
       port:
         number: 8080
   tls:
