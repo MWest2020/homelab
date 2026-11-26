@@ -485,7 +485,7 @@ def selfscan_session() -> httpx.Client:
         if r.status_code != 200:
             raise RuntimeError(f"login: unexpected {r.status_code} at {urllib.parse.urlparse(str(r.url)).path}")
         page = r.text
-        if re.search(r'class="[^"]*(input-error|alert-error|pf-m-danger|kc-feedback-text)', page) \
+        if re.search(r'class="[^"]*(input-error|alert-error|pf-m-danger)', page) \
                 or 'aria-invalid="true"' in page:
             raise RuntimeError("Keycloak shows an error on its form (wrong password or code?); not retrying")
         kind = ("password" if 'name="password"' in page else "totp-setup" if 'name="totpSecret"' in page
