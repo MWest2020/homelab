@@ -13,7 +13,7 @@
 #     heeft. Dat bewaakt de filterende proxy keycloak-edge (edge-proxy.yaml,
 #     homelab#84); de padregels van de tunnel bij Cloudflare zijn geen grens.
 #   - de beheerconsole (/admin) is NIET publiek: die bereik je over de
-#     tailnet (keycloak.<tailnet>.ts.net:8080). Een beheerconsole aan het
+#     tailnet (https://keycloak.<tailnet>.ts.net). Een beheerconsole aan het
 #     open internet hangen is precies het soort afhankelijkheid dat deze
 #     scanner bij anderen aanwijst.
 #

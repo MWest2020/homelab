@@ -19,8 +19,10 @@
 #
 # The allow-list and the path checks are in edge-proxy.conf.
 #
-# Sync waves: the proxy and `keycloak-server` come up first (-1); the
-# `keycloak` Service only switches over once the proxy is healthy.
+# Sync waves: the proxy, its ConfigMap and `keycloak-server` come up first
+# (-1); the `keycloak` Service switches over in wave 0, once the proxy is
+# healthy; the tunnel restarts in wave 1 (tunnel.yaml), so no keep-alive
+# connection opened before the switch keeps going straight to Keycloak.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -52,7 +54,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: nginx
-          image: nginxinc/nginx-unprivileged:1.30.4-alpine@sha256:adf5042a17f4ecdd200c595fa9ffd1be37efb18f89a830bd1a00e4ab4d59d42c
+          image: nginxinc/nginx-unprivileged:1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03
           ports:
             - { containerPort: 8080, name: http }
             - { containerPort: 8081, name: health }

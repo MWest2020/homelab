@@ -54,19 +54,30 @@ changed tunnel origin can't skip the proxy. In-cluster callers of
      confirmation, the login-status iframe and the third-party-cookie check);
      the login pages (`login-actions/*`); and the account console
      (`account/...`), which is the user's own self-service;
-   - theme resources for `login`, `account` and `common` under `/resources/`
-     (not the admin theme), and `/js/`.
+   - theme files for `login`, `account` and `common` under
+     `/resources/<version>/` (not the admin theme), the message bundles of
+     realm `westerweel` only, and `/js/`.
 
 Everything else gets 404: `/`, `/admin`, the admin REST API, every other
 realm including `master`, and inside `westerweel` the endpoints nobody uses
 publicly (client registration, introspection, device flow, CIBA, PAR,
 brokering, SAML). The request goes to Keycloak unchanged, so what the proxy
 approved is what Keycloak routes. Requests nginx itself rejects as malformed
-also come back as 404.
+(400) also come back as 404; oversized bodies, URIs or headers get nginx's own
+4xx.
 
 The proxy also sets `X-Forwarded-For` from `Cf-Connecting-Ip` (set by
 Cloudflare, not by the client), so the IP in Keycloak events can no longer be
-chosen by the client.
+chosen by the client, and it drops client-sent `X-Forwarded-Host`, `-Port`
+and `-Prefix`.
+
+**Cutover and keep-alive.** Cilium picks a Service backend when a socket
+connects, so cloudflared's keep-alive connections opened before a backend
+change keep their old target. That's why `keycloak-tunnel` carries a
+pod-template annotation and sync wave 1: on the switch, the tunnel restarts
+after the Service changed. After any change to the `keycloak` Service by
+hand, run `kubectl -n keycloak rollout restart deploy/keycloak-tunnel` before
+the checks below.
 
 **Another realm or endpoint in real use?** Add it to the `$kc_path_ok` map in
 `edge-proxy.conf` (anchored, case-sensitive) and say in the PR which client

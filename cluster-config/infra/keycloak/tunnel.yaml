@@ -16,6 +16,9 @@ kind: Deployment
 metadata:
   name: keycloak-tunnel
   labels: { app: keycloak, component: tunnel }
+  annotations:
+    # After the `keycloak` Service has switched to the edge proxy (wave 0).
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 2
   selector:
@@ -23,6 +26,11 @@ spec:
   template:
     metadata:
       labels: { app: keycloak, component: tunnel }
+      annotations:
+        # Changing this restarts cloudflared. Cilium picks a Service backend
+        # when a socket connects, so keep-alive connections from before the
+        # switch would otherwise keep reaching Keycloak directly (homelab#84).
+        homelab/origin: keycloak-edge
     spec:
       affinity:
         podAntiAffinity:

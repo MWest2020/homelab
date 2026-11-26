@@ -13,6 +13,11 @@ configMapGenerator:
   - name: keycloak-edge
     files:
       - edge-proxy.conf
+    options:
+      # Same wave as the Deployment that mounts it, or that wave never
+      # becomes healthy and the sync stalls before the Service switch.
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
 
 resources:
   - keycloak.yaml
