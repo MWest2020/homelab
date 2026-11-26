@@ -346,10 +346,22 @@ def load_private():
     questions(l2)."""
     if not PRIVATE_CHECKS.exists():
         return None
+    st = PRIVATE_CHECKS.stat()
+    import os
+    if st.st_uid != os.getuid() or st.st_mode & 0o077:
+        raise PermissionError(f"{PRIVATE_CHECKS} must be owned by this user with mode 0600 "
+                              f"(is {oct(st.st_mode & 0o777)}); not executing it")
     import importlib.util
+    import sys
     spec = importlib.util.spec_from_file_location("secreport_private_checks", PRIVATE_CHECKS)
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # No __pycache__ next to it: compiled private checks must not land in a
+    # world-readable directory.
+    old, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.dont_write_bytecode = old
     return mod
 
 
@@ -368,9 +380,13 @@ def run() -> list[dict]:
             lambda: ww_unauth(c), lambda: ww_path_tricks(c), lambda: ww_header_spoof(c),
             lambda: ww_reveal_unauth(c), ww_idor, lambda: ww_open_redirect(c), lambda: ww_cors(c), ww_direct_api,
         ]
-        priv = load_private()
-        if priv is not None:
-            steps += [lambda f=f: f(c, cfg) for f in priv.CHECKS]
+        try:
+            priv = load_private()
+            if priv is not None:
+                steps += [lambda f=f: f(c, cfg) for f in priv.CHECKS]
+        except Exception as e:  # noqa: BLE001 - a broken or unsafe private file must not kill the public checks
+            checks.append(Check("private-checks", "?", "Private checks laden",
+                                summary=f"{type(e).__name__}: {str(e)[:200]}"))
         for step in steps:
             try:
                 checks.append(step())

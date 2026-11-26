@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .config import SITES
+from .config import EXCLUDED_HOSTS, SITES
 
 KNOWN_ISSUES = Path(__file__).resolve().parent.parent / "known-issues.json"
 
@@ -145,7 +145,7 @@ def gaps(l1: dict, l2: list[dict], traffic: dict, cf: dict) -> list[dict]:
         hosts_in_scope = {s.url.split('/')[2] for s in SITES}
         for t in cf.get("tunnels") or []:
             for i in t.get("ingress", []):
-                if i["hostname"] not in hosts_in_scope:
+                if i["hostname"] not in hosts_in_scope and i["hostname"] not in EXCLUDED_HOSTS:
                     add(f"Tunnel '{t['name']}' publiceert {i['hostname']}, dat niet in de scope van dit rapport staat",
                         "Cloudflare Zero Trust → Tunnels")
     return g

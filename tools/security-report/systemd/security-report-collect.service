@@ -10,3 +10,7 @@ ExecStart=/bin/sh -c 'd="$SECREPORT_DIR"; [ -x "$d/run.sh" ] || d="$HOME/homelab
 TimeoutStartSec=20m
 MemoryMax=512M
 Nice=15
+# Scanner scopes (systemd-run --scope) live outside this unit's cgroup, so
+# KillMode can't reach them: stop them explicitly, or a leftover ZAP keeps
+# port 8091 for the next run.
+ExecStopPost=-/usr/bin/systemctl --user stop 'secreport-*.scope'

@@ -28,6 +28,16 @@ NUCLEI_CONCURRENCY = 4
 ZAP_SPIDER_MINUTES = 1   # like zap-baseline.py
 SCANNER_MEMORY = "1500M"
 
+# Retention, enforced by every collect: the request-line cache and the weekly
+# reports. Older files are deleted.
+CACHE_DAYS = 35
+REPORT_WEEKS = 26
+
+# Hosts that are deliberately NOT scanned or reported as gaps, even though
+# Cloudflare still lists them. billbird.westerweel.work: switched off by Mark
+# on 2026-11-25; never probe it again (tests enforce that SITES excludes it).
+EXCLUDED_HOSTS = frozenset({"billbird.westerweel.work"})
+
 JUMPY = os.environ.get("SECREPORT_JUMPY", "jumpy")
 TAILNET = os.environ.get("SECREPORT_TAILNET", "tail8f7877.ts.net")
 
@@ -103,7 +113,8 @@ FUNNEL_HOSTS = [f"convergence.{TAILNET}", f"netnl.{TAILNET}"]
 PLESK_SITE = "bazibo-nl"
 PLESK_BAO_PATH = "kv/westerweel/bazibo-ftp"
 PLESK_LOG_PREFIXES = ("access_ssl_log", "access_log")
-PLESK_MIN_HOURS = 20        # one FTPS login a day is enough: Plesk keeps five days
+PLESK_MIN_HOURS = 20        # at most one FTPS attempt a day (success or not): Plesk keeps five days
+PLESK_MAX_FAILURES = 3      # then stop until `secreport plesk-reset`: failed logins can keep a firewall block alive
 
 # Cloudflare zone (read-only token sees exactly this one).
 CF_ZONE = "westerweel.work"

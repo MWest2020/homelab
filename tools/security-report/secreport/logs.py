@@ -2,23 +2,29 @@
 
 `collect()` runs every few hours: oauth2-proxy's logs rotate away within a day
 (kube-probe lines fill the kubelet's 10 MB), and Plesk keeps five days. Lines
-go into CACHE/<site>/<UTC day>.log, deduplicated, probes dropped.
+go into CACHE/<site>/<UTC day>.log, deduplicated, probes dropped. The Plesk
+pull is attempted at most once a day and stops after repeated failures; the
+OpenBao token is renewed once a day on its own; old cache files and reports
+are pruned.
 
 `summarize()` turns a week of cached lines into per-site numbers.
 """
 from __future__ import annotations
 
 import datetime as dt
+import ftplib
 import gzip
 import io
 import json
 import re
+import socket
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import geo
-from .config import (BAO_ENV, CACHE, K8S_LOGS, PLESK_BAO_PATH, PLESK_LOG_PREFIXES, PLESK_MIN_HOURS, PLESK_SITE,
-                     STATE)
+from .config import (BAO_ENV, CACHE, CACHE_DAYS, K8S_LOGS, PLESK_BAO_PATH, PLESK_LOG_PREFIXES, PLESK_MAX_FAILURES,
+                     PLESK_MIN_HOURS, PLESK_SITE, REPORT_WEEKS, STATE)
 from .util import jumpy, read_env
 
 # ------------------------------------------------------------------ collecting
@@ -29,61 +35,114 @@ def _append(site: str, lines_by_day: dict[str, list[str]]) -> int:
     for day, lines in lines_by_day.items():
         f = CACHE / site / f"{day}.log"
         f.parent.mkdir(parents=True, exist_ok=True)
-        have = set(f.read_text().splitlines()) if f.exists() else set()
+        have = set(f.read_text(encoding="utf-8", errors="replace").splitlines()) if f.exists() else set()
         new = [ln for ln in dict.fromkeys(lines) if ln and ln not in have]
         if new:
-            with f.open("a") as fh:
+            with f.open("a", encoding="utf-8", errors="replace") as fh:
                 fh.write("\n".join(new) + "\n")
             added += len(new)
     return added
 
 
-def collect_k8s() -> dict[str, int]:
-    out = {}
+def _bucket(src, text: str) -> dict[str, list[str]]:
+    by_day: dict[str, list[str]] = defaultdict(list)
+    for ln in text.splitlines():
+        if any(d in ln for d in src.drop):
+            continue
+        if src.fmt == "keycloak" and "org.keycloak.events" not in ln:
+            continue
+        m = re.match(r"\[[^\]]+\] (\d{4}-\d\d-\d\d)T", ln)
+        if m:
+            by_day[m.group(1)].append(ln)
+    return by_day
+
+
+def collect_k8s() -> dict[str, int | str]:
+    """Each source on its own: one failing namespace must not cost the rest."""
+    out: dict[str, int | str] = {}
     for src in K8S_LOGS:
-        r = jumpy(f"kubectl -n {src.namespace} logs -l {src.selector} -c {src.container} --since=26h "
-                  f"--timestamps --prefix --max-log-requests=6 --tail=-1", timeout=300)
-        by_day: dict[str, list[str]] = defaultdict(list)
-        for ln in r.stdout.splitlines():
-            if any(d in ln for d in src.drop):
+        try:
+            r = jumpy(f"kubectl -n {src.namespace} logs -l {src.selector} -c {src.container} --since=26h "
+                      f"--timestamps --prefix --max-log-requests=6 --tail=-1", timeout=300)
+            if r.returncode and not r.stdout:
+                out[src.site] = f"error: {r.stderr.strip()[-160:]}"
                 continue
-            if src.fmt == "keycloak" and "org.keycloak.events" not in ln:
-                continue
-            m = re.match(r"\[[^\]]+\] (\d{4}-\d\d-\d\d)T", ln)
-            if m:
-                by_day[m.group(1)].append(ln)
-        out[src.site] = _append(src.site, by_day)
-        if r.returncode and not r.stdout:
-            out[src.site] = f"error: {r.stderr.strip()[-160:]}"
+            out[src.site] = _append(src.site, _bucket(src, r.stdout))
+        except Exception as e:  # noqa: BLE001
+            out[src.site] = f"error: {type(e).__name__}: {e}"[:200]
     return out
+
+
+# ---- OpenBao token (periodic, 768h): renewed once a day, independent of Plesk
+
+def _bao(cmd: str, tok: str):
+    return jumpy("kubectl -n openbao exec -i openbao-0 -- sh -c 'read -r T; BAO_ADDR=http://127.0.0.1:8200 "
+                 f"BAO_TOKEN=$T {cmd}'", input=tok + "\n")
+
+
+def renew_bao_token() -> str:
+    tok = read_env(BAO_ENV).get("BAO_TOKEN")
+    if not tok:
+        return f"error: {BAO_ENV} missing"
+    stamp = STATE / "bao-renewed"
+    if stamp.exists() and time.time() - stamp.stat().st_mtime < 20 * 3600:
+        return "skipped: renewed < 20 h ago"
+    r = _bao("bao token renew >/dev/null", tok)
+    if r.returncode:
+        return f"error: {r.stderr.strip()[-160:]}"
+    stamp.touch()
+    return "renewed"
 
 
 def _plesk_creds() -> dict:
     tok = read_env(BAO_ENV).get("BAO_TOKEN")
     if not tok:
         raise RuntimeError(f"{BAO_ENV} missing (BAO_TOKEN with policy security-report)")
-    r = jumpy("kubectl -n openbao exec -i openbao-0 -- sh -c 'read -r T; BAO_ADDR=http://127.0.0.1:8200 "
-              f"BAO_TOKEN=$T bao kv get -format=json {PLESK_BAO_PATH}'", input=tok + "\n")
+    r = _bao(f"bao kv get -format=json {PLESK_BAO_PATH}", tok)
     if r.returncode:
         raise RuntimeError(f"OpenBao read failed: {r.stderr.strip()[-200:]}")
-    # The token is periodic (768h); a weekly renew keeps it alive without root.
-    jumpy("kubectl -n openbao exec -i openbao-0 -- sh -c 'read -r T; BAO_ADDR=http://127.0.0.1:8200 "
-          "BAO_TOKEN=$T bao token renew >/dev/null'", input=tok + "\n")
     return json.loads(r.stdout)["data"]["data"]
 
 
+class _FTP4(ftplib.FTP_TLS):
+    """FTPS over IPv4 only. agent-lxc has no IPv6 route, so an AAAA record
+    gives an instant Errno 101 that hides what IPv4 did; the error names the
+    address that failed."""
+
+    def connect(self, host="", port=0, timeout=-999, source_address=None):
+        self.host, self.port = host, port or 21
+        if timeout != -999:
+            self.timeout = timeout
+        addrs = sorted({a[4][0] for a in socket.getaddrinfo(self.host, self.port, socket.AF_INET, socket.SOCK_STREAM)})
+        errors = []
+        for ip in addrs:
+            try:
+                self.sock = socket.create_connection((ip, self.port), self.timeout)
+                break
+            except OSError as e:
+                errors.append(f"{ip}:{self.port} {type(e).__name__}: {e}")
+        else:
+            raise OSError(f"{self.host}: no IPv4 address answered ({'; '.join(errors) or 'no A record'})")
+        self.af = self.sock.family
+        self.file = self.sock.makefile("r", encoding=self.encoding)
+        self.welcome = self.getresp()
+        return self.welcome
+
+
 def collect_plesk() -> int:
-    import ftplib
     d = _plesk_creds()
-    ftp = ftplib.FTP_TLS(d["host"], timeout=60)
+    ftp = _FTP4(timeout=60)
     try:
+        ftp.connect(d["host"], 21)
         ftp.login(d["username"], d["password"])
         ftp.prot_p()
         names = [n for n in ftp.nlst("/logs") if n.split("/")[-1].startswith(PLESK_LOG_PREFIXES)]
         by_day: dict[str, list[str]] = defaultdict(list)
         for name in names:
             base = name.split("/")[-1]
-            if base.endswith((".statbuf", ".webstat")) or base.endswith(".processed"):
+            # `.processed` is today's lines that Plesk's statistics already
+            # read; it overlaps the live log, and _append deduplicates.
+            if base.endswith((".statbuf", ".webstat")):
                 continue
             buf = io.BytesIO()
             ftp.retrbinary(f"RETR /logs/{base}", buf.write)
@@ -101,22 +160,82 @@ def collect_plesk() -> int:
     return _append(PLESK_SITE, by_day)
 
 
-def collect() -> dict:
-    res: dict = {"at": dt.datetime.now(dt.timezone.utc).isoformat()}
+# ---- Plesk backoff: every attempt counts, failures stop the pulls
+
+PLESK_STATE = STATE / "plesk-attempts.json"
+
+
+def plesk_state() -> dict:
     try:
-        res["k8s"] = collect_k8s()
-    except Exception as e:  # noqa: BLE001
-        res["k8s"] = f"error: {e}"
-    stamp = STATE / "plesk-last-ok"
-    age_h = (dt.datetime.now().timestamp() - stamp.stat().st_mtime) / 3600 if stamp.exists() else 1e9
+        return json.loads(PLESK_STATE.read_text())
+    except (OSError, ValueError):
+        return {"last_attempt": 0, "failures": 0, "last_ok": None, "last_error": None}
+
+
+def plesk_due(st: dict, now: float | None = None) -> tuple[bool, str]:
+    now = time.time() if now is None else now
+    if st.get("failures", 0) >= PLESK_MAX_FAILURES:
+        return False, (f"stopped after {st['failures']} failures (last: {st.get('last_error')}); "
+                       "run `secreport plesk-reset` once the cause is gone")
+    age_h = (now - st.get("last_attempt", 0)) / 3600
     if age_h < PLESK_MIN_HOURS:
-        res[PLESK_SITE] = f"skipped: last pull {age_h:.0f} h ago"
-    else:
+        return False, f"skipped: last attempt {age_h:.0f} h ago"
+    return True, ""
+
+
+def collect_plesk_guarded() -> int | str:
+    st = plesk_state()
+    due, why = plesk_due(st)
+    if not due:
+        return why
+    st["last_attempt"] = time.time()
+    try:
+        n = collect_plesk()
+        st.update(failures=0, last_ok=dt.datetime.now(dt.timezone.utc).isoformat(), last_error=None)
+        return n
+    except Exception as e:  # noqa: BLE001
+        st["failures"] = st.get("failures", 0) + 1
+        st["last_error"] = f"{type(e).__name__}: {e}"[:300]
+        return f"error ({st['failures']}/{PLESK_MAX_FAILURES}): {st['last_error']}"
+    finally:
+        PLESK_STATE.write_text(json.dumps(st, indent=1))
+
+
+def plesk_reset() -> None:
+    PLESK_STATE.unlink(missing_ok=True)
+
+
+# ---- retention
+
+def prune(now: dt.date | None = None) -> dict[str, int]:
+    """Delete cached request lines after CACHE_DAYS and weekly reports after
+    REPORT_WEEKS (by the date in the file name)."""
+    today = now or dt.date.today()
+    gone = {"cache": 0, "reports": 0}
+    for f in CACHE.glob("*/*.log") if CACHE.exists() else []:
         try:
-            res[PLESK_SITE] = collect_plesk()
-            stamp.touch()
-        except Exception as e:  # noqa: BLE001
-            res[PLESK_SITE] = f"error: {e}"
+            if (today - dt.date.fromisoformat(f.stem)).days > CACHE_DAYS:
+                f.unlink()
+                gone["cache"] += 1
+        except ValueError:
+            continue
+    for f in list(STATE.glob("????-??-??.html")) + list(STATE.glob("????-??-??.json")):
+        try:
+            if (today - dt.date.fromisoformat(f.stem)).days > REPORT_WEEKS * 7:
+                f.unlink()
+                gone["reports"] += 1
+        except ValueError:
+            continue
+    return gone
+
+
+def collect() -> dict:
+    STATE.mkdir(parents=True, exist_ok=True)
+    res: dict = {"at": dt.datetime.now(dt.timezone.utc).isoformat()}
+    res["k8s"] = collect_k8s()
+    res[PLESK_SITE] = collect_plesk_guarded()
+    res["bao"] = renew_bao_token()
+    res["pruned"] = prune()
     (STATE / "collect-last.json").write_text(json.dumps(res, indent=1))
     return res
 

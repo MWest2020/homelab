@@ -5,13 +5,15 @@ time, each in its own memory-capped scope, all rate-limited.
 - TLS with sslyze (CLI, JSON out)
 - ZAP baseline: spider for ZAP_SPIDER_MINUTES, passive rules only; the active
   scanner is never started
-- nuclei with a fixed tag set and every intrusive/DoS/fuzz/brute-force/
-  default-login/OOB tag excluded, no interactsh
+- nuclei with filtered templates: include tags, exclude tags and directories,
+  and a check of every template file (GET/HEAD only, nothing self-contained,
+  nothing out-of-band); see the nuclei section
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -21,7 +23,7 @@ from pathlib import Path
 
 from .config import (FUNNEL_HOSTS, NUCLEI_CONCURRENCY, NUCLEI_RATE, SITES, STATE, TOOLS, USER_AGENT,
                      ZAP_SPIDER_MINUTES)
-from .util import capped, client
+from .util import capped, client, stop_scopes
 
 WANT_HEADERS = {
     "strict-transport-security": "HSTS",
@@ -96,7 +98,7 @@ def tls(workdir: Path) -> list[dict]:
         jf = workdir / f"sslyze-{host}.json"
         jf.unlink(missing_ok=True)
         try:
-            subprocess.run(capped([sys.executable, "-m", "sslyze", f"--json_out={jf}", "--quiet", *TLS_FLAGS, host]),
+            subprocess.run(capped([sys.executable, "-m", "sslyze", f"--json_out={jf}", "--quiet", *TLS_FLAGS, host], "sslyze"),
                            capture_output=True, text=True, timeout=420)
         except subprocess.TimeoutExpired:
             errors.append({"host": host, "error": "sslyze timeout (7 min)"})
@@ -212,10 +214,11 @@ def zap(workdir: Path) -> dict:
     # java directly, not zap.sh: zap.sh picks its own -Xmx (a quarter of RAM),
     # which would break the 1500M scope. ZAP listens on 127.0.0.1 only, so the
     # API may accept any Host header (the Python client sends "zap").
+    stop_scopes("zap")   # a ZAP left over from an aborted run would hold the port
     proc = subprocess.Popen(capped(["java", "-Xmx768m", "-jar", str(jar), "-daemon", "-host", "127.0.0.1",
                                     "-port", str(port), "-dir", str(home), "-config", f"api.key={key}",
                                     "-config", "api.addrs.addr.name=.*", "-config", "api.addrs.addr.regex=true",
-                                    "-silent"]),
+                                    "-silent"], "zap"),
                             cwd=str(TOOLS / "zap"), stdout=log, stderr=subprocess.STDOUT)
     z = ZAPv2(apikey=key, proxies={"http": f"http://127.0.0.1:{port}", "https": f"http://127.0.0.1:{port}"})
     try:
@@ -233,6 +236,9 @@ def zap(workdir: Path) -> dict:
         z.spider.set_option_max_duration(ZAP_SPIDER_MINUTES)
         z.spider.set_option_thread_count(2)
         z.spider.set_option_max_depth(5)
+        # Never submit forms: a baseline only follows links.
+        z.spider.set_option_post_form(False)
+        z.spider.set_option_process_form(False)
         results = {}
         for s in SITES:
             if not s.deep:
@@ -277,28 +283,111 @@ def zap(workdir: Path) -> dict:
         log.close()
 
 
-# ------------------------------------------------------------------ nuclei (safe tags)
+# ------------------------------------------------------------------ nuclei (filtered templates)
+#
+# Three filters, all must pass:
+# 1. directories: only http/ and ssl/, minus the ones full of active checks;
+# 2. tags: an include list, and an exclude list (note `instrusive`, a typo
+#    that real templates carry);
+# 3. the template file itself: no state-changing method, no raw POST/PUT/
+#    DELETE/PATCH, no self-contained template (those request third parties),
+#    no OOB/interactsh, no unsafe raw requests, no code/javascript/headless/flow.
+# tests/test_nuclei_safe.py runs `nuclei -tl` with exactly these arguments and
+# fails if anything unsafe gets through.
 
 NUCLEI_TAGS = "exposure,misconfig,config,ssl,cors,disclosure,keys,token,panel,redirect,takeover,headers"
-NUCLEI_EXCLUDE = ("intrusive,dos,fuzz,fuzzing,bruteforce,brute-force,default-login,oast,oob,rce,sqli,xss,lfi,"
-                  "ssrf,file-upload,deserialization,injection,cve")
+NUCLEI_EXCLUDE_TAGS = ("intrusive,instrusive,dos,fuzz,fuzzing,bruteforce,brute-force,default-login,oast,oob,rce,sqli,"
+                       "xss,lfi,ssrf,file-upload,deserialization,injection,cve,vuln,bypass,auth-bypass,backdoor,"
+                       "unauth,register,signup,graphql")
+NUCLEI_EXCLUDE_DIRS = ("http/vulnerabilities", "http/cves", "http/cnvd", "http/iot")
+NUCLEI_EXCLUDE_TYPES = "headless,code,javascript,workflow,file,tcp,dns,whois,websocket"
+
+_UNSAFE = [
+    ("self-contained", re.compile(r"(?m)^\s*self-contained:\s*true")),
+    ("state-changing method", re.compile(r"(?mi)^\s*-?\s*method:\s*(POST|PUT|DELETE|PATCH)\b")),
+    ("raw state-changing request", re.compile(r"(?m)^\s*\|?\s*(POST|PUT|DELETE|PATCH) \S+ HTTP/\d")),
+    ("unsafe raw request", re.compile(r"(?m)^\s*unsafe:\s*true")),
+    ("out-of-band", re.compile(r"interactsh")),
+    ("non-http protocol", re.compile(r"(?m)^(code|javascript|headless|flow):")),
+]
+
+
+def unsafe_reason(template: Path) -> str | None:
+    text = template.read_text(errors="replace")
+    for why, rx in _UNSAFE:
+        if rx.search(text):
+            return why
+    return None
+
+
+def nuclei_filter_args(templates: Path) -> list[str]:
+    # The directory exclusion is done by not passing those directories (see
+    # template_dirs); nuclei's -et on a directory costs ~30 s per directory.
+    return ["-tags", NUCLEI_TAGS, "-etags", NUCLEI_EXCLUDE_TAGS, "-ept", NUCLEI_EXCLUDE_TYPES]
+
+
+def template_dirs(templates: Path) -> list[Path]:
+    """http/<subdir> for every subdir not excluded, plus ssl/."""
+    excluded = {templates / d for d in NUCLEI_EXCLUDE_DIRS}
+    dirs = [d for d in sorted((templates / "http").iterdir()) if d.is_dir() and d not in excluded]
+    return dirs + [templates / "ssl"]
+
+
+def _excluded_dir(t: Path, templates: Path) -> bool:
+    return any(str(t).startswith(f"{templates / d}/") for d in NUCLEI_EXCLUDE_DIRS)
+
+
+def list_templates(binary: Path, templates: Path, template_args: list[str], home: Path) -> list[Path]:
+    p = subprocess.run([str(binary), "-duc", "-silent", "-nc", "-tl", *template_args, *nuclei_filter_args(templates)],
+                       capture_output=True, text=True, timeout=600, env={**os.environ, "HOME": str(home)},
+                       stdin=subprocess.DEVNULL)   # nuclei reads targets from a stdin that isn't a tty
+    return [Path(ln.strip()) for ln in p.stdout.splitlines() if ln.strip().endswith((".yaml", ".yml"))]
+
+
+def select_templates(binary: Path, templates: Path, home: Path) -> dict[str, list[Path]]:
+    args = [a for d in template_dirs(templates) for a in ("-t", str(d))]
+    listed = list_templates(binary, templates, args, home)
+    safe = [t for t in listed if t.exists() and not _excluded_dir(t, templates) and unsafe_reason(t) is None]
+    return {"http": [t for t in safe if f"{templates}/http/" in str(t)],
+            "ssl": [t for t in safe if f"{templates}/ssl/" in str(t)],
+            "dropped": len(listed) - len(safe)}
 
 
 def nuclei(workdir: Path) -> dict:
     binary, templates = TOOLS / "bin/nuclei", TOOLS / "nuclei-templates"
     if not binary.exists() or not templates.exists():
         return {"status": "skipped", "reason": "nuclei niet geïnstalleerd (install-scanners.sh)"}
-    targets = workdir / "nuclei-targets.txt"
-    targets.write_text("\n".join(s.url for s in SITES if s.deep) + "\n")
+    sel = select_templates(binary, templates, workdir)
     out = workdir / "nuclei.jsonl"
-    cmd = capped([str(binary), "-duc", "-ni", "-silent", "-nc", "-jsonl", "-o", str(out), "-l", str(targets),
-                  "-t", str(templates / "http"), "-t", str(templates / "ssl"),
-                  "-tags", NUCLEI_TAGS, "-etags", NUCLEI_EXCLUDE,
-                  "-rl", str(NUCLEI_RATE), "-c", str(NUCLEI_CONCURRENCY), "-bs", str(NUCLEI_CONCURRENCY),
-                  "-timeout", "10", "-retries", "1", "-H", f"User-Agent: {USER_AGENT}",
-                  "-ud", str(templates), "-disable-update-check"])
+    out.unlink(missing_ok=True)
     env = {**os.environ, "HOME": str(workdir)}   # keep nuclei's config/cache out of ~
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=4 * 3600, env=env)
+    runs = [
+        # http templates against every deep site
+        ("http", sel["http"], [s.url for s in SITES if s.deep]),
+        # ssl templates only where the TLS end is ours (not github.io)
+        ("ssl", sel["ssl"], [s.url for s in SITES if s.deep and s.tls]),
+    ]
+    status, stderr = [], ""
+    for name, tmpl, urls in runs:
+        if not tmpl or not urls:
+            continue
+        tl, tg = workdir / f"nuclei-{name}-templates.txt", workdir / f"nuclei-{name}-targets.txt"
+        tl.write_text("\n".join(map(str, tmpl)) + "\n")
+        tg.write_text("\n".join(urls) + "\n")
+        part = workdir / f"nuclei-{name}.jsonl"
+        part.unlink(missing_ok=True)
+        cmd = capped([str(binary), "-duc", "-ni", "-silent", "-nc", "-jsonl", "-o", str(part), "-l", str(tg),
+                      "-t", str(tl), *nuclei_filter_args(templates),
+                      "-rl", str(NUCLEI_RATE), "-c", str(NUCLEI_CONCURRENCY), "-bs", str(NUCLEI_CONCURRENCY),
+                      "-timeout", "10", "-retries", "1", "-H", f"User-Agent: {USER_AGENT}",
+                      "-ud", str(templates), "-disable-update-check"], f"nuclei-{name}")
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=4 * 3600, env=env, stdin=subprocess.DEVNULL)
+        status.append(f"{name}: {'ok' if p.returncode == 0 else f'exit {p.returncode}'} ({len(tmpl)} templates)")
+        if p.returncode:
+            stderr += p.stderr[-300:]
+        if part.exists():
+            with out.open("a") as fh:
+                fh.write(part.read_text())
     findings = []
     if out.exists():
         for ln in out.read_text().splitlines():
@@ -311,8 +400,8 @@ def nuclei(workdir: Path) -> dict:
                              "matched": j.get("matched-at"), "extracted": (j.get("extracted-results") or [])[:3]})
     order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     findings.sort(key=lambda f: (order.get(f["severity"], 9), f["host"] or "", f["template"] or ""))
-    return {"status": "ok" if p.returncode == 0 else f"exit {p.returncode}", "count": len(findings),
-            "findings": findings, "stderr_tail": p.stderr[-300:] if p.returncode else ""}
+    return {"status": "; ".join(status) or "niets te doen", "count": len(findings), "findings": findings,
+            "templates_dropped_by_file_check": sel["dropped"], "stderr_tail": stderr}
 
 
 # ------------------------------------------------------------------ funnel exposure

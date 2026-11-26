@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import sys
 
 from . import analyze, cloudflare, layer1, layer2, logs, render
@@ -27,6 +28,7 @@ def _record_window(start: dt.datetime, end: dt.datetime) -> None:
 
 def report(skip: set[str], days: int) -> int:
     STATE.mkdir(parents=True, exist_ok=True)
+    STATE.chmod(0o700)
     until = now()
     since = until - dt.timedelta(days=days)
 
@@ -71,10 +73,16 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="secreport")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("collect")
+    sub.add_parser("plesk-reset", help="clear the Plesk failure counter after the cause is fixed")
     r = sub.add_parser("report")
     r.add_argument("--skip", default="", help="comma list: layer1,layer2,cloudflare,headers,tls,zap,nuclei,funnel_dns")
     r.add_argument("--days", type=int, default=7)
     a = ap.parse_args(argv)
+    os.umask(0o077)   # reports and caches hold reproduction steps and visitor IPs
+    if a.cmd == "plesk-reset":
+        logs.plesk_reset()
+        print("plesk backoff reset")
+        return 0
     if a.cmd == "collect":
         print(json.dumps(logs.collect()))
         return 0

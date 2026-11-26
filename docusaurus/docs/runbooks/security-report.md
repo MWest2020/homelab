@@ -26,6 +26,10 @@ the HTML to Mark; the tool never sends mail.
 The Cloudflare tunnel inventory in the report lists every public hostname on
 the account, so a hostname published outside these tunnels shows up as a gap.
 
+**Excluded on purpose:** `billbird.westerweel.work`, switched off by Mark on
+2026-11-25. It is in `EXCLUDED_HOSTS` (`secreport/config.py`): never scanned,
+never a gap, and a test fails if it ever lands in `SITES`.
+
 Out of scope: tailnet-only services, and anything that isn't Mark's (no
 employer or "conduction" orgs, no other Cloudflare customers). The Funnel
 ingresses of convergence and netnl had no public DNS answer on 2026-11-25; the
@@ -37,9 +41,30 @@ report checks that every week and says when it changes. The list itself is in
 | Part | Source | Note |
 |---|---|---|
 | Bot traffic, edge | Cloudflare GraphQL `httpRequestsAdaptiveGroups` + `firewallEventsAdaptive`, plus the tunnel inventory | read-only token `~/.config/cloudflare/read.env`; skipped cleanly when missing. Free plan: sampled counts, no `clientAsn` (IP → ASN locally) |
-| Bot traffic, origin | Plesk `logs/` over FTPS; oauth2-proxy, wanderer, netnl, convergence and Keycloak events via `ssh jumpy kubectl logs` | collected every 3 hours into `~/.local/state/security-report/logs/` |
-| Layer 1 (passive) | security headers, sslyze, ZAP baseline (spider 1 min + passive rules), nuclei with safe tags only | one at a time, each in `systemd-run --user --scope -p MemoryMax=1500M -p MemorySwapMax=0` |
-| Layer 2 (active, non-destructive) | `secreport/layer2.py`: admin paths, brute-force config, edge rate limit, client registration, open redirects (Keycloak and oauth2-proxy), proxy bypass, header spoofing, CORS, direct API access; plus the private checks (below) | GET/OPTIONS only, plus at most a handful of password grants for nonexistent `selfscan-*` users; Keycloak config is read with kcadm, never written |
+| Bot traffic, origin | Plesk `logs/` over FTPS (IPv4 only, at most one attempt a day, see backoff below); oauth2-proxy, wanderer, netnl, convergence and Keycloak events via `ssh jumpy kubectl logs` | collected every 3 hours into `~/.local/state/security-report/logs/`; each cluster source separately, so one failure doesn't cost the rest |
+| Layer 1 (passive) | security headers + five exposure probes, sslyze, ZAP baseline (spider 1 min, links only: form posting and processing off; passive rules; the active scanner never starts), nuclei with filtered templates (below) | one at a time, each in a scope `secreport-<name>-…` with `MemoryMax=1500M MemorySwapMax=0` |
+| Layer 2 (active, non-destructive) | `secreport/layer2.py`: admin paths, brute-force config, edge rate limit, client registration, open redirects (Keycloak and oauth2-proxy), proxy bypass, header spoofing, CORS, direct API access; plus the private checks (below) | GET/OPTIONS, plus: at most a handful of password grants for nonexistent `selfscan-*` users, and **one unauthenticated `POST /documents/<dummy id>/reveal`** that oauth2-proxy must stop before it reaches the app. Keycloak config is read with kcadm, never written |
+
+### nuclei: which templates
+
+Not "safe tags" alone; three filters, all must pass (`secreport/layer1.py`):
+
+1. **Directories:** `http/` minus `http/vulnerabilities`, `http/cves`, `http/cnvd`
+   and `http/iot`, plus `ssl/`. The `ssl/` templates only run where the TLS end
+   is ours, so not against `mwest2020.github.io`.
+2. **Tags:** include exposure, misconfig, config, ssl, cors, disclosure, keys,
+   token, panel, redirect, takeover, headers; exclude intrusive and instrusive
+   (a typo real templates carry), dos, fuzz, bruteforce, default-login, oast,
+   rce, sqli, xss, lfi, ssrf, injection, cve, vuln, bypass, auth-bypass,
+   backdoor, unauth, register, signup, graphql and more (`NUCLEI_EXCLUDE_TAGS`).
+3. **The template file:** dropped if it uses POST/PUT/DELETE/PATCH (a field or
+   a raw request), is `self-contained` (those request third parties), uses
+   interactsh, `unsafe` raw requests, or a code/javascript/headless/flow block.
+
+`tests/test_nuclei_safe.py` runs `nuclei -tl` with exactly the scan's
+arguments and fails if any loaded template breaks rule 3 or comes from an
+excluded directory. On 2026-11-26: 1,652 http + 27 ssl templates; the file check
+dropped another 23.
 
 Our own requests carry the user-agent `westerweel-selfscan/1.0 (…)`; logs
 without a user-agent leave out the scan's time window
@@ -57,11 +82,21 @@ few seconds) got Mark's home IP blocked on the whole server (site, panel, FTP;
   the certificate;
 - no nuclei and no ZAP spider; the five exposure probes (`/.git/config`, `/.env`, …)
   at one request per second, like every other site;
-- the FTPS log pull at most once a day (`PLESK_MIN_HOURS`).
+- the FTPS log pull: **at most one attempt a day** (`PLESK_MIN_HOURS`, counted
+  per attempt, not per success), and **after three failures in a row it stops**
+  (`PLESK_MAX_FAILURES`) until someone runs `./run.sh plesk-reset`. Failed FTP
+  logins can keep a firewall block alive. State: `plesk-attempts.json`.
 
 If the block comes back: it's the server's firewall (CSF/Imunify), not the
 site. It lifts by itself after a while; otherwise Yourhosting support can
-whitelist the IP.
+whitelist the IP. Then `./run.sh plesk-reset`.
+
+**`Errno 101 Network is unreachable`:** agent-lxc has no IPv6 route, and
+`bazibo.nl`/`ftp.bazibo.nl` have AAAA records, so an IPv6 attempt fails at once.
+Python then falls back to IPv4; if that also fails you only see the IPv6 error.
+The collector now connects over IPv4 only and names the address that failed;
+the light TLS check may still show 101. A 101 together with a dead
+`curl -4 https://bazibo.nl/` means the IPv4 path is blocked (see above), not IPv6.
 
 ## Install (agent-lxc)
 
@@ -79,13 +114,36 @@ The units run `$SECREPORT_DIR/run.sh` when `~/.config/security-report/env` sets
 `SECREPORT_DIR` and that checkout exists (used while the tool lived in a
 worktree), and `~/homelab/tools/security-report` otherwise.
 
+**How `~/homelab` stays current:** the weekly service starts with
+`git -C ~/homelab pull --ff-only` (a dirty or diverged checkout logs an error
+and the run uses what is there); the docs agent also pulls it every Monday.
+The collector does not pull.
+
+**After PR #86 is merged** (once):
+
+```bash
+git -C ~/homelab pull --ff-only
+sed -i '/^SECREPORT_DIR=/d' ~/.config/security-report/env
+git -C ~/homelab worktree remove ~/.worktrees/hl-secreport
+cp ~/homelab/tools/security-report/systemd/*.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now security-report.timer security-report-collect.timer
+```
+
+**Stopping:** scanner scopes live outside the service's cgroup, so `KillMode`
+can't reach them. Each service ends with
+`ExecStopPost=systemctl --user stop 'secreport-*.scope'`, and ZAP stops a
+leftover `secreport-zap-*` scope before it starts (otherwise port 8091 collides).
+
 Secrets, never in git:
 
 - `~/.config/cloudflare/read.env`: `CLOUDFLARE_READ_TOKEN`, read-only for
   zone `westerweel.work` (Analytics read, plus Tunnel read for the inventory).
 - `~/.config/security-report/bao.env`: `BAO_TOKEN`, a periodic OpenBao token
   (768h) with policy `security-report`, which reads only
-  `kv/westerweel/bazibo-ftp`. Every collect renews it. To issue a new one, use
+  `kv/westerweel/bazibo-ftp`. The collector renews it at most once every 20
+  hours (`bao-renewed` stamp), independent of the Plesk pull, so a Plesk
+  backoff doesn't let it expire. To issue a new one, use
   the root token from `openbao-keys`, the same way as in
   [key-backups](key-backups.md):
 
@@ -94,12 +152,21 @@ Secrets, never in git:
   $B token create -policy=security-report -period=768h -display-name=security-report -field=token
   ```
 
+## Retention
+
+Every collect prunes: cached request lines (`logs/<site>/<day>.log`) after
+**35 days**, weekly reports (`<date>.html`, `<date>.json`) after **26 weeks**
+(`CACHE_DAYS`, `REPORT_WEEKS` in `secreport/config.py`). Reports and caches are
+written with umask 077 (they hold reproduction steps and visitor IPs); the
+directory is 0700.
+
 ## Run by hand
 
 ```bash
 cd ~/homelab/tools/security-report
 ./run.sh collect
-./run.sh report                              # everything, ~1 h (nuclei is most of it)
+./run.sh report                              # everything, ~1.5 h (nuclei is most of it)
+./run.sh plesk-reset                         # after a Plesk backoff, once the cause is fixed
 ./run.sh report --skip zap,nuclei            # quick: logs, Cloudflare, headers, TLS, layer 2
 systemctl --user start security-report.service   # as the timer would
 journalctl --user -u security-report -n 50
@@ -120,7 +187,9 @@ report links it.
 A check whose requests are a working exploit for something still unfixed does
 not go into this public repo. It lives in
 `~/.config/security-report/private_checks.py` on agent-lxc (mode 0600, not in
-git), which `layer2.py` loads if present. The module exports `CHECKS`,
+git), which `layer2.py` loads if present. It refuses to execute the file unless
+it is owned by the running user with no group/other bits; a broken or refused
+file shows up as one failed check, the public checks still run. The module exports `CHECKS`,
 `SEVERITY`, `WHERE` and `questions(l2)`. Once the fix has landed and a re-test
 shows it closed, move the check into `layer2.py` as a regression test and drop
 it from the private file.
@@ -133,6 +202,8 @@ cat ~/.local/state/security-report/collect-last.json     # per source: lines add
 ls ~/.local/state/security-report/logs/*/ | tail
 ```
 
-A collect that says `error` for `bazibo-nl` is usually the OpenBao token (expired?
-`bao token lookup`) or Plesk FTPS. One that says `error` for `k8s` means jumpy
+A collect that says `error (n/3)` for `bazibo-nl` is usually the server firewall
+(see Errno 101 above), the OpenBao token (`bao` in the same file says whether
+the renewal worked), or Plesk FTPS; `stopped after 3 failures` means it waits for
+`plesk-reset`. Errors under `k8s` are per source; all five failing means jumpy
 wasn't reachable.
