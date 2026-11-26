@@ -15,6 +15,9 @@ SEV = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 # Severity of the layer-2 checks when they break (judged once, by hand).
 L2_SEVERITY = {
     "kc-admin-direct": "high",
+    "kc-tunnel-path-filter": "high",
+    "kc-master-realm-public": "high",
+    "ww-idor-documents": "high",
     "ww-unauthenticated-routes": "high",
     "ww-proxy-path-bypass": "high",
     "ww-proxy-header-spoof": "high",
@@ -153,11 +156,6 @@ def gaps(l1: dict, l2: list[dict], traffic: dict, cf: dict) -> list[dict]:
 
 def questions(l2: list[dict], cf: dict) -> list[str]:
     q = []
-    ids = {c["id"]: c for c in l2}
-    if ids.get("ww-idor-documents", {}).get("result") == "skipped":
-        q.append("Mag ik in realm westerweel één testgebruiker aanmaken (selfscan@westerweel.work, geen rollen, "
-                 "niet in de label-lijsten) om IDOR en reveal-zonder-grant met een echte sessie te testen? "
-                 "Default: niet aanmaken; die twee blijven ongetest.")
     if _P is not None and hasattr(_P, "questions"):
         q += _P.questions(l2)
     if cf.get("status") != "ok":

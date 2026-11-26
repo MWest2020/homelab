@@ -43,7 +43,7 @@ report checks that every week and says when it changes. The list itself is in
 | Bot traffic, edge | Cloudflare GraphQL `httpRequestsAdaptiveGroups` + `firewallEventsAdaptive`, plus the tunnel inventory | read-only token `~/.config/cloudflare/read.env`; skipped cleanly when missing. Free plan: sampled counts, no `clientAsn` (IP → ASN locally) |
 | Bot traffic, origin | Plesk `logs/` over FTPS (IPv4 only, at most one attempt a day, see backoff below); oauth2-proxy, wanderer, netnl, convergence and Keycloak events via `ssh jumpy kubectl logs` | collected every 3 hours into `~/.local/state/security-report/logs/`; each cluster source separately, so one failure doesn't cost the rest |
 | Layer 1 (passive) | security headers + five exposure probes, sslyze, ZAP baseline (spider 1 min, links only: form posting and processing off; passive rules; the active scanner never starts), nuclei with filtered templates (below) | one at a time, each in a scope `secreport-<name>-…` with `MemoryMax=1500M MemorySwapMax=0` |
-| Layer 2 (active, non-destructive) | `secreport/layer2.py`: admin paths, brute-force config, edge rate limit, client registration, open redirects (Keycloak and oauth2-proxy), proxy bypass, header spoofing, CORS, direct API access; plus the private checks (below) | GET/OPTIONS, plus: at most a handful of password grants for nonexistent `selfscan-*` users, and **one unauthenticated `POST /documents/<dummy id>/reveal`** that oauth2-proxy must stop before it reaches the app. Keycloak config is read with kcadm, never written |
+| Layer 2 (active, non-destructive) | `secreport/layer2.py`: admin paths, encoded-path traversal to the Keycloak admin API, master realm reachability, brute-force config, edge rate limit, client registration, open redirects (Keycloak and oauth2-proxy), proxy bypass, header spoofing, CORS, direct API access, X-Forwarded-For trust; as the **test user** (below): IDOR on documents and reveal without a grant; plus the private checks (below) | GET/OPTIONS, plus: at most a handful of password grants for nonexistent `selfscan-*` users, **one unauthenticated `POST /documents/<dummy id>/reveal`** that oauth2-proxy must stop, and as the test user four POSTs that must get 403 and can't write even without a gate (reveal and reveal.pdf with an unknown grant, reveal with an expired grant of someone else, issuing a grant with a malformed document id). Keycloak config is read with kcadm, never written |
 
 ### nuclei: which templates
 
@@ -103,6 +103,33 @@ The collector now connects over IPv4 only and names the address that failed;
 the light TLS check may still show 101. A 101 together with a dead
 `curl -4 https://bazibo.nl/` means the IPv4 path is blocked (see above), not IPv6.
 
+## Test user (Wordsworth)
+
+Mark, 2026-11-26 (homelab#85): one test user in realm `westerweel`,
+username `selfscan`, address `selfscan@selfscan.invalid` (clearly fake, never
+mailed, not on either Wordsworth label list), no groups and no app roles
+(only Keycloak's built-in default roles). Realm policy makes TOTP mandatory,
+so it has one; the tool enrolled it on its first login and keeps the secret.
+
+- Credentials: `~/.config/security-report/selfscan.env` on agent-lxc (mode
+  0600, not in git): `SELFSCAN_USER`, `SELFSCAN_EMAIL`, `SELFSCAN_PASSWORD`,
+  `SELFSCAN_TOTP_SECRET`.
+- `layer2.selfscan_session()` logs in through oauth2-proxy exactly like a
+  browser (form login, then a TOTP code), and checks that Wordsworth itself
+  recognises the caller before testing anything. TOTP codes are single-use in
+  this realm; the helper waits for the next 30-second step if needed.
+- The real document id and grant id the checks aim at are read from
+  Wordsworth's database in a read-only transaction at run time, never stored.
+- Missing file or a failed login: `ww-idor-documents` and the session half of
+  `ww-reveal-without-grant` report `skipped` with the reason.
+- Never give this user a group, a role, or an address on a label list. To
+  start over: delete the user in the admin console (tailnet), create it again
+  with the same file (password from the file, `emailVerified`, first and last
+  name set), remove the `SELFSCAN_TOTP_SECRET` line, and let the next run
+  enrol a new TOTP.
+
+Note: Wanderer accepts any realm user, so this user can log in there too.
+
 ## Install (agent-lxc)
 
 ```bash
@@ -141,6 +168,8 @@ can't reach them. Each service ends with
 leftover `secreport-zap-*` scope before it starts (otherwise port 8091 collides).
 
 Secrets, never in git:
+
+- `~/.config/security-report/selfscan.env`: the test user (above).
 
 - `~/.config/cloudflare/read.env`: `CLOUDFLARE_READ_TOKEN`, read-only for
   zone `westerweel.work` (Analytics read, plus Tunnel read for the inventory).

@@ -64,6 +64,105 @@ def kc_admin_direct(c) -> Check:
     return ch
 
 
+ADMIN_API_401 = "HTTP 401 Unauthorized"   # Keycloak's admin REST API without a token
+
+
+def _encoded_traversals() -> list[str]:
+    """Every allowed public prefix, climbed back to the admin API with the
+    spellings of `..` and `/` that a path filter and Keycloak may read
+    differently: plain, percent-encoded (any case), double-encoded, overlong
+    UTF-8, %u, a matrix parameter, an encoded slash."""
+    segs = ["..", "%2e%2e", ".%2e", "%2e.", "%2E%2E", "..;", "%252e%252e", "%c0%ae%c0%ae", "%u002e%u002e"]
+    joins = ["/", "%2f"]
+    out = []
+    for prefix in ("/realms", "/realms/westerweel", "/resources", "/js"):
+        depth = prefix.count("/")
+        for seg in segs:
+            for j in joins:
+                out.append(prefix + "/" + (seg + j) * depth + "admin/realms")
+    return out
+
+
+def kc_path_filter(c, cfg=None) -> Check:
+    """Regression for homelab#84 (fixed 2026-11-26 by the keycloak-edge proxy):
+    no encoded path reaches the admin API or the admin console; the proxy
+    answers 404 to all of them."""
+    ch = Check("kc-tunnel-path-filter", "iam",
+               "Publiek alleen OIDC van realm westerweel: geen gecodeerd pad bereikt /admin")
+    reached, not404 = [], []
+    paths = _encoded_traversals()
+    for p in paths:
+        r = _get(c, IAM, p)
+        hit = r.status_code == 401 and ADMIN_API_401 in r.text
+        ch.private.append(f"GET {p} → {r.status_code}{'  ADMIN API REACHED' if hit else ''}")
+        if hit:
+            reached.append(p)
+        elif r.status_code != 404:
+            not404.append(f"{p}={r.status_code}")
+    for p in ("/realms/%2e%2e/admin/master/console/", "/admin/master/console/"):
+        r = _get(c, IAM, p)
+        ch.private.append(f"GET {p} → {r.status_code}")
+        if "Keycloak Administration Console" in r.text:
+            reached.append(p)
+    if reached:
+        ch.result = "broken"
+        ch.summary = f"{len(reached)} gecodeerde paden bereiken de admin-API of beheerconsole van Keycloak."
+    elif not404:
+        ch.result = "exposed"
+        ch.summary = f"Admin niet bereikt, maar niet alles krijgt 404 van de proxy: {not404[:5]}"
+    else:
+        ch.result = "held"
+        ch.summary = f"Alle {len(paths) + 2} traversal-varianten krijgen 404 van de keycloak-edge-proxy."
+    return ch
+
+
+def kc_master_public(c, cfg: dict | None = None) -> Check:
+    """Regression for homelab#84: the master realm (administrators) is not
+    public. One password grant for a nonexistent user, like before."""
+    ch = Check("kc-master-realm-public", "iam", "Master-realm (beheerders) niet publiek bereikbaar")
+    wk = _get(c, IAM, "/realms/master/.well-known/openid-configuration")
+    time.sleep(0.4)
+    tok = c.post(f"{IAM}/realms/master/protocol/openid-connect/token",
+                 data={"grant_type": "password", "client_id": "admin-cli",
+                       "username": "selfscan-nonexistent-user", "password": "selfscan-wrong"})
+    ch.private = [f"GET /realms/master/.well-known/openid-configuration → {wk.status_code}",
+                  f"POST /realms/master/protocol/openid-connect/token (nonexistent user) → {tok.status_code}"]
+    if cfg:
+        m = next((r for r in cfg["realms"] if r["realm"] == "master"), {})
+        ch.private.append(f"kcadm: master bruteForceProtected={m.get('bruteForceProtected')}")
+    if wk.status_code == 404 and tok.status_code == 404:
+        ch.result = "held"
+        ch.summary = "Master-realm geeft publiek 404 (discovery en token-endpoint); alleen via de tailnet."
+    else:
+        ch.result = "broken"
+        ch.summary = f"Master-realm publiek bereikbaar (discovery {wk.status_code}, token {tok.status_code})."
+    return ch
+
+
+def kc_xff(c, cfg=None) -> Check:
+    """The IP in Keycloak's events is the one Cloudflare saw, not one the
+    client chose: keycloak-edge sets X-Forwarded-For from Cf-Connecting-Ip."""
+    ch = Check("kc-xff-trust", "iam", "IP-adres in Keycloak-events is niet door de client te kiezen")
+    marker = f"selfscan-xff-{int(time.time())}"
+    c.post(f"{IAM}/realms/westerweel/protocol/openid-connect/token",
+           headers={"X-Forwarded-For": "203.0.113.77"},
+           data={"grant_type": "password", "client_id": "admin-cli", "username": marker, "password": "x"})
+    time.sleep(3)
+    r = jumpy(f"kubectl -n keycloak logs deploy/keycloak --since=10m | grep -o 'ipAddress=\"[^\"]*\".*username=\"{marker}\"' | head -1")
+    m = re.search(r'ipAddress="([^"]*)"', r.stdout)
+    ip = m.group(1) if m else None
+    ch.private = [f"POST token with a spoofed X-Forwarded-For → event ipAddress={ip}"]
+    if ip == "203.0.113.77":
+        ch.result = "exposed"
+        ch.summary = "Keycloak neemt een door de client gezet X-Forwarded-For over: IP's in events zijn onbetrouwbaar."
+    elif ip:
+        ch.result = "held"
+        ch.summary = "Het event noemt het adres dat Cloudflare zag, niet het vervalste."
+    else:
+        ch.summary = "Event niet teruggevonden in de log."
+    return ch
+
+
 def _kcadm(script: str) -> str:
     """Run read-only kcadm commands in the Keycloak pod. Credentials come from
     the pod's own env; the config file is removed afterwards."""
@@ -254,23 +353,219 @@ def ww_header_spoof(c) -> Check:
     return ch
 
 
-def ww_reveal_unauth(c) -> Check:
-    ch = Check("ww-reveal-without-grant", "wordsworth", "Reveal zonder sessie of grant onmogelijk", repo="wordsworth")
-    time.sleep(0.4)
-    r = c.post(f"{WW}/documents/00000000-0000-0000-0000-000000000001/reveal", json={"grant_id": "selfscan-none"})
-    ch.private = [f"POST /documents/<dummy>/reveal (geen sessie) → {r.status_code}"]
-    ch.result = "held" if _is_login_redirect(r) else "broken"
-    ch.summary = ("Zonder sessie stopt de proxy het verzoek. Met sessie niet getest: de enige gebruiker in het "
-                  "realm is Mark zelf, en die is grant-issuer (zie vraag over een testaccount)."
-                  if ch.result == "held" else f"Reveal bereikbaar zonder sessie ({r.status_code}).")
+# --------------------------------------------------------------------------- test user (homelab#85)
+#
+# Mark, 2026-11-26: "Maak een test gebruiker aan." One realm user in
+# westerweel, `selfscan`, with no app roles, no groups, and an address that is
+# not on either Wordsworth label list (a clearly fake `.invalid` one). Its
+# password and TOTP secret live in SELFSCAN_ENV (0600, not in git). The checks
+# below log in as that user through oauth2-proxy exactly like a browser does,
+# then only READ, plus refused POSTs that can't write anything even if the
+# gate were missing (see each check).
+
+SELFSCAN_ENV = Path.home() / ".config/security-report/selfscan.env"
+_last_totp_step = 0
+
+
+def _totp(secret: str, step: int) -> str:
+    """RFC 6238, as realm westerweel is configured (HmacSHA1, 6 digits, 30 s).
+    Keycloak's HMAC key is the secret string's bytes (its QR code is Base32 of
+    those bytes)."""
+    import hashlib
+    import hmac
+    import struct
+    d = hmac.new(secret.encode(), struct.pack(">Q", step), hashlib.sha1).digest()
+    o = d[-1] & 0x0F
+    return f"{(struct.unpack('>I', d[o:o + 4])[0] & 0x7FFFFFFF) % 1_000_000:06d}"
+
+
+def _fresh_totp(secret: str) -> str:
+    """Codes are single-use in this realm: never send the same step twice."""
+    global _last_totp_step
+    step = int(time.time() // 30)
+    if step <= _last_totp_step:
+        time.sleep(30 - time.time() % 30 + 1)
+        step = int(time.time() // 30)
+    _last_totp_step = step
+    return _totp(secret, step)
+
+
+def _form(html_text: str) -> tuple[str, dict[str, str]]:
+    """The first form's action and its hidden inputs."""
+    import html as h
+    m = re.search(r'<form\b[^>]*\baction="([^"]+)"', html_text)
+    if not m:
+        raise RuntimeError("no form on the Keycloak page")
+    hidden = {}
+    for tag in re.findall(r"<input\b[^>]*>", html_text):
+        if 'type="hidden"' in tag:
+            n = re.search(r'\bname="([^"]+)"', tag)
+            v = re.search(r'\bvalue="([^"]*)"', tag)
+            if n:
+                hidden[n.group(1)] = h.unescape(v.group(1)) if v else ""
+    return h.unescape(m.group(1)), hidden
+
+
+def _save_env(key: str, value: str) -> None:
+    lines = [ln for ln in SELFSCAN_ENV.read_text().splitlines() if not ln.startswith(f"{key}=")]
+    lines.append(f"{key}={value}")
+    import os
+    fd = os.open(SELFSCAN_ENV, os.O_WRONLY | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def selfscan_session() -> httpx.Client:
+    """A client holding an oauth2-proxy session for the test user, or raise.
+    Handles the one-time TOTP enrolment (realm policy: 2FA for everyone) and
+    stores the secret next to the password."""
+    from .util import read_env
+    env = read_env(SELFSCAN_ENV)
+    if not env.get("SELFSCAN_PASSWORD"):
+        raise FileNotFoundError(f"{SELFSCAN_ENV} missing or without SELFSCAN_PASSWORD")
+    s = client()
+    r = _get(s, WW, "/oauth2/start?rd=%2F")
+    for _ in range(15):
+        if r.status_code in (301, 302, 303, 307):
+            loc = urllib.parse.urljoin(str(r.url), r.headers["location"])
+            host = urllib.parse.urlparse(loc).hostname
+            if host not in ("wordsworth.westerweel.work", "iam.westerweel.work"):
+                raise RuntimeError(f"login left our hosts: {host}")
+            if loc.startswith(WW) and "/oauth2/" not in loc:
+                break                       # back at the app: logged in
+            time.sleep(0.4)
+            r = s.get(loc)
+            continue
+        if r.status_code != 200:
+            raise RuntimeError(f"login: unexpected {r.status_code} at {urllib.parse.urlparse(str(r.url)).path}")
+        page = r.text
+        action, data = _form(page)
+        if 'name="password"' in page:
+            data |= {"username": env["SELFSCAN_USER"], "password": env["SELFSCAN_PASSWORD"]}
+        elif 'name="totpSecret"' in page:
+            secret = data["totpSecret"]
+            _save_env("SELFSCAN_TOTP_SECRET", secret)
+            env["SELFSCAN_TOTP_SECRET"] = secret
+            data |= {"totp": _fresh_totp(secret), "userLabel": "selfscan"}
+        elif 'name="otp"' in page:
+            if not env.get("SELFSCAN_TOTP_SECRET"):
+                raise RuntimeError("Keycloak asks for a TOTP code but SELFSCAN_TOTP_SECRET is not set")
+            data |= {"otp": _fresh_totp(env["SELFSCAN_TOTP_SECRET"])}
+        else:
+            title = (re.findall(r"<title>([^<]*)</title>", page) or ["?"])[0]
+            raise RuntimeError(f"login: unknown Keycloak page {title!r}")
+        time.sleep(0.4)
+        r = s.post(action, data=data)
+    if not any(c.name.startswith("_oauth2_proxy") for c in s.cookies.jar):
+        raise RuntimeError("login finished without an oauth2-proxy session cookie")
+    return s
+
+
+def _ww_sample_ids() -> dict:
+    """One real document id and one real (expired) grant id, read-only from
+    Wordsworth's database, so the checks below aim at things that exist."""
+    import json
+    py = ("import os,json\nfrom sqlalchemy import create_engine,text\n"
+          "e=create_engine(os.environ['WORDSWORTH_DATABASE_URL'])\n"
+          "with e.connect() as c:\n"
+          " c.execute(text('SET TRANSACTION READ ONLY'))\n"
+          " d=c.execute(text('select d.id from documents d join document_texts t on t.document_id=d.id "
+          "order by d.id limit 1')).scalar()\n"
+          " g=c.execute(text('select grant_id,document_id from grants where document_id is not null "
+          "order by created_at desc limit 1')).first()\n"
+          " print(json.dumps({'doc':str(d) if d else None,'grant':g[0] if g else None,"
+          "'grant_doc':str(g[1]) if g else None}))\n")
+    r = jumpy("kubectl -n wordsworth exec -i deploy/wordsworth-api -- python -", input=py, timeout=60)
+    if r.returncode:
+        raise RuntimeError(f"sample ids: {r.stderr[-200:]}")
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def _session_ok(s: httpx.Client) -> bool:
+    """Does Wordsworth itself see an identity-provider caller? /console/login
+    sends a recognised one on to /console instead of showing the key form."""
+    r = _get(s, WW, "/console/login")
+    return r.status_code == 303 and r.headers.get("location", "").endswith("/console")
+
+
+def _refused(r: httpx.Response) -> bool:
+    return r.status_code in (401, 403, 404)
+
+
+def ww_idor(s: httpx.Client | None, ids: dict | None, why: str = "") -> Check:
+    """Wordsworth has no per-user ownership; access is the corpus-read label
+    list. So the IDOR question is: can a logged-in user who is NOT on that list
+    read a real document (or any corpus data) by id? GET only."""
+    ch = Check("ww-idor-documents", "wordsworth", "Ingelogde gebruiker zonder leesrecht leest geen documenten",
+               repo="wordsworth")
+    if s is None or not ids or not ids.get("doc"):
+        ch.summary = f"Niet getest: {why or 'geen document-id'}"
+        return ch
+    if not _session_ok(s):
+        ch.summary = "Niet getest: Wordsworth herkent de sessie van de testgebruiker niet."
+        return ch
+    doc, ghost = ids["doc"], "00000000-0000-0000-0000-000000000001"
+    paths = [f"/documents/{doc}", f"/documents/{doc}/anonymized", f"/documents/{doc}/state",
+             f"/documents/{doc}/redacted.pdf", f"/documents/{ghost}/anonymized", "/export/anonymized.zip",
+             "/export/ranking.csv?q=de", "/search?q=de", "/hybrid?q=de", "/roles", "/group-roles",
+             f"/grants/{ids.get('grant') or 'x'}",
+             "/console", "/console/documents", f"/console/documents/{doc}", "/console/search?q=de",
+             "/console/topics", "/console/feedback", "/console/combinations", "/console/roles"]
+    leaks = []
+    for p in paths:
+        r = _get(s, WW, p)
+        shown = p.replace(doc, "<doc>").replace(ids.get("grant") or "\0", "<grant>")
+        ch.private.append(f"GET {shown} (testgebruiker) → {r.status_code} {len(r.content)}B")
+        if not _refused(r):
+            leaks.append(f"{shown}={r.status_code}")
+    real = _get(s, WW, f"/documents/{doc}/anonymized").status_code
+    fake = _get(s, WW, f"/documents/{ghost}/anonymized").status_code
+    ch.private.append(f"bestaand versus niet-bestaand id → {real} / {fake}")
+    ch.result = "broken" if leaks else "held"
+    ch.summary = (f"Alle {len(paths)} lees-routes (API en console) weigeren de testgebruiker ({real}); "
+                  "een bestaand en een verzonnen document-id krijgen hetzelfde antwoord."
+                  if not leaks else f"Leesbaar zonder leesrecht: {leaks}")
+    if not leaks and real != fake:
+        ch.result = "exposed"
+        ch.summary = f"Geweigerd, maar bestaand ({real}) en verzonnen ({fake}) id verschillen: bestaan is af te leiden."
     return ch
 
 
-def ww_idor() -> Check:
-    return Check("ww-idor-documents", "wordsworth", "IDOR op documenten (ander account)", repo="wordsworth",
-                 result="skipped",
-                 summary="Niet te testen: er is geen tweede, niet-geprivilegieerd account in realm westerweel. "
-                         "Zie de vraag over een testgebruiker.")
+def ww_reveal(c: httpx.Client, s: httpx.Client | None, ids: dict | None, why: str = "") -> Check:
+    """Reveal without a grant. 1) No session: oauth2-proxy must stop it.
+    2) The test user (not a grant issuer): reveal with an unknown grant id and
+    with a real grant id issued to someone else; mint a grant. The mint uses a
+    malformed document id, so even a missing gate can't write: 403 = gate,
+    400 = the gate is missing."""
+    ch = Check("ww-reveal-without-grant", "wordsworth", "Reveal zonder geldige grant onmogelijk", repo="wordsworth")
+    time.sleep(0.4)
+    r = c.post(f"{WW}/documents/00000000-0000-0000-0000-000000000001/reveal", json={"grant_id": "selfscan-none"})
+    ch.private = [f"POST /documents/<dummy>/reveal (geen sessie) → {r.status_code}"]
+    bad = [] if _is_login_redirect(r) else [f"zonder sessie {r.status_code}"]
+    if s is None or not ids or not ids.get("doc") or not _session_ok(s):
+        ch.result = "broken" if bad else "held"
+        ch.summary = ("Zonder sessie stopt de proxy het verzoek. Met sessie niet getest: "
+                      f"{why or 'sessie van de testgebruiker niet herkend'}." if not bad else f"Reveal bereikbaar: {bad}")
+        return ch
+    doc = ids["doc"]
+    tries = [("reveal, verzonnen grant", f"/documents/{doc}/reveal", {"grant_id": "selfscan-no-such-grant"}),
+             ("reveal.pdf, verzonnen grant", f"/documents/{doc}/reveal.pdf", {"grant_id": "selfscan-no-such-grant"})]
+    if ids.get("grant") and ids.get("grant_doc"):
+        tries.append(("reveal, echte grant van een ander", f"/documents/{ids['grant_doc']}/reveal",
+                      {"grant_id": ids["grant"]}))
+    tries.append(("grant uitgeven", "/grants", {"document_id": "selfscan-not-a-uuid", "recipient": "selfscan",
+                                                "allowed_types": ["PERSON"]}))
+    for label_, path, body in tries:
+        time.sleep(0.4)
+        r = s.post(f"{WW}{path}", json=body)
+        ch.private.append(f"POST {label_} (testgebruiker) → {r.status_code} {r.text[:60]!r}")
+        if r.status_code != 403:
+            bad.append(f"{label_}={r.status_code}")
+    ch.result = "broken" if bad else "held"
+    ch.summary = ("Zonder sessie stopt de proxy het verzoek. Als ingelogde gebruiker zonder grant-recht: "
+                  "reveal met een verzonnen of andermans grant en zelf een grant uitgeven geven allemaal 403."
+                  if not bad else f"Niet geweigerd: {bad}")
+    return ch
 
 
 def ww_open_redirect(c) -> Check:
@@ -373,12 +668,20 @@ def run() -> list[dict]:
         except Exception as e:  # noqa: BLE001 - report it, keep going
             cfg = None
             checks.append(Check("kc-config-read", "iam", "Keycloak-config lezen", summary=str(e)[:200]))
+        s, ids, why = None, None, ""
+        try:
+            ids = _ww_sample_ids()
+            s = selfscan_session()
+        except Exception as e:  # noqa: BLE001 - the two checks report it as skipped
+            why = f"{type(e).__name__}: {str(e)[:150]}"
         steps = [
             lambda: kc_admin_direct(c),
             lambda: kc_bruteforce(cfg), lambda: kc_edge_rate_limit(c), lambda: kc_registration(cfg),
             lambda: kc_redirects(c),
+            lambda: kc_path_filter(c, cfg), lambda: kc_master_public(c, cfg), lambda: kc_xff(c),
             lambda: ww_unauth(c), lambda: ww_path_tricks(c), lambda: ww_header_spoof(c),
-            lambda: ww_reveal_unauth(c), ww_idor, lambda: ww_open_redirect(c), lambda: ww_cors(c), ww_direct_api,
+            lambda: ww_reveal(c, s, ids, why), lambda: ww_idor(s, ids, why),
+            lambda: ww_open_redirect(c), lambda: ww_cors(c), ww_direct_api,
         ]
         try:
             priv = load_private()
@@ -393,4 +696,6 @@ def run() -> list[dict]:
             except Exception as e:  # noqa: BLE001
                 checks.append(Check(getattr(step, "__name__", "check"), "?", "check failed",
                                     summary=f"{type(e).__name__}: {str(e)[:200]}"))
+        if s is not None:
+            s.close()
     return [ch.as_dict() for ch in checks]
