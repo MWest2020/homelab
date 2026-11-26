@@ -95,9 +95,10 @@ def kc_path_filter(c, cfg=None) -> Check:
         r = _get(c, IAM, p)
         hit = r.status_code == 401 and ADMIN_API_401 in r.text
         ch.private.append(f"GET {p} → {r.status_code}{'  ADMIN API REACHED' if hit else ''}")
+        edge_400 = r.status_code == 400 and r.headers.get("server", "").lower() == "cloudflare"
         if hit:
             reached.append(p)
-        elif r.status_code != 404:
+        elif r.status_code != 404 and not edge_400:   # malformed escapes die at Cloudflare's edge
             not404.append(f"{p}={r.status_code}")
     for p in ("/realms/%2e%2e/admin/master/console/", "/admin/master/console/"):
         r = _get(c, IAM, p)
@@ -112,7 +113,8 @@ def kc_path_filter(c, cfg=None) -> Check:
         ch.summary = f"Admin niet bereikt, maar niet alles krijgt 404 van de proxy: {not404[:5]}"
     else:
         ch.result = "held"
-        ch.summary = f"Alle {len(paths) + 2} traversal-varianten krijgen 404 van de keycloak-edge-proxy."
+        ch.summary = (f"Alle {len(paths) + 2} traversal-varianten worden geweigerd: 404 van de keycloak-edge-proxy, "
+                      "of 400 van Cloudflare voor ongeldige escapes.")
     return ch
 
 
