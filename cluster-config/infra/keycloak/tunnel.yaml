@@ -1,9 +1,11 @@
 # Cloudflare Tunnel voor Keycloak — https://iam.westerweel.work.
 #
-# De ingress-regel bij Cloudflare laat ALLEEN de OIDC-paden door
-# (^/realms/, ^/resources/, ^/js/); al het andere krijgt 404. De
-# beheerconsole (/admin) staat dus niet aan het open internet — die
-# bereik je over de tailnet (keycloak.<tailnet>.ts.net:8080).
+# Origin (remote config bij Cloudflare): http://keycloak.keycloak.svc.cluster.local:8080.
+# Die Service is sinds homelab#84 de filterende proxy keycloak-edge
+# (edge-proxy.yaml), niet Keycloak zelf. De padregels bij Cloudflare
+# (^/realms/, ^/resources/, ^/js/) staan er nog, maar zijn geen grens:
+# een gecodeerd pad glipt erlangs. De proxy is de grens. De beheerconsole
+# bereik je alleen over de tailnet (https://keycloak.<tailnet>.ts.net).
 #
 # Run-token: out-of-band Secret `keycloak-tunnel` (key TUNNEL_TOKEN),
 # nooit in Git. Instellingen overgenomen van netnl/wordsworth (twee
