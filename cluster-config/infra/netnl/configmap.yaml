@@ -56,9 +56,14 @@ data:
   NETNL_BAZIBO_MIN_AMOUNT: "1"
   # ON since 27 Nov 2026 (Mark: "ja, bouw maar"; Bazibo web unlock live in bazibo #125).
   NETNL_BAZIBO_EXTRA_ID: "603413"
-  # Bazibo codes from plain BMC donations: OFF (27 Nov 2026). BMC's coffee price
-  # can only be 3, 5 or 10, so Mark chose a Stripe Payment Link at EUR 1; the
-  # donation routing is being removed from internetnl-cli.
+  # Bazibo codes from a Stripe Payment Link (internetnl-cli add-bazibo-unlock
+  # D12; Mark 27 Nov 2026: EUR 1 via Stripe, BMC's coffee price cannot be 1).
+  # The endpoint secret lives ONLY in the out-of-band Secret `netnl-bridge`
+  # (NETNL_STRIPE_WEBHOOK_SECRET). TEST MODE for now: the sandbox link below
+  # and ALLOW_TEST_MODE. For live: the live link id, the live secret, and
+  # remove NETNL_STRIPE_ALLOW_TEST_MODE (a test payment makes a real code).
+  NETNL_STRIPE_PAYMENT_LINK_ID: "plink_1UgOFaEDglu1wL0WrywBY2qX"
+  NETNL_STRIPE_ALLOW_TEST_MODE: "1"
   # netnl-bazibo-watch (bazibo-watch-cronjob.yaml) mails this address once per
   # transaction whose code was not delivered within 15 minutes.
   NETNL_BAZIBO_ALERT_TO: "mark@westerweel.work"
