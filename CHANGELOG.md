@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-27 (2) — netnl naar sha-ff06f75: Bazibo-links met #unlock=
+
+### Wat & waarom
+- Image naar `internetnl-cli:sha-ff06f75@sha256:3562fca9…` (internetnl-cli #13): de
+  links in de Bazibo-mail gebruiken het fragment (`https://bazibo.nl/#unlock=<code>`),
+  zodat de code nooit in een webserverlog belandt. Feature blijft slapend.
+
 ## 2026-11-27 — netnl naar sha-847ac83: Bazibo-ontgrendelcodes (slapend)
 
 ### Wat & waarom
