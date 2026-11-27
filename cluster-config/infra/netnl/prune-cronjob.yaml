@@ -33,6 +33,11 @@ spec:
               envFrom:
                 - configMapRef: { name: netnl-config }
                 - secretRef:    { name: netnl-upstream }
+                # Same opt-in secret as the Deployment: netnl-admin loads the
+                # full settings, and once NETNL_BAZIBO_EXTRA_ID is in the
+                # ConfigMap a run without the Bazibo key would refuse to
+                # start (half-config guard).
+                - secretRef:    { name: netnl-bridge, optional: true }
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
