@@ -9,4 +9,5 @@ resources:
   - tunnel.yaml
   - funnel.yaml
   - prune-cronjob.yaml
+  - bazibo-watch-cronjob.yaml
   - measure-cronjob.yaml

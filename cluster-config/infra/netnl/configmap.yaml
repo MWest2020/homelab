@@ -56,6 +56,14 @@ data:
   NETNL_BAZIBO_MIN_AMOUNT: "1"
   # ON since 27 Nov 2026 (Mark: "ja, bouw maar"; Bazibo web unlock live in bazibo #125).
   NETNL_BAZIBO_EXTRA_ID: "603413"
+  # A plain BMC donation of at least NETNL_BAZIBO_DONATION_MIN (default 1) also
+  # mints a Bazibo code (27 Nov 2026: BMC sends this account no webhook for an
+  # Extra, only "support created"; Mark: "1 is goed als de flow maar duidelijk
+  # is"). The netnl key at NETNL_SUPPORTER_MIN_AMOUNT is unchanged. Off: "0".
+  NETNL_BAZIBO_FROM_DONATIONS: "1"
+  # netnl-bazibo-watch (bazibo-watch-cronjob.yaml) mails this address once per
+  # transaction whose code was not delivered within 15 minutes.
+  NETNL_BAZIBO_ALERT_TO: "mark@westerweel.work"
 
   NETNL_DB: "/data/netnl.sqlite3"
   NETNL_HOST: "0.0.0.0"
