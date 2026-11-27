@@ -25,7 +25,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: prune
-              image: ghcr.io/mwest2020/internetnl-cli:sha-ff06f75@sha256:3562fca95fd7f7d1f1831c040f30395fd376768dba5324d2ca9ba35735dba172
+              image: ghcr.io/mwest2020/internetnl-cli:sha-11da910@sha256:ddc15ba49d6057ab3bfa5dde5fad7378d818162904e90e86657f22b9d0348793
               imagePullPolicy: IfNotPresent
               command: ["netnl-admin", "prune"]
               env:

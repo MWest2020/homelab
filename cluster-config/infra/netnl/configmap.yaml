@@ -44,8 +44,13 @@ data:
   # and Extra purchases are ignored. Switching on is this one line (the
   # Extra's numeric id from buymeacoffee.com/<page>/e/<id>):
   #   NETNL_BAZIBO_EXTRA_ID: "<id>"
-  # and ticking extra_purchase.created on the BMC webhook. See
-  # docs/how-to/supporter-webhook.md#switching-it-on in internetnl-cli.
+  # The BMC webhook keeps "support created" ticked (the only event this
+  # account offers; Extra purchases routed from it). The Extra is id 603413
+  # ("Bazibo full version unlock!", EUR 1), so switching on is:
+  #   NETNL_BAZIBO_EXTRA_ID: "603413"
+  # Hand issue from a BMC sale mail (works while dormant):
+  #   kubectl -n netnl exec deploy/netnl -- netnl-admin bazibo mint --mail <addr> --ref <txn>
+  # See docs/how-to/supporter-webhook.md#switching-it-on in internetnl-cli.
   # Startup refuses a signing key that does not match this public key.
   NETNL_BAZIBO_PUBLIC_KEY: "Dpnm6nFTwx1A-kFUf7IMoz4SVUF-O_biI-edjvzpP_4"
   NETNL_BAZIBO_MIN_AMOUNT: "1"

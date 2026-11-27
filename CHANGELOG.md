@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-27 (3) — netnl naar sha-11da910: Bazibo via "support created"
+
+### Wat & waarom
+- Image naar `internetnl-cli:sha-11da910@sha256:ddc15ba4…` (internetnl-cli #14): een
+  Extra-aankoop die als "support created" binnenkomt (`support_type: "Extra"` of
+  `extras[]`) levert een Bazibo-code als de Extra (603413) erin staat, en nooit een
+  netnl-key. Vormregel in de log (`event=bmc-shape`, zonder persoonsgegevens) en
+  `netnl-admin bazibo mint --mail … --ref <transactie-id>` voor handmatig uitgeven.
+  De API-poller zit erin maar staat uit (geen token, geen CronJob).
+- Feature blijft slapend: `NETNL_BAZIBO_EXTRA_ID` staat nog niet in de ConfigMap.
+
 ## 2026-11-27 (2) — netnl naar sha-ff06f75: Bazibo-links met #unlock=
 
 ### Wat & waarom
