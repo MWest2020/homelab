@@ -59,11 +59,10 @@ data:
   # Bazibo codes from a Stripe Payment Link (internetnl-cli add-bazibo-unlock
   # D12; Mark 27 Nov 2026: EUR 1 via Stripe, BMC's coffee price cannot be 1).
   # The endpoint secret lives ONLY in the out-of-band Secret `netnl-bridge`
-  # (NETNL_STRIPE_WEBHOOK_SECRET). TEST MODE for now: the sandbox link below
-  # and ALLOW_TEST_MODE. For live: the live link id, the live secret, and
-  # remove NETNL_STRIPE_ALLOW_TEST_MODE (a test payment makes a real code).
-  NETNL_STRIPE_PAYMENT_LINK_ID: "plink_1UgOFaEDglu1wL0WrywBY2qX"
-  NETNL_STRIPE_ALLOW_TEST_MODE: "1"
+  # (NETNL_STRIPE_WEBHOOK_SECRET). LIVE since 27 Nov 2026 (the end-to-end test
+  # ran in test mode first). Test-mode sessions are ignored (no
+  # NETNL_STRIPE_ALLOW_TEST_MODE: a test payment would make a real code).
+  NETNL_STRIPE_PAYMENT_LINK_ID: "plink_1UgOXDE8wmN9kKdgjdTnOUFc"
   # netnl-bazibo-watch (bazibo-watch-cronjob.yaml) mails this address once per
   # transaction whose code was not delivered within 15 minutes.
   NETNL_BAZIBO_ALERT_TO: "mark@westerweel.work"
