@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-27 — netnl naar sha-847ac83: Bazibo-ontgrendelcodes (slapend)
+
+### Wat & waarom
+- Image naar `internetnl-cli:sha-847ac83@sha256:58ff07ae…` (internetnl-cli #10,
+  openspec `add-bazibo-unlock`): de BMC-webhook kan een €1 Extra omzetten in een
+  ondertekende Bazibo-code per mail, en `POST /bazibo/activate` telt apparaten per
+  code (10 ok, 409 daarboven, ingetrokken bij 100).
+- Staat **slapend**: signing key en device-salt staan out-of-band in de Secret
+  `netnl-bridge`; `NETNL_BAZIBO_EXTRA_ID` ontbreekt nog in de ConfigMap, dus
+  `/bazibo/activate` antwoordt 503 `off`. Aanzetten = die ene regel (zie het
+  commentaar in `configmap.yaml`).
+- `NETNL_BAZIBO_PUBLIC_KEY` in de ConfigMap: de pod start niet met een verkeerde key.
+- `netnl-prune` krijgt ook `netnl-bridge` (optional): zodra het Extra-id in de
+  ConfigMap staat zou `netnl-admin prune` anders weigeren te starten.
+
 ## 2026-11-05 — key backups: document_keys en OpenBao
 
 ### Wat & waarom
