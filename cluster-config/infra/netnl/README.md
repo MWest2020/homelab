@@ -48,6 +48,12 @@ live in the out-of-band Secret `netnl-bridge` (mounted `optional: true`):
   (`openssl rand -hex 32`). Losing it only means devices are counted
   afresh.
 
+- `NETNL_BAZIBO_SMTP_HOST/PORT/MODE/USERNAME/PASSWORD/FROM` (not set yet):
+  Bazibo's own relay for the buyer's code mail (mail.bazibo.nl). Written all
+  at once by `scripts/switch-bazibo-smtp.sh` (and removed by `--rollback`);
+  never one by one, since startup refuses a half-configured relay. See the
+  runbook `bazibo-nl`, "Bazibo code mail from netnl".
+
 Add or change a key without printing it (from a host with the value in a
 file; the patch travels on stdin):
 

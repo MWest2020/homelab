@@ -66,6 +66,15 @@ data:
   # netnl-bazibo-watch (bazibo-watch-cronjob.yaml) mails this address once per
   # transaction whose code was not delivered within 15 minutes.
   NETNL_BAZIBO_ALERT_TO: "mark@westerweel.work"
+  # Sender of the buyer's code mail (internetnl-cli add-bazibo-mail-identity;
+  # Mark 27 Nov 2026: Bazibo mails come from hallo@bazibo.nl). Interim: no
+  # NETNL_BAZIBO_SMTP_HOST, so the mail goes through Soverin (NETNL_SMTP_* in
+  # netnl-bridge) as "Bazibo <mark@westerweel.work>" (Soverin refuses a
+  # foreign From), with replies to the bazibo.nl forwarder. The switch to
+  # mail.bazibo.nl is one Secret patch (scripts/switch-bazibo-smtp.sh), see
+  # docusaurus/docs/runbooks/bazibo-nl.md. Keep NETNL_BAZIBO_SMTP_* OUT of
+  # this ConfigMap: the switch writes them to the Secret all at once.
+  NETNL_BAZIBO_MAIL_REPLY_TO: "hallo@bazibo.nl"
 
   NETNL_DB: "/data/netnl.sqlite3"
   NETNL_HOST: "0.0.0.0"
