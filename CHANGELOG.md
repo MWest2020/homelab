@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-27 (4) — netnl naar sha-72778f5: mail logt in met precies één AUTH
+
+### Wat & waarom
+- Image naar `internetnl-cli:sha-72778f5@sha256:92101eff…` (internetnl-cli #18): de
+  mailverzender stuurt per mail één AUTH (PLAIN na STARTTLS, LOGIN alleen als PLAIN
+  ontbreekt) in plaats van `smtplib.login()`, dat na elke mislukking het volgende
+  mechanisme probeert (CRAM-MD5 eerst). Voorkomt mislukte logins per mail bij Plesk
+  (mail.bazibo.nl) en daarmee een fail2ban-blokkade bij Yourhosting. Geldt voor de
+  Soverin-relay en de Bazibo-relay. Deployment en de drie CronJobs.
+
 ## 2026-11-27 (3) — netnl naar sha-11da910: Bazibo via "support created"
 
 ### Wat & waarom
