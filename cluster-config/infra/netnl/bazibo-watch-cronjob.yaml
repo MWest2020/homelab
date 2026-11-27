@@ -1,0 +1,54 @@
+# Bazibo watch (internetnl-cli `netnl-admin bazibo watch`, Mark 27 Nov 2026:
+# "geen zin in ad hoc oplossingen"): every 5 minutes, one mail to
+# NETNL_BAZIBO_ALERT_TO per transaction that qualified for a Bazibo code and
+# has none delivered after 15 minutes (also failed, parked, undeliverable).
+# Never the buyer's address or the code. Same image, same volume as the
+# facade, like netnl-prune.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: netnl-bazibo-watch
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: watch
+              image: ghcr.io/mwest2020/internetnl-cli:sha-eca8fff@sha256:532aa76b68775388612cbc752b55e137ea00bfc62fd83dcd31d1d74a40412c7e
+              imagePullPolicy: IfNotPresent
+              command: ["netnl-admin", "bazibo", "watch"]
+              env:
+                - { name: HOME, value: /tmp }
+              envFrom:
+                - configMapRef: { name: netnl-config }
+                - secretRef:    { name: netnl-upstream }
+                # The Bazibo key and the SMTP settings (the alert is mailed).
+                - secretRef:    { name: netnl-bridge }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: data, mountPath: /data }
+                - { name: tmp,  mountPath: /tmp }
+              resources:
+                requests: { cpu: "10m", memory: "64Mi" }
+                limits:   { cpu: "250m", memory: "128Mi" }
+          volumes:
+            - name: data
+              persistentVolumeClaim: { claimName: netnl-data }
+            - name: tmp
+              emptyDir: {}

@@ -69,7 +69,8 @@ Bazibo is dormant until `NETNL_BAZIBO_EXTRA_ID` is set in `configmap.yaml`
 3. Confirm Tailscale Funnel is enabled for the tailnet (ACL `funnel` node
    attribute for the operator tag, HTTPS/MagicDNS on). `funnel.yaml` requests
    the public endpoint; the operator provisions `https://netnl.<tailnet>.ts.net`.
-4. Bump the image in `deployment.yaml` / `prune-cronjob.yaml` when a new
+4. Bump the image in `deployment.yaml`, `prune-cronjob.yaml`, `measure-cronjob.yaml`
+   and `bazibo-watch-cronjob.yaml` when a new
    `sha-<short>` is published by the internetnl-cli image workflow. The image
    is pinned by digest (`sha-<short>@sha256:...`); resolve the new digest with
    `docker buildx imagetools inspect ghcr.io/mwest2020/internetnl-cli:sha-<short>`.
@@ -88,3 +89,12 @@ it must work unchanged (only `INTERNETNL_*` differ).
 
 `netnl-prune` (CronJob, every 10 min) clears expired requests, stale
 `reserving` rows and old audit rows. Cadence bounds the reserving grace.
+
+## Bazibo watch
+
+`netnl-bazibo-watch` (CronJob, every 5 min) runs `netnl-admin bazibo watch`:
+one mail to `NETNL_BAZIBO_ALERT_TO` (mark@westerweel.work) per transaction
+that qualified for a Bazibo code and has none delivered after 15 minutes
+("Bazibo-code niet verstuurd voor transactie <txn> — controleer"). Fix with
+the hand issue in the mail; it never sends a second code for the same
+transaction. See internetnl-cli `docs/how-to/supporter-webhook.md`.
