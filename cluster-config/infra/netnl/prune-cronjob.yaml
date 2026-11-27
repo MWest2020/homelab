@@ -25,7 +25,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: prune
-              image: ghcr.io/mwest2020/internetnl-cli:sha-c663333@sha256:65925190e57b36e029581a6f13521c8e6403e9a602ffd3c82690e006d7e1fc78
+              image: ghcr.io/mwest2020/internetnl-cli:sha-847ac83@sha256:58ff07aeb30dd6e1c82e32e8ae34915fc3e08c6e22c4763b2b3f369bf3480461
               imagePullPolicy: IfNotPresent
               command: ["netnl-admin", "prune"]
               env:
@@ -33,6 +33,11 @@ spec:
               envFrom:
                 - configMapRef: { name: netnl-config }
                 - secretRef:    { name: netnl-upstream }
+                # Same opt-in secret as the Deployment: netnl-admin loads the
+                # full settings, and once NETNL_BAZIBO_EXTRA_ID is in the
+                # ConfigMap a run without the Bazibo key would refuse to
+                # start (half-config guard).
+                - secretRef:    { name: netnl-bridge, optional: true }
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
