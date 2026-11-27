@@ -13,7 +13,9 @@
 #   scripts/switch-bazibo-smtp.sh             # switch (needs a login-ok from check-bazibo-smtp.sh --login, < 24 h)
 #   scripts/switch-bazibo-smtp.sh --rollback  # back to the interim Soverin path
 #
-# Runbook: docusaurus/docs/runbooks/bazibo-nl.md, "Switch Bazibo mail to mail.bazibo.nl".
+#   --force skips the login-ok check (only after a deliberate decision).
+#
+# Runbook: docusaurus/docs/runbooks/bazibo-nl.md, "Bazibo code mail from netnl".
 set -euo pipefail
 
 MODE=switch
@@ -22,7 +24,7 @@ for arg in "$@"; do
     case "$arg" in
         --rollback) MODE=rollback ;;
         --force) FORCE=1 ;;
-        -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
         *) echo "unknown argument: $arg" >&2; exit 64 ;;
     esac
 done
@@ -61,5 +63,10 @@ kubectl -n netnl rollout restart deploy/netnl >/dev/null
 kubectl -n netnl rollout status deploy/netnl --timeout=180s'
 
 # shellcheck disable=SC2029
-ssh jumpy "MODE=$MODE bash -c $(printf %q "$REMOTE")"
+if ! ssh jumpy "MODE=$MODE bash -c $(printf %q "$REMOTE")"; then
+    # The Deployment is Recreate: a pod that does not come up means the whole facade is down.
+    echo "FAILED ($MODE): netnl may be down. Check: ssh jumpy kubectl -n netnl get pods" >&2
+    [ "$MODE" = switch ] && echo "Back to Soverin: $0 --rollback" >&2
+    exit 1
+fi
 echo "done ($MODE). Verify with one hand-issued code (runbook bazibo-nl)."

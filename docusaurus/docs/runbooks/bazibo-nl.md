@@ -110,15 +110,16 @@ Three things block it, all on Mark's side:
    matching key, mails from mail.bazibo.nl fail DKIM and lean on SPF alone (`a` covers
    92.63.174.175).
 
-When 1 and 2 are done, from agent-lxc:
+When 1 and 2 are done, from agent-lxc in the root of the homelab repo:
 
 ```sh
 scripts/check-bazibo-smtp.sh --login   # ONE connection: reachable, STARTTLS, one login
 scripts/switch-bazibo-smtp.sh          # one Secret patch + rollout restart
 ```
 
-- `check-bazibo-smtp.sh` makes exactly one IPv4 connection from inside the netnl pod. It
-  refuses to run again for the same host within 6 hours. **Never loop it.** Yourhosting's
+- `check-bazibo-smtp.sh` makes exactly one IPv4 connection from inside the netnl pod, with
+  one `AUTH PLAIN` under `--login`. It reads the credentials before it connects. It refuses
+  to run again for the same host within 6 hours (the guard lives on agent-lxc only). **Never loop it.** Yourhosting's
   firewall blocks us for repeated connections.
 - `switch-bazibo-smtp.sh` writes `NETNL_BAZIBO_SMTP_HOST/PORT/MODE/USERNAME/PASSWORD/FROM`
   into the Secret `netnl-bridge` in one merge patch. The password comes from OpenBao on
@@ -128,14 +129,17 @@ scripts/switch-bazibo-smtp.sh          # one Secret patch + rollout restart
 Verify with one hand-issued code. It is mailed to Mark and never shown:
 
 ```sh
-ssh jumpy 'kubectl -n netnl exec deploy/netnl -- netnl-admin bazibo mint --mail mark@westerweel.work --ref test-mailfrom-<date>'
+ssh jumpy 'kubectl -n netnl exec deploy/netnl -- netnl-admin bazibo mint --mail mark@westerweel.work --ref test-mailfrom-<yyyymmdd-hhmm>'
 ```
 
-In Gmail, *Show original* should show `From: Bazibo <hallo@bazibo.nl>`,
+The ref is the idempotency key: a repeated ref mails nothing, so use a new one per test.
+The mail lands in Mark's Soverin mailbox (and in Gmail if that fetches it). View the source
+(Gmail: *Show original*). It should show `From: Bazibo <hallo@bazibo.nl>`,
 `Reply-To: hallo@bazibo.nl`, and `SPF: PASS` and `DKIM: PASS` with domain bazibo.nl. During
 the interim it shows `From: Bazibo <mark@westerweel.work>` with SPF and DKIM for
 westerweel.work (Soverin). The test code is a real code. Revoke it afterwards:
-`netnl-admin bazibo revoke <code_id>`, where the code id is printed by `mint`.
+`ssh jumpy 'kubectl -n netnl exec deploy/netnl -- netnl-admin bazibo revoke <code_id>'`, where
+the code id is printed by `mint`.
 
 ## Checks
 

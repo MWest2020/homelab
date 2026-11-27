@@ -16,7 +16,7 @@
 # Exit: 0 reachable (and login ok with --login), 1 unreachable, 2 SMTP/TLS
 # problem, 3 refused by the 6-hour guard, 4 login refused.
 # Nothing secret is printed: no password, no server banner text.
-# Runbook: docusaurus/docs/runbooks/bazibo-nl.md, "Switch Bazibo mail to mail.bazibo.nl".
+# Runbook: docusaurus/docs/runbooks/bazibo-nl.md, "Bazibo code mail from netnl".
 set -euo pipefail
 
 HOST=mail.bazibo.nl
@@ -26,11 +26,11 @@ FORCE=0
 GAP=${BAZIBO_SMTP_CHECK_MIN_GAP:-21600}
 while [ $# -gt 0 ]; do
     case "$1" in
-        --host) HOST=$2; shift 2 ;;
-        --port) PORT=$2; shift 2 ;;
+        --host) HOST=${2:?--host needs a value}; shift 2 ;;
+        --port) PORT=${2:?--port needs a value}; shift 2 ;;
         --login) LOGIN=1; shift ;;
         --force) FORCE=1; shift ;;   # only after a deliberate decision; still one attempt
-        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 64 ;;
     esac
 done
@@ -57,6 +57,13 @@ touch "$STAMP"   # before the attempt: a crash still counts as an attempt
 read -r -d '' PY <<'EOF' || true
 import smtplib, socket, ssl, sys
 host, port, login = sys.argv[1], int(sys.argv[2]), sys.argv[3] == "1"
+user = password = ""
+if login:
+    # Read before connecting: no credentials, no connection.
+    user = sys.stdin.readline().strip()
+    password = sys.stdin.readline().rstrip("\n")
+    if not user or not password:
+        print("NO CREDENTIALS read from OpenBao; nothing contacted"); sys.exit(2)
 try:
     ipv4 = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
 except OSError as exc:
@@ -72,6 +79,8 @@ try:
     code, _ = conn.connect(host, port)
 except (OSError, smtplib.SMTPException) as exc:
     print(f"UNREACHABLE {host}:{port} via {ipv4} ({type(exc).__name__})"); sys.exit(1)
+if code != 220:
+    print(f"REFUSED {host}:{port} via {ipv4} (greeting {code})"); conn.close(); sys.exit(2)
 print(f"REACHABLE {host}:{port} via {ipv4} (greeting {code})")
 rc = 0
 try:
@@ -83,10 +92,11 @@ try:
     print(f"STARTTLS ok (certificate valid for {host})")
     print("AUTH offered:", conn.esmtp_features.get("auth", "(none)").strip())
     if login:
-        user = sys.stdin.readline().strip()
-        password = sys.stdin.readline().rstrip("\n")
+        # One AUTH PLAIN, not login(): that tries every offered mechanism in
+        # turn, so a wrong password would count as several failures.
+        conn.user, conn.password = user, password
         try:
-            conn.login(user, password)
+            conn.auth("PLAIN", conn.auth_plain)
             print(f"LOGIN ok as {user}")
         except smtplib.SMTPAuthenticationError as exc:
             print(f"LOGIN refused for {user} (SMTP {exc.smtp_code})"); rc = 4
@@ -100,14 +110,16 @@ EOF
 # into the pod; they never touch a file, an argument or this terminal.
 # shellcheck disable=SC2016  # expanded on jumpy, not here
 REMOTE='set -euo pipefail
-creds() {
+U= P=
+if [ "$LOGIN" = 1 ]; then
+  # Both values first, so a failed OpenBao read never opens a connection.
   R=$(kubectl -n openbao get secret openbao-keys -o jsonpath="{.data.root_token}" | base64 -d)
   B="kubectl -n openbao exec -i openbao-0 -- env BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=$R bao"
-  $B kv get -field=address kv/westerweel/bazibo-mail; echo
-  $B kv get -field=password kv/westerweel/bazibo-mail; echo
-}
-if [ "$LOGIN" = 1 ]; then creds; else true; fi \
-  | kubectl -n netnl exec -i deploy/netnl -- python3 -c "$PY" "$HOST" "$PORT" "$LOGIN"'
+  U=$($B kv get -field=address kv/westerweel/bazibo-mail)
+  P=$($B kv get -field=password kv/westerweel/bazibo-mail)
+  if [ -z "$U" ] || [ -z "$P" ]; then echo "NO CREDENTIALS read from OpenBao; nothing contacted"; exit 2; fi
+fi
+printf "%s\n%s\n" "$U" "$P" | kubectl -n netnl exec -i deploy/netnl -- python3 -c "$PY" "$HOST" "$PORT" "$LOGIN"'
 
 rc=0
 # shellcheck disable=SC2029  # the values are meant to expand here
