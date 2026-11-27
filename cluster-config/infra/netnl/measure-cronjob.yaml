@@ -117,7 +117,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           initContainers:
             - name: measure
-              image: ghcr.io/mwest2020/internetnl-cli:sha-a8057e6@sha256:54c4fd9ab80f6a6356b722d8922df56e8ece044dd5730cdb350c84ccaab3b17d
+              image: ghcr.io/mwest2020/internetnl-cli:sha-72778f5@sha256:92101eff6792bb0576511540b803775c6b0140f1eddee3a1995f47c04d7ba92e
               imagePullPolicy: IfNotPresent
               command: ["sh", "/scripts/measure.sh"]
               env:
