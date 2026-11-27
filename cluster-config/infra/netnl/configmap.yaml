@@ -40,8 +40,8 @@ data:
   # Bazibo web unlock codes (internetnl-cli openspec add-bazibo-unlock).
   # Signing key + device salt live ONLY in the out-of-band Secret
   # `netnl-bridge` (NETNL_BAZIBO_SIGNING_KEY, NETNL_BAZIBO_DEVICE_SALT).
-  # DORMANT until the BMC Extra exists: /bazibo/activate answers 503 "off"
-  # and Extra purchases are ignored. Switching on is this one line (the
+  # Without NETNL_BAZIBO_EXTRA_ID the feature is dormant: /bazibo/activate
+  # answers 503 "off" and Extra purchases are ignored. It is set below (the
   # Extra's numeric id from buymeacoffee.com/<page>/e/<id>):
   #   NETNL_BAZIBO_EXTRA_ID: "<id>"
   # The BMC webhook keeps "support created" ticked (the only event this
@@ -54,6 +54,8 @@ data:
   # Startup refuses a signing key that does not match this public key.
   NETNL_BAZIBO_PUBLIC_KEY: "Dpnm6nFTwx1A-kFUf7IMoz4SVUF-O_biI-edjvzpP_4"
   NETNL_BAZIBO_MIN_AMOUNT: "1"
+  # ON since 27 Nov 2026 (Mark: "ja, bouw maar"; Bazibo web unlock live in bazibo #125).
+  NETNL_BAZIBO_EXTRA_ID: "603413"
 
   NETNL_DB: "/data/netnl.sqlite3"
   NETNL_HOST: "0.0.0.0"
