@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Switch Bazibo's code mails from the interim Soverin path to mail.bazibo.nl.
+# Switch Bazibo's code mails from the interim Soverin path to Yourhosting's
+# outgoing server mail.yourhosting.nl:465 (implicit TLS) as hallo@bazibo.nl.
 #
 # Interim (since 27 Nov 2026): no NETNL_BAZIBO_SMTP_HOST, so the code mail
 # leaves through Soverin as "Bazibo <mark@westerweel.work>" with
@@ -29,7 +30,7 @@ for arg in "$@"; do
     esac
 done
 
-OK=${XDG_STATE_HOME:-$HOME/.local/state}/check-bazibo-smtp/mail.bazibo.nl.login-ok
+OK=${XDG_STATE_HOME:-$HOME/.local/state}/check-bazibo-smtp/mail.yourhosting.nl.login-ok
 if [ "$MODE" = switch ] && [ "$FORCE" != 1 ]; then
     if [ ! -f "$OK" ] || [ $(( $(date +%s) - $(stat -c %Y "$OK") )) -gt 86400 ]; then
         echo "refused: no successful 'scripts/check-bazibo-smtp.sh --login' in the last 24 h." >&2
@@ -51,9 +52,9 @@ import base64, json, sys
 d = json.load(sys.stdin)[\"data\"][\"data\"]
 e = lambda v: base64.b64encode(v.encode()).decode()
 print(json.dumps({\"data\": {
-    \"NETNL_BAZIBO_SMTP_HOST\": e(\"mail.bazibo.nl\"),
-    \"NETNL_BAZIBO_SMTP_PORT\": e(\"587\"),
-    \"NETNL_BAZIBO_SMTP_MODE\": e(\"starttls\"),
+    \"NETNL_BAZIBO_SMTP_HOST\": e(\"mail.yourhosting.nl\"),
+    \"NETNL_BAZIBO_SMTP_PORT\": e(\"465\"),
+    \"NETNL_BAZIBO_SMTP_MODE\": e(\"ssl\"),
     \"NETNL_BAZIBO_SMTP_USERNAME\": e(d[\"address\"]),
     \"NETNL_BAZIBO_SMTP_PASSWORD\": e(d[\"password\"]),
     \"NETNL_BAZIBO_SMTP_FROM\": e(d[\"address\"]),

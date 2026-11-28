@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # Can the netnl pod reach Bazibo's mail relay? ONE connection attempt, ever.
 #
-# Bazibo's code mails should leave through mail.bazibo.nl:587 (Yourhosting
-# Plesk, 92.63.174.175). Yourhosting's firewall blocked the home IP on
-# 26 Nov 2026 after repeated connections, so this script makes exactly one
-# TCP connection (IPv4 only, no retry, 10 s timeout) from inside the netnl
-# pod, the path the app itself uses, and then refuses to run again for the
-# same host for 6 hours. NEVER put it in a loop, a CronJob or a watch.
+# Bazibo's code mails leave through mail.yourhosting.nl:465 (implicit TLS),
+# the outgoing server Plesk names for hallo@bazibo.nl ("Instellingen
+# mailprogramma"). NOT mail.bazibo.nl: that is web-1066 (92.63.174.175),
+# which rejects 465/587 from outside and has dropped our home IPv4 since
+# 25/26 Nov 2026 after repeated connections. Yourhosting's firewalls punish
+# repeated connections, so this script makes exactly one TCP connection
+# (IPv4 only, no retry, 10 s timeout) from inside the netnl pod, the path
+# the app itself uses, and then refuses to run again for the same host for
+# 6 hours. NEVER put it in a loop, a CronJob or a watch.
 #
-#   scripts/check-bazibo-smtp.sh                     # reachability + STARTTLS + AUTH offered
+#   scripts/check-bazibo-smtp.sh                     # reachability + TLS + AUTH offered
 #   scripts/check-bazibo-smtp.sh --login             # same connection, plus one login as
 #                                                    # hallo@bazibo.nl (OpenBao kv/westerweel/bazibo-mail)
-#   scripts/check-bazibo-smtp.sh --host smtp.soverin.net   # test the script against another relay
+#   scripts/check-bazibo-smtp.sh --host smtp.soverin.net --port 587   # test against another relay
+#
+# Port 465 means implicit TLS (SMTP_SSL), any other port STARTTLS.
 #
 # Exit: 0 reachable (and login ok with --login), 1 unreachable, 2 SMTP/TLS
 # problem, 3 refused by the 6-hour guard, 4 login refused.
@@ -19,8 +24,8 @@
 # Runbook: docusaurus/docs/runbooks/bazibo-nl.md, "Bazibo code mail from netnl".
 set -euo pipefail
 
-HOST=mail.bazibo.nl
-PORT=587
+HOST=mail.yourhosting.nl
+PORT=465
 LOGIN=0
 FORCE=0
 GAP=${BAZIBO_SMTP_CHECK_MIN_GAP:-21600}
@@ -30,14 +35,14 @@ while [ $# -gt 0 ]; do
         --port) PORT=${2:?--port needs a value}; shift 2 ;;
         --login) LOGIN=1; shift ;;
         --force) FORCE=1; shift ;;   # only after a deliberate decision; still one attempt
-        -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 64 ;;
     esac
 done
 case "$HOST" in *[!A-Za-z0-9.-]*|"") echo "bad host: $HOST" >&2; exit 64 ;; esac
 case "$PORT" in *[!0-9]*|"") echo "bad port: $PORT" >&2; exit 64 ;; esac
-if [ "$LOGIN" = 1 ] && [ "$HOST" != mail.bazibo.nl ]; then
-    echo "--login only for mail.bazibo.nl (the credentials are hallo@bazibo.nl's)" >&2; exit 64
+if [ "$LOGIN" = 1 ] && [ "$HOST" != mail.yourhosting.nl ]; then
+    echo "--login only for mail.yourhosting.nl (the credentials are hallo@bazibo.nl's)" >&2; exit 64
 fi
 
 STATE=${XDG_STATE_HOME:-$HOME/.local/state}/check-bazibo-smtp
@@ -69,14 +74,24 @@ try:
 except OSError as exc:
     print(f"UNRESOLVED {host} ({type(exc).__name__})"); sys.exit(1)
 
+implicit = port == 465   # 465: TLS from the first byte; otherwise STARTTLS
+ctx = ssl.create_default_context()
+
 class OneShot(smtplib.SMTP):
     def _get_socket(self, h, p, timeout):
         return socket.create_connection((ipv4, p), timeout)  # one address, one try
 
-conn = OneShot(timeout=10)
-conn._host = host   # the name STARTTLS verifies the certificate against
+class OneShotSSL(smtplib.SMTP_SSL):
+    def _get_socket(self, h, p, timeout):
+        raw = socket.create_connection((ipv4, p), timeout)    # one address, one try
+        return self.context.wrap_socket(raw, server_hostname=host)
+
+conn = OneShotSSL(timeout=10, context=ctx) if implicit else OneShot(timeout=10)
+conn._host = host   # the name TLS verifies the certificate against
 try:
     code, _ = conn.connect(host, port)
+except ssl.SSLError as exc:
+    print(f"TLS problem {host}:{port} via {ipv4} ({type(exc).__name__})"); sys.exit(2)
 except (OSError, smtplib.SMTPException) as exc:
     print(f"UNREACHABLE {host}:{port} via {ipv4} ({type(exc).__name__})"); sys.exit(1)
 if code != 220:
@@ -85,11 +100,14 @@ print(f"REACHABLE {host}:{port} via {ipv4} (greeting {code})")
 rc = 0
 try:
     conn.ehlo()
-    if not conn.has_extn("starttls"):
-        print("NO STARTTLS offered"); conn.quit(); sys.exit(2)
-    conn.starttls(context=ssl.create_default_context())
-    conn.ehlo()
-    print(f"STARTTLS ok (certificate valid for {host})")
+    if implicit:
+        print(f"TLS ok (implicit, certificate valid for {host})")
+    else:
+        if not conn.has_extn("starttls"):
+            print("NO STARTTLS offered"); conn.quit(); sys.exit(2)
+        conn.starttls(context=ctx)
+        conn.ehlo()
+        print(f"STARTTLS ok (certificate valid for {host})")
     print("AUTH offered:", conn.esmtp_features.get("auth", "(none)").strip())
     if login:
         # One AUTH PLAIN, not login(): that tries every offered mechanism in
