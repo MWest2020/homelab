@@ -653,7 +653,7 @@ def ww_ingest_gate(s: httpx.Client | None, why: str = "") -> Check:
     if _app_403(r):
         ch.result = "held"
         ch.summary = "Ingest weigert een ingelogde gebruiker zonder leesrecht (403 van Wordsworth)."
-    elif r.status_code == 422:
+    elif r.status_code == 422 or r.is_success:
         ch.result = "broken"
         ch.summary = "Een ingelogde gebruiker zonder leesrecht komt langs de poort van ingest."
     else:
@@ -763,10 +763,12 @@ def run() -> list[dict]:
             cfg = None
             checks.append(Check("kc-config-read", "iam", "Keycloak-config lezen", summary=str(e)[:200]))
         s, ids, why = None, None, ""
+        # ww_reveal and ww_idor need both; ww_ingest_gate only the session.
+        # A failure is reported by those checks as skipped.
         try:
-            ids = _ww_sample_ids()
             s = selfscan_session()
-        except Exception as e:  # noqa: BLE001 - the two checks report it as skipped
+            ids = _ww_sample_ids()
+        except Exception as e:  # noqa: BLE001
             why = f"{type(e).__name__}: {str(e)[:150]}"
         steps = [
             lambda: kc_admin_direct(c),
