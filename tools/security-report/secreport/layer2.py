@@ -7,8 +7,9 @@ brute force beyond a handful of tries, test accounts only. In practice:
   all, for usernames that do not exist, all named `selfscan-*`); one
   unauthenticated POST to /reveal that the proxy must stop before the app;
   one browser login as the test user (homelab#85, at most one submit per
-  form, never retried); and as that user four POSTs chosen so that they
-  can't write even if the gate they test were missing (see ww_reveal).
+  form, never retried); and as that user five POSTs chosen so that they
+  can't write even if the gate they test were missing (see ww_reveal and
+  ww_ingest_gate).
 - Keycloak config is READ via kcadm inside the pod; nothing is written.
 - Results: `held` (the control stopped us), `broken` (we got through: a
   finding), `exposed` (reachable, by design or not; context in the note),
@@ -636,6 +637,31 @@ def ww_reveal(c: httpx.Client, s: httpx.Client | None, ids: dict | None, why: st
     return ch
 
 
+def ww_ingest_gate(s: httpx.Client | None, why: str = "") -> Check:
+    """wordsworth#526, fixed in #528: POST /ingest requires the corpus-read
+    list. As the test user, one POST without a `files` field, so nothing can
+    be stored even if the gate were missing: Wordsworth's own 403 = gated,
+    422 = validation reached (the gate is missing)."""
+    ch = Check("ww-ingest-gate", "wordsworth", "Ingest alleen voor wie op de corpus-leeslijst staat",
+               repo="wordsworth")
+    if s is None or not _session_ok(s):
+        ch.summary = f"Niet getest: {why or 'Wordsworth herkent de sessie van de testgebruiker niet.'}"
+        return ch
+    time.sleep(0.4)
+    r = s.post(f"{WW}/ingest", files={"selfscan-nofiles": ("selfscan.txt", b"", "text/plain")})
+    ch.private = [f"POST /ingest zonder files-veld (testgebruiker) → {r.status_code} {r.text[:60]!r}"]
+    if _app_403(r):
+        ch.result = "held"
+        ch.summary = "Ingest weigert een ingelogde gebruiker zonder leesrecht (403 van Wordsworth)."
+    elif r.status_code == 422 or r.is_success:
+        ch.result = "broken"
+        ch.summary = "Een ingelogde gebruiker zonder leesrecht komt langs de poort van ingest."
+    else:
+        ch.result = "exposed"
+        ch.summary = f"Niet door Wordsworth zelf geweigerd: {r.status_code}."
+    return ch
+
+
 def ww_open_redirect(c) -> Check:
     ch = Check("ww-proxy-open-redirect", "wordsworth", "Geen open redirect via oauth2-proxy (rd=)", repo="homelab")
     bad = []
@@ -737,10 +763,12 @@ def run() -> list[dict]:
             cfg = None
             checks.append(Check("kc-config-read", "iam", "Keycloak-config lezen", summary=str(e)[:200]))
         s, ids, why = None, None, ""
+        # ww_reveal and ww_idor need both; ww_ingest_gate only the session.
+        # A failure is reported by those checks as skipped.
         try:
-            ids = _ww_sample_ids()
             s = selfscan_session()
-        except Exception as e:  # noqa: BLE001 - the two checks report it as skipped
+            ids = _ww_sample_ids()
+        except Exception as e:  # noqa: BLE001
             why = f"{type(e).__name__}: {str(e)[:150]}"
         steps = [
             lambda: kc_admin_direct(c),
@@ -749,6 +777,7 @@ def run() -> list[dict]:
             lambda: kc_path_filter(c, cfg), lambda: kc_master_public(c, cfg), lambda: kc_xff(c),
             lambda: ww_unauth(c), lambda: ww_path_tricks(c), lambda: ww_header_spoof(c),
             lambda: ww_reveal(c, s, ids, why), lambda: ww_idor(s, ids, why),
+            lambda: ww_ingest_gate(s, why),
             lambda: ww_open_redirect(c), lambda: ww_cors(c), ww_direct_api,
         ]
         try:
