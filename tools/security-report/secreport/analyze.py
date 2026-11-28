@@ -22,6 +22,7 @@ L2_SEVERITY = {
     "ww-proxy-path-bypass": "high",
     "ww-proxy-header-spoof": "high",
     "ww-reveal-without-grant": "high",
+    "ww-ingest-gate": "medium",
     "ww-direct-api": "high",
     "wanderer-tunnel-path-filter": "high",
     "kc-open-redirect": "medium",
