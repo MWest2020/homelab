@@ -19,9 +19,9 @@ own domain. Nothing here runs on the homelab cluster; this page says where it do
 | Deploy | GitHub webhook (push) on `MWest2020/bazibo` → Plesk pulls `main` and publishes automatically | hook id 709372838; deliveries visible with `gh api repos/MWest2020/bazibo/hooks/709372838/deliveries` |
 | TLS | Let's Encrypt via Plesk **SSL It!**: `bazibo.nl`, `www.bazibo.nl`, `mail.bazibo.nl` | renews itself 30 days before expiry (first one valid to 2027-02-07) |
 | Redirects | HTTP → HTTPS (301), `www` → `bazibo.nl` (301, "Voorkeursdomein") | Plesk hosting settings |
-| Mail | MX `primary/fallback.yourfilter.nl` → Plesk; **hallo@bazibo.nl** is a forwarder (no mailbox) to mark@westerweel.work, with alias **hello@bazibo.nl** (Plesk: Mail → hallo@bazibo.nl → E-mailaliassen, added 2026-11-09) | tested 2026-11-09 |
+| Mail | MX `primary/fallback.yourfilter.nl` → Plesk; **hallo@bazibo.nl** is a mailbox (1 GB, since 2026-11-28) that also forwards to mark@westerweel.work, with alias **hello@bazibo.nl** (Plesk: Mail → hallo@bazibo.nl → E-mailaliassen, added 2026-11-09) | tested 2026-11-09 |
 | DKIM / DMARC | signing on in Plesk (selector `default`); `_dmarc`, `_domainkey` and `default._domainkey` published | `default._domainkey` seen in DNS on 2026-11-27 (below) |
-| Code mails (netnl) | the netnl facade mails Bazibo unlock codes; interim via Soverin, target `mail.bazibo.nl:587` | [below](#bazibo-code-mail-from-netnl) |
+| Code mails (netnl) | the netnl facade mails Bazibo unlock codes as `hallo@bazibo.nl` via `mail.yourhosting.nl:465` (since 2026-11-28) | [below](#bazibo-code-mail-from-netnl) |
 | Second copy of the site | GitHub Pages `https://mwest2020.github.io/bazibo/` (CI in the repo) | independent of Yourhosting |
 
 The provider's placeholder page is kept in `httpdocs/_yourhosting-default/` (no longer served).
@@ -57,10 +57,10 @@ default._domainkey.bazibo.nl.  TXT  "v=DKIM1; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A
 
 The key parses as an RSA-2048 public key. The value has runs of spaces inside the base64
 (`…a0B   QVI3…`, `…Vlu   BWDII…`), most likely from copying it out of Plesk. RFC 6376 allows
-whitespace in `p=` and verifiers strip it, so it should verify. Still to check (Plesk was
-unreachable on 2026-11-27, see below): that this key equals the one in Plesk
-(Mail-instellingen › bazibo.nl › Het instellen van externe DNS). Join the quoted chunks of the
-`dig` answer and drop the spaces before you compare; DNS splits long TXT values into
+whitespace in `p=` and verifiers strip it, so it should verify. Checked on 2026-11-28: it
+equals the key in Plesk (Mail-instellingen › bazibo.nl › Het instellen van externe DNS), and a
+test mail got `dkim=pass header.d=bazibo.nl`. To check again after a key change, join the
+quoted chunks of the `dig` answer and drop the spaces before you compare; DNS splits long TXT values into
 255-character strings. If they differ, replace the record in *Mijn Yourhosting*
 (Domeinnamen → bazibo.nl → DNS beheer: edit the `default._domainkey` TXT record, paste the Plesk
 value without quotes or spaces, "Wijzigingen opslaan").
@@ -76,51 +76,63 @@ those mails must come from **hallo@bazibo.nl**. Only the code mail uses this ide
 netnl supporter-key mail, the operator notification and the watch alert stay on the bridge's
 `NETNL_SMTP_*` (Soverin, mark@westerweel.work).
 
-### Now (interim): Soverin, Bazibo name, Bazibo reply address
+### Now: mail.yourhosting.nl:465, From `Bazibo <hallo@bazibo.nl>` (since 2026-11-28)
 
-- No `NETNL_BAZIBO_SMTP_HOST`, so the code mail goes through Soverin.
-- From: `Bazibo <mark@westerweel.work>`. The address falls back to `NETNL_SMTP_FROM`, and
-  the display name defaults to "Bazibo".
-- `NETNL_BAZIBO_MAIL_REPLY_TO: hallo@bazibo.nl` is in the ConfigMap, so a buyer's reply
-  reaches the forwarder and then Mark.
-- Soverin sends only as addresses on its own account. A custom domain has to be added to
-  the account, with its MX/SPF/DKIM pointing at Soverin. bazibo.nl's mail lives at
-  Yourhosting, so `From: hallo@bazibo.nl` through Soverin was not tried.
+- `NETNL_BAZIBO_SMTP_HOST=mail.yourhosting.nl`, port 465, mode `ssl` (implicit TLS), login
+  and From `hallo@bazibo.nl` (password from OpenBao `kv/westerweel/bazibo-mail`), all in the
+  Secret `netnl-bridge`, written by `scripts/switch-bazibo-smtp.sh`.
+- `mail.yourhosting.nl` is the outgoing server Plesk itself names for the address (Mail →
+  E-mailadressen → *Instellingen mailprogramma*). It is Yourhosting's mail proxy
+  (`mail-yourhosting.prx.route25.eu`, 109.106.178.x / 109.106.179.x), **not** web-1066.
+- **Not `mail.bazibo.nl:587`.** That name points at web-1066 (92.63.174.175), which rejects
+  465/587/993 from outside (ICMP "prohibited", seen on 2026-11-28 from a GitHub runner and
+  over IPv6 from agent-lxc). The first design aimed there and could never have worked.
+- Test on 2026-11-28 (ref `test-hallo-20261128`, revoked afterwards): delivered via
+  `se17-yh.route25.eu`, `From: Bazibo <hallo@bazibo.nl>`, `Reply-To: hallo@bazibo.nl`,
+  `dkim=pass header.d=bazibo.nl`, `spf=pass`, `dmarc=pass`.
+- The mailbox keeps a copy of every forwarded mail (forwarding stays on), so empty it now
+  and then via webmail; 1 GB is plenty for years of code mails and DMARC reports.
 
-### Target: mail.bazibo.nl:587, From `Bazibo <hallo@bazibo.nl>`
+Rollback to the old interim (Soverin as `Bazibo <mark@westerweel.work>`, Reply-To
+hallo@bazibo.nl from the ConfigMap): `scripts/switch-bazibo-smtp.sh --rollback`.
 
-Three things block it, all on Mark's side:
+### Why Yourhosting looked unreachable (25-28 Nov 2026)
 
-1. **Yourhosting firewall.** Since 26 Nov 2026, 92.63.174.175 (web/mail/Plesk) refuses the
-   home IP **217.63.209.65**. TCP 587 times out from the cluster. Ask Yourhosting support to
-   whitelist 217.63.209.65 for web-1066.yourhosting.nl (SMTP submission 587 and Plesk 8443).
-   Mention that the block followed repeated connection attempts from that address, which
-   have stopped.
-2. **SMTP login for hallo@bazibo.nl.** It is a forwarder without a mailbox. Plesk keeps such
-   an account out of its mail authorization database, so SMTP AUTH fails ("No such user …
-   in mail authorization database"). Fix: in Plesk → Mail → `hallo@bazibo.nl` → tab
-   *Algemeen*, tick **Mailbox** with a normal size (not 0 MB: a 0 MB mailbox bounces
-   incoming mail while still forwarding it), and keep *Doorsturen* to mark@westerweel.work
-   on. Copies of forwarded mail then pile up in the mailbox, so empty it now and then
-   (webmail) or give it a small size such as 100 MB. The password stays the one in
-   OpenBao. Alternative: a separate send-only mailbox. That needs a new OpenBao entry, and
-   Plesk may then refuse `From: hallo@` for another login, so enabling the mailbox is
-   simpler.
-3. **DKIM.** Compare the published `default._domainkey` key with Plesk (above). Without a
-   matching key, mails from mail.bazibo.nl fail DKIM and lean on SPF alone (`a` covers
-   92.63.174.175).
+web-1066 (92.63.174.175, site, FTP and Plesk) **drops our home IPv4 217.63.209.65**: every
+port times out from agent-lxc, jumpy and the cluster, while from a GitHub runner the same
+host answers on 21/443/8443, and its neighbour web-1065 (92.63.174.173) answers from home.
+A TCP traceroute shows our SYNs reach Yourhosting's edge (31.25.97.7) and die at the last
+hop. It started after the sslyze scan of 25 Nov (FTPS from the security report already
+timed out on 26 Nov 08:17 UTC) and was renewed by a 1-per-minute poll on the evening of
+26 Nov. It is the server's own ban (Plesk fail2ban style); a subscription user has no
+*IP Address Banning* page in Plesk, so it can only expire or be lifted by Yourhosting.
 
-When 1 and 2 are done, from agent-lxc in the root of the homelab repo:
+Why Mark saw no block: the home LAN has native Ziggo IPv6 (prefix from the router's RA),
+and his devices reach bazibo.nl over IPv6 (`2a05:1500:702:5:1c00:e8ff:fe00:2717`), which
+was never banned. The homelab hosts talked IPv4 only: agent-lxc's `net0` has no `ip6`,
+so Proxmox writes `IPv6AcceptRA = false`; the cluster pods have no IPv6 route.
+
+- From agent-lxc, Plesk and the site work over IPv6 once RA is accepted
+  (`sudo sysctl -w net.ipv6.conf.eth0.accept_ra=1`; runtime only, gone after a restart).
+  Permanent, as root on the Proxmox host: `pct set 210 -net0 <current net0>,ip6=auto`.
+- Mail no longer touches web-1066 at all (above), so the IPv4 ban does not matter for codes.
+- Still: one request at a time to bazibo.nl and ftp.bazibo.nl, never a loop. The security
+  report's FTPS pull (`secreport plesk-reset`) forces IPv4 and stays stopped until the ban
+  is gone.
+
+### Switch, verify, roll back
+
+The switch, from agent-lxc in the root of the homelab repo (done on 2026-11-28):
 
 ```sh
-scripts/check-bazibo-smtp.sh --login   # ONE connection: reachable, STARTTLS, one login
+scripts/check-bazibo-smtp.sh --login   # ONE connection: reachable, TLS, one login
 scripts/switch-bazibo-smtp.sh          # one Secret patch + rollout restart
 ```
 
 - `check-bazibo-smtp.sh` makes exactly one IPv4 connection from inside the netnl pod, with
   one `AUTH PLAIN` under `--login`. It reads the credentials before it connects. It refuses
   to run again for the same host within 6 hours (the guard lives on agent-lxc only). **Never loop it.** Yourhosting's
-  firewall blocks us for repeated connections.
+  firewalls block us for repeated connections.
 - `switch-bazibo-smtp.sh` writes `NETNL_BAZIBO_SMTP_HOST/PORT/MODE/USERNAME/PASSWORD/FROM`
   into the Secret `netnl-bridge` in one merge patch. The password comes from OpenBao on
   jumpy over stdin. It refuses without a successful `--login` check in the last 24 h.
