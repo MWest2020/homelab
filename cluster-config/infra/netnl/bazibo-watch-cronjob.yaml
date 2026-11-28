@@ -27,7 +27,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: watch
-              image: ghcr.io/mwest2020/internetnl-cli:sha-72778f5@sha256:92101eff6792bb0576511540b803775c6b0140f1eddee3a1995f47c04d7ba92e
+              image: ghcr.io/mwest2020/internetnl-cli:sha-8c38111@sha256:8440e49b49ade006155afb07bc64043ab27f4c1ba64a6a77d1a46220da9a50e2
               imagePullPolicy: IfNotPresent
               command: ["netnl-admin", "bazibo", "watch"]
               env:
