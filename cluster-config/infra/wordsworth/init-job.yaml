@@ -29,7 +29,7 @@ spec:
           # en scripts/pin_check.py in MWest2020/wordsworth.
           # sha-cf03830. api en init-job blijven op dezelfde digest, anders
           # ontbreken de kolom-migraties.
-          image: ghcr.io/mwest2020/wordsworth@sha256:610ca9052afab42ccd832e5e99b361f74b0532611b209641772def75255655fa
+          image: ghcr.io/mwest2020/wordsworth@sha256:dc21e9506ec17c33de977928a6909257dec1f2099933de954cdc25160120e5c7
           imagePullPolicy: IfNotPresent
           command: ["wordsworth-init"]
           # PreSync hook runs before the ConfigMap is synced; init_schema only
