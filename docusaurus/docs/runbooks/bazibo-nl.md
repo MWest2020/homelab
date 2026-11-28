@@ -59,8 +59,8 @@ The key parses as an RSA-2048 public key. The value has runs of spaces inside th
 (`…a0B   QVI3…`, `…Vlu   BWDII…`), most likely from copying it out of Plesk. RFC 6376 allows
 whitespace in `p=` and verifiers strip it, so it should verify. Checked on 2026-11-28: it
 equals the key in Plesk (Mail-instellingen › bazibo.nl › Het instellen van externe DNS), and a
-test mail got `dkim=pass header.d=bazibo.nl`. To check again after a key change: Join the quoted chunks of the
-`dig` answer and drop the spaces before you compare; DNS splits long TXT values into
+test mail got `dkim=pass header.d=bazibo.nl`. To check again after a key change, join the
+quoted chunks of the `dig` answer and drop the spaces before you compare; DNS splits long TXT values into
 255-character strings. If they differ, replace the record in *Mijn Yourhosting*
 (Domeinnamen → bazibo.nl → DNS beheer: edit the `default._domainkey` TXT record, paste the Plesk
 value without quotes or spaces, "Wijzigingen opslaan").
